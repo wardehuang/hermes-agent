@@ -3,7 +3,6 @@ import { type BillingBlock, skillInvocationText } from '@hermes/shared'
 
 import { extractImageRefs } from '@/lib/embedded-images'
 import { dedupeGeneratedImageEchoesInParts } from '@/lib/generated-images'
-import { dedupeGeneratedVideoEchoesInParts } from '@/lib/generated-videos'
 import { mediaDisplayLabel, mediaMarkdownHref } from '@/lib/media'
 import { normalize } from '@/lib/text'
 import { parseTodos } from '@/lib/todos'
@@ -1104,19 +1103,12 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
   })
   flushPendingTools(messages.length)
 
-  const withoutGeneratedMediaEchoes = result.map(message => {
-    if (message.role !== 'assistant') {
-      return message
-    }
-
-    return {
-      ...message,
-      parts: dedupeGeneratedVideoEchoesInParts(dedupeGeneratedImageEchoesInParts(message.parts))
-    }
-  })
+  const withoutGeneratedImageEchoes = result.map(message =>
+    message.role === 'assistant' ? { ...message, parts: dedupeGeneratedImageEchoesInParts(message.parts) } : message
+  )
 
   return withUniqueToolCallIds(
-    withoutGeneratedMediaEchoes.filter(
+    withoutGeneratedImageEchoes.filter(
       m => chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text') || m.attachmentRefs?.length
     )
   )
