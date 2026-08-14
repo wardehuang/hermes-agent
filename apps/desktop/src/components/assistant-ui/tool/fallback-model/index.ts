@@ -181,6 +181,10 @@ const TOOL_META: Record<ToolTitleKey, ToolMetaSpec> = {
     icon: 'file-media',
     tone: 'image'
   },
+  video_generate: {
+    icon: 'file-media',
+    tone: 'image'
+  },
   list_files: {
     icon: 'files',
     tone: 'file'

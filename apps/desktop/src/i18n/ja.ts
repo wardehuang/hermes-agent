@@ -2611,6 +2611,7 @@ export const ja = defineLocale({
     tool: {
       copyCode: 'コードをコピー',
       renderingImage: '画像をレンダリング中',
+      renderingVideo: '動画をレンダリング中',
       copyOutput: '出力をコピー',
       copyCommand: 'コマンドをコピー',
       copyContent: 'コンテンツをコピー',
@@ -2680,6 +2681,7 @@ export const ja = defineLocale({
         edit_file: { done: 'ファイルを編集しました', pending: 'ファイルを編集中', pendingAction: '編集中' },
         execute_code: { done: 'コードを実行しました', pending: 'スクリプト作成中', pendingAction: 'スクリプト作成中' },
         image_generate: { done: '画像を生成しました', pending: '画像を生成中', pendingAction: '生成中' },
+        video_generate: { done: '動画を生成しました', pending: '動画を生成中', pendingAction: '生成中' },
         list_files: {
           done: 'ファイルを一覧表示しました',
           pending: 'ファイルを一覧表示中',
@@ -2782,6 +2784,7 @@ export const ja = defineLocale({
     restartToSaveImages: '画像を保存するには Hermes Desktop を再起動してください',
     imageDownloadFailed: '画像のダウンロードに失敗しました',
     openImage: '画像を開く',
+    openVideo: '動画を開く',
     downloadImage: '画像をダウンロード',
     savingImage: '画像を保存中',
     imagePreviewFailed: '画像のプレビューに失敗しました',

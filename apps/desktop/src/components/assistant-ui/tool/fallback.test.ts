@@ -9,7 +9,7 @@ describe('isCardTool', () => {
     // A diff is the deliverable, a clarify is a question waiting on an answer,
     // an image is the thing that was asked for. None of them survives being
     // folded into "used 3 tools".
-    for (const toolName of ['clarify', 'image_generate', 'edit_file', 'patch', 'write_file']) {
+    for (const toolName of ['clarify', 'image_generate', 'video_generate', 'edit_file', 'patch', 'write_file']) {
       expect(isCardTool(toolName)).toBe(true)
     }
   })

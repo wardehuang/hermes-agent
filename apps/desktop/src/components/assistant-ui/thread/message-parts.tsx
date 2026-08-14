@@ -13,9 +13,11 @@ import { ToolFallback, ToolGroupSlot } from '@/components/assistant-ui/tool/fall
 import { formatElapsed, useElapsedSeconds, useMeasuredDuration } from '@/components/chat/activity-timer'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { GeneratedImage } from '@/components/chat/generated-image-result'
+import { GeneratedVideo } from '@/components/chat/generated-video-result'
 import { SCAFFOLD_LABEL_CLASS, SCAFFOLD_META_CLASS, ScaffoldRow } from '@/components/chat/scaffold-row'
 import { useI18n } from '@/i18n'
 import { generatedImageFromResult } from '@/lib/generated-images'
+import { generatedVideoFromResult } from '@/lib/generated-videos'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
@@ -36,6 +38,19 @@ const ImageGenerateTool: FC<ToolCallMessagePartProps> = props => {
       <GeneratedImage aspectRatio={aspectRatio} result={result} />
     </div>
   )
+}
+
+const VideoGenerateTool: FC<ToolCallMessagePartProps> = props => {
+  const { args, result } = props
+  const aspectRatio = typeof args?.aspect_ratio === 'string' ? args.aspect_ratio : undefined
+
+  // Same contract as image: successful results own a dedicated player card;
+  // failures fall through to the expandable tool row.
+  if (result !== undefined && !generatedVideoFromResult(result)) {
+    return <ToolFallback {...props} />
+  }
+
+  return <GeneratedVideo aspectRatio={aspectRatio} result={result} />
 }
 
 const DelegateToolPart: FC<ToolCallMessagePartProps> = props => {
@@ -67,6 +82,10 @@ const ChainToolFallback: FC<ToolCallMessagePartProps> = props => {
 
   if (props.toolName === 'image_generate') {
     return <ImageGenerateTool {...props} />
+  }
+
+  if (props.toolName === 'video_generate') {
+    return <VideoGenerateTool {...props} />
   }
 
   if (props.toolName === 'clarify') {

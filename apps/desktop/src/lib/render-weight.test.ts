@@ -83,6 +83,19 @@ describe('messagePaintWeight', () => {
     expect(messagePaintWeight(card(10_000_000))).toBe(messagePaintWeight(card(80)))
   })
 
+  it('prices a video card flat, however long its result URL', () => {
+    const card = (chars: number) => [
+      {
+        type: 'tool-call',
+        toolName: 'video_generate',
+        args: {},
+        result: { success: true, video: `https://cdn.example/${'v'.repeat(chars)}.mp4` }
+      }
+    ]
+
+    expect(messagePaintWeight(card(10_000))).toBe(messagePaintWeight(card(40)))
+  })
+
   it('charges nothing for a row that renders nothing', () => {
     const hoisted = [
       {

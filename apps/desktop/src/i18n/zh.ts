@@ -2981,6 +2981,7 @@ export const zh: Translations = {
     tool: {
       copyCode: '复制代码',
       renderingImage: '正在渲染图片',
+      renderingVideo: '正在渲染视频',
       copyOutput: '复制输出',
       copyCommand: '复制命令',
       copyContent: '复制内容',
@@ -3038,6 +3039,7 @@ export const zh: Translations = {
         edit_file: { done: '已编辑文件', pending: '正在编辑文件', pendingAction: '正在编辑' },
         execute_code: { done: '已运行代码', pending: '正在编写脚本', pendingAction: '正在编写脚本' },
         image_generate: { done: '已生成图片', pending: '正在生成图片', pendingAction: '正在生成' },
+        video_generate: { done: '已生成视频', pending: '正在生成视频', pendingAction: '正在生成' },
         list_files: { done: '已列出文件', pending: '正在列出文件', pendingAction: '正在列出' },
         memory: { done: '已保存到记忆', pending: '正在保存到记忆', pendingAction: '正在保存' },
         patch: { done: '已修补文件', pending: '正在修补文件', pendingAction: '正在修补' },
@@ -3116,6 +3118,7 @@ export const zh: Translations = {
     restartToSaveImages: '重启 Hermes 桌面版以保存图片',
     imageDownloadFailed: '图片下载失败',
     openImage: '打开图片',
+    openVideo: '打开视频',
     downloadImage: '下载图片',
     savingImage: '正在保存图片',
     imagePreviewFailed: '图片预览失败',

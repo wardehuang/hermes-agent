@@ -2343,6 +2343,7 @@ export const ar = defineLocale({
     tool: {
       copyCode: 'نسخ الكود',
       renderingImage: 'جار عرض الصورة...',
+      renderingVideo: 'جار عرض الفيديو...',
       copyOutput: 'نسخ الإخراج',
       copyCommand: 'نسخ الأمر',
       copyContent: 'نسخ المحتوى',
@@ -2441,6 +2442,11 @@ export const ar = defineLocale({
         image_generate: {
           done: 'تم إنشاء الصورة',
           pending: 'جار إنشاء الصورة',
+          pendingAction: 'جار الإنشاء'
+        },
+        video_generate: {
+          done: 'تم إنشاء الفيديو',
+          pending: 'جار إنشاء الفيديو',
           pendingAction: 'جار الإنشاء'
         },
         list_files: {
@@ -2568,6 +2574,7 @@ export const ar = defineLocale({
     restartToSaveImages: 'أعد التشغيل لحفظ الصور',
     imageDownloadFailed: 'فشل تنزيل الصورة',
     openImage: 'فتح الصورة',
+    openVideo: 'فتح الفيديو',
     downloadImage: 'تنزيل الصورة',
     savingImage: 'جار حفظ الصورة',
     imagePreviewFailed: 'فشلت معاينة الصورة',

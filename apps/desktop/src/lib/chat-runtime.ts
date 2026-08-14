@@ -129,6 +129,10 @@ export function isImageGenerationTool(name?: string): boolean {
   return name === 'image_generate'
 }
 
+export function isVideoGenerationTool(name?: string): boolean {
+  return name === 'video_generate'
+}
+
 export function contextPath(path: string, cwd: string): string {
   if (!cwd) {
     return path

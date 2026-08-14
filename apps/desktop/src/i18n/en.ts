@@ -2807,6 +2807,7 @@ export const en: Translations = {
     tool: {
       copyCode: 'Copy code',
       renderingImage: 'Rendering image',
+      renderingVideo: 'Rendering video',
       copyOutput: 'Copy output',
       copyCommand: 'Copy command',
       copyContent: 'Copy content',
@@ -2872,6 +2873,7 @@ export const en: Translations = {
         edit_file: { done: 'Edited file', pending: 'Editing file', pendingAction: 'Editing' },
         execute_code: { done: 'Ran code', pending: 'Scripting', pendingAction: 'Scripting' },
         image_generate: { done: 'Generated image', pending: 'Generating image', pendingAction: 'Generating' },
+        video_generate: { done: 'Generated video', pending: 'Generating video', pendingAction: 'Generating' },
         list_files: { done: 'Listed files', pending: 'Listing files', pendingAction: 'Listing' },
         memory: { done: 'Saved to memory', pending: 'Saving to memory', pendingAction: 'Saving' },
         patch: { done: 'Patched file', pending: 'Patching file', pendingAction: 'Patching' },
@@ -2956,6 +2958,7 @@ export const en: Translations = {
     restartToSaveImages: 'Restart Hermes Desktop to save images',
     imageDownloadFailed: 'Image download failed',
     openImage: 'Open image',
+    openVideo: 'Open video',
     downloadImage: 'Download image',
     savingImage: 'Saving image',
     imagePreviewFailed: 'Image preview failed',

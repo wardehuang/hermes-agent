@@ -2529,6 +2529,7 @@ export const zhHant = defineLocale({
     tool: {
       copyCode: '複製程式碼',
       renderingImage: '正在渲染圖片',
+      renderingVideo: '正在渲染影片',
       copyOutput: '複製輸出',
       copyCommand: '複製指令',
       copyContent: '複製內容',
@@ -2586,6 +2587,7 @@ export const zhHant = defineLocale({
         edit_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' },
         execute_code: { done: '已執行程式碼', pending: '正在撰寫腳本', pendingAction: '正在撰寫腳本' },
         image_generate: { done: '已生成圖片', pending: '正在生成圖片', pendingAction: '正在生成' },
+        video_generate: { done: '已生成影片', pending: '正在生成影片', pendingAction: '正在生成' },
         list_files: { done: '已列出檔案', pending: '正在列出檔案', pendingAction: '正在列出' },
         memory: { done: '已儲存至記憶', pending: '正在儲存至記憶', pendingAction: '正在儲存' },
         patch: { done: '已修補檔案', pending: '正在修補檔案', pendingAction: '正在修補' },
@@ -2668,6 +2670,7 @@ export const zhHant = defineLocale({
     restartToSaveImages: '重新啟動 Hermes Desktop 以儲存圖片',
     imageDownloadFailed: '圖片下載失敗',
     openImage: '開啟圖片',
+    openVideo: '開啟影片',
     downloadImage: '下載圖片',
     savingImage: '正在儲存圖片',
     imagePreviewFailed: '圖片預覽失敗',

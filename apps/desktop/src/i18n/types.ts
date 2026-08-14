@@ -19,6 +19,7 @@ export type ToolTitleKey =
   | 'edit_file'
   | 'execute_code'
   | 'image_generate'
+  | 'video_generate'
   | 'list_files'
   | 'memory'
   | 'patch'
@@ -2395,6 +2396,7 @@ export interface Translations {
     tool: {
       copyCode: string
       renderingImage: string
+      renderingVideo: string
       copyOutput: string
       copyCommand: string
       copyContent: string
@@ -2507,6 +2509,7 @@ export interface Translations {
     restartToSaveImages: string
     imageDownloadFailed: string
     openImage: string
+    openVideo: string
     downloadImage: string
     savingImage: string
     imagePreviewFailed: string

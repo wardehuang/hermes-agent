@@ -20,6 +20,11 @@ import {
   generatedImageEchoSources,
   stripGeneratedImageEchoes
 } from '@/lib/generated-images'
+import {
+  dedupeGeneratedVideoEchoesInParts,
+  generatedVideoEchoSources,
+  stripGeneratedVideoEchoes
+} from '@/lib/generated-videos'
 import { parseTodos } from '@/lib/todos'
 import { dispatchNativeNotification } from '@/store/native-notifications'
 import { isDiskFullErrorMessage, notifyError } from '@/store/notifications'
@@ -31,6 +36,22 @@ import type { ClientSessionState } from '../../../types'
 
 import { useGatewayEventHandler } from './gateway-event'
 import { completionErrorText, delegateTaskPayloads, MAX_STREAM_FLUSH_GAP_MS, STREAM_DELTA_FLUSH_MS } from './utils'
+
+function dedupeGeneratedMediaEchoesInParts<
+  T extends { result?: unknown; text?: unknown; toolName?: unknown; type?: unknown }
+>(parts: readonly T[]): T[] {
+  return dedupeGeneratedVideoEchoesInParts(dedupeGeneratedImageEchoesInParts(parts))
+}
+
+function stripGeneratedMediaEchoes(
+  text: string,
+  parts: readonly { result?: unknown; toolName?: unknown; type?: unknown }[]
+): string {
+  return stripGeneratedVideoEchoes(
+    stripGeneratedImageEchoes(text, generatedImageEchoSources(parts)),
+    generatedVideoEchoSources(parts)
+  )
+}
 
 interface MessageStreamOptions {
   activeGatewayProfile?: string
@@ -215,7 +236,7 @@ export function useMessageStream({
         if (queued.assistant) {
           mutateStream(
             id,
-            parts => dedupeGeneratedImageEchoesInParts(appendAssistantTextPart(parts, queued.assistant)),
+            parts => dedupeGeneratedMediaEchoesInParts(appendAssistantTextPart(parts, queued.assistant)),
             () => [assistantTextPart(queued.assistant)]
           )
         }
@@ -471,7 +492,7 @@ export function useMessageStream({
 
       mutateStream(
         sessionId,
-        parts => dedupeGeneratedImageEchoesInParts(upsertToolPart(parts, payload, phase)),
+        parts => dedupeGeneratedMediaEchoesInParts(upsertToolPart(parts, payload, phase)),
         () => upsertToolPart([], payload, phase),
         { pending: m => phase !== 'complete' || (m.pending ?? false) }
       )
@@ -495,7 +516,7 @@ export function useMessageStream({
         const streamId = state.streamId
 
         const replaceTextPart = (parts: ChatMessagePart[]) => {
-          const visibleText = stripGeneratedImageEchoes(authoritativeText, generatedImageEchoSources(parts)).trim()
+          const visibleText = stripGeneratedMediaEchoes(authoritativeText, parts).trim()
 
           return mergeFinalAssistantText(parts, visibleText)
         }
@@ -568,7 +589,7 @@ export function useMessageStream({
         const interimBoundaryPending = state.interimBoundaryPending
 
         const replaceTextPart = (parts: ChatMessagePart[]) => {
-          const visibleFinalText = stripGeneratedImageEchoes(finalText, generatedImageEchoSources(parts)).trim()
+          const visibleFinalText = stripGeneratedMediaEchoes(finalText, parts).trim()
 
           return mergeFinalAssistantText(parts, visibleFinalText)
         }
