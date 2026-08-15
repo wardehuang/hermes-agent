@@ -201,7 +201,7 @@ export const zh: Translations = {
     enterHud: 'HUD 模式',
     exitHud: '退出 HUD 模式',
     layoutEditor: '布局编辑器',
-    layoutEditorTitle: '布局编辑器 — ⌘ 点击重置布局'
+    layoutEditorTitle: mod => `布局编辑器 — ${mod} 点击重置布局`
   },
 
   keybinds: {
@@ -248,6 +248,7 @@ export const zh: Translations = {
       'session.slot.9': '切换到最近会话 9',
       'session.focusSearch': '搜索会话',
       'session.togglePin': '固定/取消固定当前会话',
+      'session.archive': '归档当前会话',
       'workspace.newWorktree': '新建工作树',
       'workspace.openFolder': '打开文件夹为项目',
       'composer.focus': '聚焦输入框',
@@ -470,6 +471,8 @@ export const zh: Translations = {
       backdropDesc: '对话后方那张淡淡的雕像图片。',
       reactionsTitle: '消息回应',
       reactionsDesc: 'iMessage 风格的表情回应 — 你可以给消息添加回应，Hermes 也能回应你的消息。',
+      composerPopoutTitle: '悬浮输入框',
+      composerPopoutDesc: '允许将输入框拖出底部停靠区。关闭后，输入框会锁定在底部。',
       embedsTitle: '内嵌预览',
       embedsDesc:
         '富预览会从第三方网站（YouTube、X 等）加载。询问会在你允许前显示占位符；总是会自动加载；关闭则保留纯链接。',
@@ -799,9 +802,12 @@ export const zh: Translations = {
       autosaveFailed: '自动保存失败',
       imported: '配置已导入',
       invalidJson: '配置 JSON 无效',
-      toolsetsWipeConfirm: '确定移除所有已启用的工具集吗？这将禁用记忆、终端、网络搜索、委派以及大多数其他工具，直到你重新启用它们。',
+      toolsetsWipeConfirm:
+        '确定移除所有已启用的工具集吗？这将禁用记忆、终端、网络搜索、委派以及大多数其他工具，直到你重新启用它们。',
       keepAwakeTitle: '保持电脑唤醒',
       keepAwakeDesc: '阻止本机休眠，让长时间或通宵运行继续进行。屏幕仍可变暗。',
+      disableF12Title: '禁用 F12 开发者工具',
+      disableF12Desc: '阻止 F12 打开开发者工具。Ctrl+Shift+I（Mac 上为 Cmd+Opt+I）仍然可用。',
       attachmentSizeTitle: '预览 / 图片加载大小上限',
       attachmentSizeDesc:
         '桌面端为预览和图片附件加载本地文件的大小上限（MB）。默认为 16。远程非图片附件使用单独的 256 MB 上限。设置过大会将整个文件读入内存，可能导致应用卡死或崩溃。',
@@ -841,7 +847,7 @@ export const zh: Translations = {
     connections: {
       title: '连接',
       intro: '注册你的智能体所在的每个位置——本机、局域网中的远程网关、Hermes Cloud 实例——全部保存在这里。',
-      stagedNote: '多来源路由正在分阶段推出：目前在此管理连接，活动连接仍在“设置 → 网关”中选择。',
+      stagedNote: '聊天和智能体列表会跟随你选择的来源；应用管理的窗口后端仍在“设置 → 网关”中选择。',
       loadFailed: '无法加载连接',
       primaryPill: '主连接',
       managedPill: '本机',
@@ -856,6 +862,11 @@ export const zh: Translations = {
       testFailed: '连接测试失败',
       saveFailed: '无法保存连接',
       removeFailed: '无法移除连接',
+      updateAll: '更新所有实例',
+      updateAllRunning: '正在更新所有实例…',
+      updateAllDone: '更新已分发',
+      updateAllFailed: '批量更新失败',
+      updateSkippedCloud: '由 Hermes Cloud 托管',
       kindLocal: '本地',
       kindRemote: '远程网关',
       kindCloud: 'Hermes Cloud',
@@ -1353,6 +1364,10 @@ export const zh: Translations = {
       updateStarted: '正在更新已安装技能…',
       actionFailed: '技能操作失败',
       actionLog: '操作日志',
+      pickerTitle: '技能中心',
+      pickerBrowse: '浏览完整技能中心',
+      pickerHide: '隐藏技能中心浏览器',
+      pickerHint: '点击任意技能上的“+ Add to this Agent”即可安装，安装后会出现在上方列表中。',
       loadFailed: '技能中心加载失败',
       previewFailed: '技能预览失败',
       scanFailed: '安全扫描失败',
@@ -2209,6 +2224,9 @@ export const zh: Translations = {
     row: {
       pin: '置顶',
       unpin: '取消置顶',
+      markUnread: '标记为未读',
+      markRead: '标记为已读',
+      unreadFailed: '无法更新未读状态',
       copyId: '复制 ID',
       export: '导出',
       branchFrom: '分支',
@@ -2257,7 +2275,8 @@ export const zh: Translations = {
     statusDivider: {
       working: '进行中',
       done: '已完成'
-    }
+    },
+    markAllRead: '全部标记为已读'
   },
 
   composer: {
@@ -2395,6 +2414,12 @@ export const zh: Translations = {
       done: skill => `已添加 /${skill}`,
       doneTip: '发送时将加载该技能'
     },
+    githubSuggestions: {
+      label: '设置 GitHub',
+      tip: '这里通过 gh CLI 技能使用 GitHub — 点击连接你的账号',
+      done: '已添加 /github-auth',
+      doneTip: '发送消息后，agent 将引导你完成 GitHub 登录'
+    },
     repairSuggestions: {
       label: server => `重新连接 ${server}`,
       tip: server => `${server} 调用刚因连接错误失败`,
@@ -2473,7 +2498,7 @@ export const zh: Translations = {
       scopeLastTurn: '上一轮',
       commit: '提交',
       commitAndPush: '提交并推送',
-      commitPlaceholder: '信息（⌘↵ 提交）',
+      commitPlaceholder: shortcut => `信息（${shortcut} 提交）`,
       generateCommitMessage: '生成提交信息',
       stopGenerating: '停止生成',
       createPr: '创建 PR',
@@ -3027,6 +3052,7 @@ export const zh: Translations = {
       thought: '已思考',
       thoughtBriefly: '思考了片刻',
       thoughtFor: duration => `思考了 ${duration}`,
+      turnDuration: duration => `本轮耗时 ${duration}`,
       today: time => `今天，${time}`,
       yesterday: time => `昨天，${time}`,
       copy: '复制',

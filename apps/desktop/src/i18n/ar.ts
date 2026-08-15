@@ -176,7 +176,7 @@ export const ar = defineLocale({
     enterHud: 'وضع HUD',
     exitHud: 'إنهاء وضع HUD',
     layoutEditor: 'محرر التخطيط',
-    layoutEditorTitle: 'محرر التخطيط — انقر مع ⌘ لإعادة ضبط التخطيط'
+    layoutEditorTitle: modifier => `محرر التخطيط — انقر مع ${modifier} لإعادة ضبط التخطيط`
   },
   keybinds: {
     title: 'اختصارات لوحة المفاتيح',
@@ -405,6 +405,8 @@ export const ar = defineLocale({
       backdropDesc: 'اختيار مقدار مزج خلفية سطح المكتب مع سطح Hermes.',
       reactionsTitle: 'تفاعلات الرسائل',
       reactionsDesc: 'تفاعلات إيموجي بأسلوب iMessage — تفاعل مع الرسائل، ويمكن لـ Hermes التفاعل مع رسائلك.',
+      composerPopoutTitle: 'محرر عائم',
+      composerPopoutDesc: 'السماح بسحب محرر الرسائل خارج موضعه. عطّل هذا الخيار لإبقائه مثبتًا في الأسفل.',
       embedsTitle: 'التضمينات المضمّنة',
       embedsDesc:
         'تُحمّل المعاينات الغنية من مواقع طرف ثالث (YouTube، X، …). "اسأل" يعرض عنصرا نائبا حتى تسمح لكل واحد؛ "دائما" يحمّلها تلقائيا؛ "إيقاف" يبقي الروابط عادية.',
@@ -1643,6 +1645,9 @@ export const ar = defineLocale({
     row: {
       pin: 'تثبيت',
       unpin: 'إلغاء التثبيت',
+      markUnread: 'وضع علامة كغير مقروء',
+      markRead: 'وضع علامة كمقروء',
+      unreadFailed: 'تعذر تحديث حالة القراءة',
       copyId: 'نسخ المعرف',
       export: 'تصدير',
       branchFrom: 'فرع',
@@ -1833,7 +1838,7 @@ export const ar = defineLocale({
       scopeLastTurn: 'آخر دور',
       commit: 'إيداع',
       commitAndPush: 'إيداع ودفع',
-      commitPlaceholder: 'رسالة (⌘↵ للإيداع)',
+      commitPlaceholder: shortcut => `رسالة (${shortcut} للإيداع)`,
       generateCommitMessage: 'توليد رسالة الإيداع',
       stopGenerating: 'إيقاف التوليد',
       createPr: 'إنشاء PR',
@@ -2305,6 +2310,7 @@ export const ar = defineLocale({
       thought: 'فكّر',
       thoughtBriefly: 'فكّر قليلاً',
       thoughtFor: duration => `فكّر لمدة ${duration}`,
+      turnDuration: duration => `استغرقت هذه الجولة ${duration}`,
       today: time => `اليوم ${time}`,
       yesterday: time => `أمس ${time}`,
       copy: 'نسخ',
