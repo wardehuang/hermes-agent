@@ -248,12 +248,31 @@ function createSecondary(profile: string): Secondary {
 }
 
 // True when `profile`'s backend route resolves to the SHARED primary backend
-// (global-remote case 3 in resolveProfileBackendRoute): the descriptor comes
-// back as the primary connection tagged with `profile`. Own-remote-override
-// and local pooled descriptors are never tagged. Dialing a second socket at
-// that descriptor is wrong — over SSH the second dial fails (tunnel/token are
-// per-backend) and the closed socket poisons the active gateway with
-// "not connected" even though the primary is open right next to it.
+// (global-remote case 3 in resolveProfileBackendRoute): one host serves every
+// profile, and getConnection tags the primary descriptor with `profile`.
+//
+// Pool backends (own remote override, local `--profile` spawn) ALSO set
+// `connection.profile` so the renderer knows which profile owns the socket
+// (see spawnPoolBackend / HermesConnection.profile). Tag presence alone is
+// therefore NOT enough — a local primary + remote-override profile used to
+// match here, activate the local primary WS, and leave chat on the wrong
+// machine while $connection flipped remote (file tree ENOENT on Windows
+// paths, "backend still local"). Shared only when the resolved backend is
+// the same host as the window primary.
+function connectionHostKey(conn: { baseUrl?: string; mode?: string } | null | undefined): string {
+  if (!conn || typeof conn !== 'object') {
+    return ''
+  }
+
+  const baseUrl = typeof conn.baseUrl === 'string' ? conn.baseUrl.trim() : ''
+
+  if (!baseUrl) {
+    return ''
+  }
+
+  return `${conn.mode || ''}\0${baseUrl}`
+}
+
 async function sharedPrimaryRoute(profile: string): Promise<boolean> {
   const desktop = window.hermesDesktop
 
@@ -264,7 +283,15 @@ async function sharedPrimaryRoute(profile: string): Promise<boolean> {
   try {
     const conn = await desktop.getConnection(profile)
 
-    return Boolean(conn && typeof conn === 'object' && (conn as { profile?: string }).profile)
+    if (!conn || typeof conn !== 'object' || !(conn as { profile?: string }).profile) {
+      return false
+    }
+
+    const primary = await desktop.getConnection(g.primaryProfile)
+    const profileHost = connectionHostKey(conn as { baseUrl?: string; mode?: string })
+    const primaryHost = connectionHostKey(primary as { baseUrl?: string; mode?: string } | null)
+
+    return Boolean(profileHost && primaryHost && profileHost === primaryHost)
   } catch {
     return false
   }

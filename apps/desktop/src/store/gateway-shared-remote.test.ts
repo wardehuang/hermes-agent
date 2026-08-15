@@ -50,9 +50,16 @@ describe('ensureGatewayForProfile under a shared global remote', () => {
   it('activates the primary socket for a profile tagged onto the shared descriptor', async () => {
     const primary = makePrimary()
     setPrimaryGateway(primary as never, 'default')
+    const sharedBase = 'http://remote.example:9119'
     installDesktop({
-      // Shared descriptor: primary connection tagged with the profile.
-      getConnection: vi.fn(async () => ({ port: 4242, profile: 'venture', token: 't' }))
+      // Shared descriptor: same host as primary, tagged with the profile.
+      getConnection: vi.fn(async (profile?: null | string) => {
+        if (!profile || profile === 'default') {
+          return { baseUrl: sharedBase, mode: 'remote', token: 't' }
+        }
+
+        return { baseUrl: sharedBase, mode: 'remote', profile: 'venture', token: 't' }
+      })
     })
 
     await ensureGatewayForProfile('venture')
@@ -65,7 +72,13 @@ describe('ensureGatewayForProfile under a shared global remote', () => {
     setPrimaryGateway(primary as never, 'default')
     installDesktop({
       // Own descriptor: no profile tag → normal pooled path (dial attempted).
-      getConnection: vi.fn(async () => ({ port: 5151, token: 't2' }))
+      getConnection: vi.fn(async (profile?: null | string) => {
+        if (!profile || profile === 'default') {
+          return { baseUrl: 'http://127.0.0.1:4242', mode: 'local', token: 't' }
+        }
+
+        return { baseUrl: 'http://127.0.0.1:5151', mode: 'local', token: 't2' }
+      })
     })
 
     await ensureGatewayForProfile('worker')
@@ -73,6 +86,32 @@ describe('ensureGatewayForProfile under a shared global remote', () => {
     // The pooled path dialed (our stub throws, so the socket stays closed and
     // reconnect is scheduled) — the important part is it did NOT silently
     // reuse the primary.
+    expect($gateway.get()).not.toBe(primary)
+  })
+
+  it('pools a socket for a per-profile remote override even when the descriptor is profile-tagged', async () => {
+    // spawnPoolBackend always sets connection.profile. Tag-only shared-primary
+    // detection used to pin chat on the local primary while the override
+    // remote sat unused.
+    const primary = makePrimary()
+    setPrimaryGateway(primary as never, 'default')
+    installDesktop({
+      getConnection: vi.fn(async (profile?: null | string) => {
+        if (!profile || profile === 'default') {
+          return { baseUrl: 'http://127.0.0.1:4242', mode: 'local', token: 'local-t' }
+        }
+
+        return {
+          baseUrl: 'http://163.192.9.157:9119',
+          mode: 'remote',
+          profile: 'server-maintainer',
+          token: 'remote-t'
+        }
+      })
+    })
+
+    await ensureGatewayForProfile('server-maintainer')
+
     expect($gateway.get()).not.toBe(primary)
   })
 })
