@@ -272,6 +272,15 @@ def _(rid, params: dict) -> dict:
     sid = params.get("session_id", "")
     raw_text = params.get("text", "")
     text = sanitize_user_prompt_text(raw_text) if isinstance(raw_text, str) else raw_text
+    # Optional bubble label when it differs from the model-facing `text`
+    # (skills, create-image force-tool scaffolding, etc.). Persisted as the
+    # user row content; the agent still receives `text`.
+    raw_display = params.get("display_text")
+    display_text = None
+    if isinstance(raw_display, str):
+        cleaned = sanitize_user_prompt_text(raw_display).strip()
+        if cleaned and cleaned != (text.strip() if isinstance(text, str) else text):
+            display_text = cleaned
     # Off-screen sends (widget intents): type the persisted user row so no
     # client renders it as a bubble. Whitelisted to "hidden" — display_kind
     # is a DB-only sidecar and this RPC must not mint arbitrary kinds.
@@ -799,7 +808,9 @@ def _(rid, params: dict) -> dict:
                     },
                 )
                 return
-        _run_prompt_submit(rid, sid, session, text, display_kind=display_kind)
+        _run_prompt_submit(
+            rid, sid, session, text, display_kind=display_kind, persist_text=display_text
+        )
 
     run_thread = threading.Thread(target=run_after_agent_ready, daemon=True)
     # Keep a handle so session.interrupt can tell a live turn from a stuck

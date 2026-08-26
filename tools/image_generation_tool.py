@@ -28,7 +28,7 @@ import os
 import datetime
 import threading
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # fal_client is imported lazily — see _load_fal_client(). Pulling it
 # eagerly added ~64 ms to every CLI cold start because
@@ -1522,6 +1522,64 @@ IMAGE_GENERATE_SCHEMA = {
                     "than fidelity."
                 ),
             },
+            "size": {
+                "type": "string",
+                "description": (
+                    "Optional explicit size for backends that support it "
+                    "(e.g. gpt-image-2: '1024x1024', '1536x1024', 'auto', or "
+                    "custom WIDTHxHEIGHT within model limits). Ignored when "
+                    "the active model does not declare size."
+                ),
+            },
+            "quality": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "auto"],
+                "description": (
+                    "Optional quality for GPT Image backends. Ignored when "
+                    "unsupported by the active model."
+                ),
+            },
+            "n": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": (
+                    "Optional number of images (1-10) when the active model "
+                    "supports n. Defaults to 1. Ignored otherwise."
+                ),
+            },
+            "background": {
+                "type": "string",
+                "enum": ["auto", "opaque", "transparent"],
+                "description": (
+                    "Optional background mode. Use 'transparent' with "
+                    "output_format png or webp on models that support alpha "
+                    "(e.g. gpt-image-2). Ignored when unsupported."
+                ),
+            },
+            "output_format": {
+                "type": "string",
+                "enum": ["png", "webp", "jpeg"],
+                "description": (
+                    "Optional output format for backends that support it. "
+                    "transparent background requires png or webp."
+                ),
+            },
+            "output_compression": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "description": (
+                    "Optional compression 0-100 for jpeg/webp output formats."
+                ),
+            },
+            "moderation": {
+                "type": "string",
+                "enum": ["auto", "low"],
+                "description": (
+                    "Optional content-moderation level for GPT Image backends."
+                ),
+            },
         },
         "required": ["prompt"],
     },
@@ -1543,7 +1601,7 @@ def _read_configured_image_model():
     return None
 
 
-def _read_configured_image_provider():
+def _read_configured_image_provider() -> Optional[str]:
     """Return ``image_gen.provider`` from config.yaml, or None.
 
     We only consult the plugin registry when this is explicitly set — an
@@ -1567,12 +1625,44 @@ def _read_configured_image_provider():
     return None
 
 
+def _read_panel_image_route(task_id: str | None = None) -> tuple[Optional[str], Optional[str]]:
+    """Desktop create-image panel selected provider+model while open."""
+    try:
+        from hermes_cli.config import get_hermes_home
+
+        path = Path(get_hermes_home()) / "cache" / "create_image_panel.json"
+    except Exception:
+        return None, None
+    try:
+        if not path.is_file():
+            return None, None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None, None
+    if not isinstance(data, dict) or not data.get("active"):
+        return None, None
+    scoped = data.get("session_id")
+    if scoped:
+        scoped_s = str(scoped).strip()
+        tid = str(task_id or "").strip()
+        if scoped_s and tid and scoped_s != tid and scoped_s not in tid and tid not in scoped_s:
+            return None, None
+    provider = data.get("provider")
+    model = data.get("model")
+    p = provider.strip() if isinstance(provider, str) and provider.strip() else None
+    m = model.strip() if isinstance(model, str) and model.strip() else None
+    return p, m
+
+
 def _dispatch_to_plugin_provider(
     prompt: str,
     aspect_ratio: str,
     image_url: Optional[str] = None,
     reference_image_urls: Optional[list] = None,
     upscale: Optional[bool] = None,
+    extra_params: Optional[Dict[str, Any]] = None,
+    provider_name: Optional[str] = None,
+    model_name: Optional[str] = None,
 ):
     """Route the call to a plugin-registered provider when one is selected.
 
@@ -1585,18 +1675,24 @@ def _dispatch_to_plugin_provider(
     pipeline via ``_it`` indirection so behavior is identical to the
     direct call, just routed through the registry).
 
+    Desktop create-image panel may override provider/model for the open
+    session without rewriting config.yaml.
+
     ``image_url`` / ``reference_image_urls`` enable image-to-image / editing:
     they are forwarded to the provider's ``generate()`` so the backend can
     route to its edit endpoint. ``upscale`` (when explicitly set) requests a
     post-generation high-resolution pass; providers without upscale support
     ignore it via their ``**kwargs`` (the ABC contract).
+
+    ``extra_params`` carries optional model-specific fields (size, quality, n,
+    background, output_format, …). Providers MUST ignore unknown keys.
     """
-    configured = _read_configured_image_provider()
+    configured = (provider_name or "").strip() or _read_configured_image_provider()
     if not configured or configured == "fal":
         return None  # unset/explicit FAL keeps the legacy FAL path
 
     # Also read configured model so we can pass it to the plugin
-    configured_model = _read_configured_image_model()
+    configured_model = (model_name or "").strip() or _read_configured_image_model()
 
     try:
         # Import locally so plugin discovery isn't triggered just by
@@ -1647,6 +1743,15 @@ def _dispatch_to_plugin_provider(
             kwargs["reference_image_urls"] = norm_refs
         if upscale is not None:
             kwargs["upscale"] = bool(upscale)
+        if isinstance(extra_params, dict):
+            for key, value in extra_params.items():
+                if value is None or value == "":
+                    continue
+                if key in kwargs:
+                    continue
+                if str(key).startswith("__"):
+                    continue
+                kwargs[key] = value
         result = provider.generate(**kwargs)
     except TypeError as exc:
         # A provider whose generate() signature predates image_url support
@@ -1856,6 +1961,411 @@ def _confine_source_images(
     return image_url, reference_image_urls, None
 
 
+def _extract_image_extra_params(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Pull optional model-specific image_generate fields from tool args."""
+    out: Dict[str, Any] = {}
+    for key in (
+        "size",
+        "quality",
+        "n",
+        "background",
+        "output_format",
+        "output_compression",
+        "moderation",
+    ):
+        if key not in args:
+            continue
+        value = args.get(key)
+        if value is None or value == "":
+            continue
+        out[key] = value
+    # Prefer native ratio strings (1:1, 16:9, …) when the agent/tool sends them
+    # in aspect_ratio; providers that only understand landscape/square/portrait
+    # still receive the original via the dedicated aspect_ratio arg.
+    ar = args.get("aspect_ratio")
+    if isinstance(ar, str) and ":" in ar.strip():
+        out.setdefault("aspect_ratio", ar.strip())
+    return out
+
+
+def _create_image_panel_overrides(task_id: str | None = None) -> Dict[str, Any]:
+    """Read Desktop create-image panel overrides (if active).
+
+    Written by the create-image plugin to
+    ``$HERMES_HOME/cache/create_image_panel.json``. Missing/invalid = no-op.
+    Panel params win over model-omitted knobs so the composer bar actually
+    controls the upstream request while open.
+    """
+    try:
+        from hermes_cli.config import get_hermes_home
+
+        path = Path(get_hermes_home()) / "cache" / "create_image_panel.json"
+    except Exception:
+        return {}
+    try:
+        if not path.is_file():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(data, dict) or not data.get("active"):
+        return {}
+    scoped = data.get("session_id")
+    if scoped:
+        scoped_s = str(scoped).strip()
+        tid = str(task_id or "").strip()
+        if scoped_s and tid and scoped_s != tid and scoped_s not in tid and tid not in scoped_s:
+            return {}
+    raw = data.get("params") if isinstance(data.get("params"), dict) else {}
+    allowed = (
+        "size",
+        "quality",
+        "n",
+        "background",
+        "output_format",
+        "output_compression",
+        "moderation",
+        "aspect_ratio",
+    )
+    out: Dict[str, Any] = {}
+    for key in allowed:
+        if key not in raw:
+            continue
+        value = raw.get(key)
+        if value is None or value == "":
+            continue
+        if key == "n":
+            try:
+                n = int(value)
+            except (TypeError, ValueError):
+                continue
+            if n >= 1:
+                out[key] = n
+            continue
+        if key == "output_compression":
+            try:
+                out[key] = int(value)
+            except (TypeError, ValueError):
+                continue
+            continue
+        out[key] = value
+    # Panel toggle (top-level preferred; nested under params accepted).
+    pc = data.get("prompt_constraints")
+    if pc is None and isinstance(data.get("params"), dict):
+        pc = data["params"].get("prompt_constraints")
+    if isinstance(pc, bool):
+        out["__prompt_constraints"] = pc
+    elif isinstance(pc, (int, float)):
+        out["__prompt_constraints"] = bool(pc)
+    elif isinstance(pc, str):
+        s = pc.strip().lower()
+        if s in ("1", "true", "yes", "on"):
+            out["__prompt_constraints"] = True
+        elif s in ("0", "false", "no", "off"):
+            out["__prompt_constraints"] = False
+    # Selected image_gen route from Desktop panel.
+    prov = data.get("provider")
+    if isinstance(prov, str) and prov.strip():
+        out["__provider"] = prov.strip()
+    mid = data.get("model")
+    if isinstance(mid, str) and mid.strip():
+        out["__model"] = mid.strip()
+    return out
+
+
+def _n_bounds_for_route(
+    provider: str | None = None,
+    model: str | None = None,
+) -> tuple[int, int, list[int] | None]:
+    """Return (min_n, max_n, allowed_enum_or_None) from image_gen model params.
+
+    Reads ``image_gen.<provider>.models.<model>.params.n``:
+      - enum: [1,2,3,4] → min/max from list, allowed = list
+      - min/max keys if present
+      - missing n param → (1, 1, [1])  (model does not advertise multi-image)
+    """
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config() or {}
+    except Exception:
+        cfg = {}
+    ig = cfg.get("image_gen") if isinstance(cfg.get("image_gen"), dict) else {}
+
+    p = (provider or "").strip() or str(ig.get("provider") or "").strip()
+    m = (model or "").strip() or str(ig.get("model") or "").strip()
+    if not p or not m:
+        return 1, 1, [1]
+
+    block = ig.get(p) if isinstance(ig.get(p), dict) else {}
+    models = block.get("models") if isinstance(block.get("models"), dict) else {}
+    mblock = models.get(m) if isinstance(models.get(m), dict) else {}
+    params = mblock.get("params") if isinstance(mblock.get("params"), dict) else {}
+    nspec = params.get("n") if isinstance(params.get("n"), dict) else None
+    if nspec is None:
+        # Model has no n param declared → single image only.
+        return 1, 1, [1]
+
+    allowed: list[int] = []
+    for x in nspec.get("enum") or []:
+        try:
+            allowed.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    allowed = sorted(set(v for v in allowed if v >= 1))
+
+    lo = hi = None
+    try:
+        if nspec.get("min") is not None:
+            lo = int(nspec["min"])
+        if nspec.get("max") is not None:
+            hi = int(nspec["max"])
+    except (TypeError, ValueError):
+        lo = hi = None
+
+    if allowed:
+        lo = min(allowed) if lo is None else min(lo, min(allowed))
+        hi = max(allowed) if hi is None else max(hi, max(allowed))
+        # Prefer strict enum bounds when only enum is given.
+        if nspec.get("min") is None and nspec.get("max") is None:
+            lo, hi = min(allowed), max(allowed)
+        return max(1, lo), max(1, hi), allowed
+
+    if lo is None:
+        lo = 1
+    if hi is None:
+        hi = lo
+    return max(1, int(lo)), max(1, int(hi)), None
+
+
+def _clamp_n_for_route(
+    n_val: int,
+    provider: str | None = None,
+    model: str | None = None,
+) -> int:
+    lo, hi, allowed = _n_bounds_for_route(provider, model)
+    v = int(n_val)
+    if allowed:
+        if v in allowed:
+            return v
+        # nearest allowed
+        return min(allowed, key=lambda a: (abs(a - v), a))
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+
+def _merge_image_extra_params(args: Dict[str, Any], task_id: str | None = None) -> Dict[str, Any]:
+    """Model tool args first, then panel overrides win for set knobs."""
+    merged = _extract_image_extra_params(args if isinstance(args, dict) else {})
+    panel = _create_image_panel_overrides(task_id)
+    for key, value in panel.items():
+        if value is None or value == "":
+            continue
+        merged[key] = value
+
+    provider = merged.get("__provider")
+    model = merged.get("__model")
+    if not isinstance(provider, str) or not provider.strip():
+        provider = None
+    if not isinstance(model, str) or not model.strip():
+        model = None
+
+    # Clamp n to the active model config (enum / min / max). No hardcoded 1–10.
+    if "n" in merged:
+        try:
+            n_val = int(merged["n"])
+        except (TypeError, ValueError):
+            n_val = 1
+        merged["n"] = _clamp_n_for_route(n_val, provider, model)
+    return merged
+
+
+# Product size buckets used by ChatGPT / Codex UI (+ chatgpt2api /image presets).
+_SIZE_RATIO_HINTS = {
+    "1254x1254": "1:1",
+    "1086x1448": "3:4",
+    "941x1672": "9:16",
+    "1448x1086": "4:3",
+    "1672x941": "16:9",
+    "1024x1024": "1:1",
+    "1024x1536": "2:3",
+    "1536x1024": "3:2",
+    "1024x1365": "3:4",
+    "1365x1024": "4:3",
+    "1088x1920": "9:16",
+    "1920x1088": "16:9",
+    "2048x2048": "1:1",
+    "2560x1440": "16:9",
+    "1440x2560": "9:16",
+    "3840x2160": "16:9",
+    "2160x3840": "9:16",
+}
+
+
+def _augment_prompt_with_output_constraints(
+    prompt: str,
+    extra_params: Optional[Dict[str, Any]] = None,
+    *,
+    is_edit: bool = False,
+) -> str:
+    """Append English output-constraint lines for backends that ignore structured fields.
+
+    Universal for every image_generate backend. Structured params are still
+    forwarded separately when the provider supports them.
+    """
+    text = (prompt or "").strip()
+    if not text:
+        return text
+    params = extra_params if isinstance(extra_params, dict) else {}
+    lines: List[str] = []
+
+    size = params.get("size")
+    if isinstance(size, str) and size.strip():
+        size_s = size.strip()
+        if size_s.lower() != "auto":
+            ratio = _SIZE_RATIO_HINTS.get(size_s)
+            if not ratio and "x" in size_s.lower():
+                try:
+                    from math import gcd
+
+                    w_s, h_s = size_s.lower().split("x", 1)
+                    w, h = int(w_s), int(h_s)
+                    if w > 0 and h > 0:
+                        g = gcd(w, h)
+                        ratio = f"{w // g}:{h // g}"
+                except Exception:
+                    ratio = None
+            if ratio:
+                lines.append(
+                    f"Aspect ratio must be {ratio}. "
+                    f"Target resolution approximately {size_s} pixels (width x height)."
+                )
+            else:
+                lines.append(
+                    f"Target resolution approximately {size_s} pixels (width x height)."
+                )
+
+    ar = params.get("aspect_ratio")
+    if (
+        isinstance(ar, str)
+        and ar.strip()
+        and ":" in ar
+        and not any("Aspect ratio" in x for x in lines)
+    ):
+        lines.append(f"Aspect ratio must be {ar.strip()}.")
+
+    quality = params.get("quality")
+    if isinstance(quality, str) and quality.strip():
+        q = quality.strip().lower()
+        if q == "auto":
+            lines.append(
+                "Image quality: auto (choose appropriate detail automatically)."
+            )
+        elif q == "low":
+            lines.append("Image quality: low (faster, less fine detail).")
+        elif q == "medium":
+            lines.append("Image quality: medium.")
+        elif q == "high":
+            lines.append("Image quality: high (maximum detail and sharpness).")
+        else:
+            lines.append(f"Image quality: {q}.")
+
+    n_raw = params.get("n")
+    if n_raw is not None and n_raw != "":
+        try:
+            n_i = int(n_raw)
+        except (TypeError, ValueError):
+            n_i = 0
+        if n_i == 1:
+            lines.append("Generate exactly 1 image.")
+        elif n_i > 1:
+            lines.append(
+                f"Generate exactly {n_i} distinct image variations."
+            )
+
+    bg = params.get("background")
+    if isinstance(bg, str):
+        bg_l = bg.strip().lower()
+        if bg_l == "transparent":
+            lines.append(
+                "Background must be fully transparent with a real alpha channel. "
+                "Do not paint any solid color backdrop."
+            )
+        elif bg_l == "opaque":
+            lines.append("Background must be fully opaque with no transparency.")
+
+    fmt = params.get("output_format")
+    if isinstance(fmt, str) and fmt.strip():
+        lines.append(f"Deliver the final image as {fmt.strip().upper()} format.")
+
+    mod = params.get("moderation")
+    if isinstance(mod, str) and mod.strip().lower() == "low":
+        lines.append(
+            "Apply a low/lenient safety filter; allow broader creative content within policy."
+        )
+
+    if is_edit:
+        lines.append(
+            "This is an edit of the provided source image(s). Preserve identity, "
+            "composition, and details that are not explicitly changed by the user request."
+        )
+
+    if not lines:
+        return text
+
+    marker = "[Output constraints]"
+    if marker in text:
+        return text
+    block = marker + "\n" + "\n".join(f"- {line}" for line in lines)
+    return f"{text}\n\n{block}"
+
+
+def _prompt_constraints_enabled(
+    model: str | None = None,
+    *,
+    panel_override: bool | None = None,
+    provider: str | None = None,
+) -> bool:
+    """Enable English output-constraint injection.
+
+    Priority:
+      1. Desktop panel toggle (while panel active)
+      2. Model-level config: image_gen.<provider>.models.<model>.prompt_constraints
+    Absent/false = off (API params only). No top-level fallback.
+    """
+    if isinstance(panel_override, bool):
+        return panel_override
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        section = cfg.get("image_gen") if isinstance(cfg, dict) else None
+        if not isinstance(section, dict):
+            return False
+
+        provider_name = (provider or "").strip() or str(section.get("provider") or "").strip()
+        if not provider_name or not isinstance(section.get(provider_name), dict):
+            return False
+        nested = section[provider_name]
+        model_id = (model or "").strip()
+        if not model_id:
+            model_id = str(section.get("model") or "").strip()
+        if not model_id:
+            return False
+        models = nested.get("models")
+        if not isinstance(models, dict):
+            return False
+        block = models.get(model_id)
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("prompt_constraints"))
+    except Exception:
+        return False
+
+
 def _handle_image_generate(args, **kw):
     prompt = args.get("prompt", "")
     if not prompt:
@@ -1867,6 +2377,51 @@ def _handle_image_generate(args, **kw):
     if not isinstance(upscale, bool):
         upscale = None
     task_id = kw.get("task_id")
+    extra_params = _merge_image_extra_params(args if isinstance(args, dict) else {}, task_id=task_id)
+    panel_pc = extra_params.pop("__prompt_constraints", None)
+    if not isinstance(panel_pc, bool):
+        panel_pc = None
+    panel_provider = extra_params.pop("__provider", None)
+    panel_model = extra_params.pop("__model", None)
+    if not isinstance(panel_provider, str) or not panel_provider.strip():
+        panel_provider = None
+    else:
+        panel_provider = panel_provider.strip()
+    if not isinstance(panel_model, str) or not panel_model.strip():
+        panel_model = None
+    else:
+        panel_model = panel_model.strip()
+    # Also accept route written only at panel top-level (already folded above).
+    if panel_provider is None or panel_model is None:
+        rp, rm = _read_panel_image_route(task_id)
+        panel_provider = panel_provider or rp
+        panel_model = panel_model or rm
+    # Panel may supply a native ratio string; keep dedicated aspect_ratio arg in sync
+    # for backends that still expect landscape/square/portrait via the positional path.
+    panel_ar = extra_params.get("aspect_ratio")
+    if isinstance(panel_ar, str) and panel_ar.strip():
+        aspect_ratio = panel_ar.strip()
+
+    # Universal generate vs edit: any source image → edit modality for all backends.
+    has_source = bool(
+        (isinstance(image_url, str) and image_url.strip())
+        or (
+            isinstance(reference_image_urls, (list, tuple))
+            and any(isinstance(r, str) and r.strip() for r in reference_image_urls)
+        )
+    )
+    # Panel toggle wins; else model config. Off = API params only.
+    model_hint = panel_model
+    if not model_hint and isinstance(args, dict):
+        raw_model = args.get("model")
+        if isinstance(raw_model, str) and raw_model.strip():
+            model_hint = raw_model.strip()
+    if _prompt_constraints_enabled(
+        model_hint, panel_override=panel_pc, provider=panel_provider
+    ):
+        prompt = _augment_prompt_with_output_constraints(
+            prompt, extra_params, is_edit=has_source
+        )
 
     # Terminal-backend confinement chokepoint: convert path-like sources to
     # data: URLs via the shared resolver BEFORE any provider dispatch, so
@@ -1880,11 +2435,15 @@ def _handle_image_generate(args, **kw):
     # Route to a plugin-registered provider if one is active (and it's
     # not the in-tree FAL path). When ``image_gen.provider == "krea"`` this
     # already reaches the Krea plugin's managed gateway path.
+    # Desktop panel provider/model override wins over config.yaml while open.
     dispatched = _dispatch_to_plugin_provider(
         prompt, aspect_ratio,
         image_url=image_url,
         reference_image_urls=reference_image_urls,
         upscale=upscale,
+        extra_params=extra_params,
+        provider_name=panel_provider,
+        model_name=panel_model,
     )
     if dispatched is not None:
         return _postprocess_image_generate_result(dispatched, task_id=task_id)
@@ -1960,6 +2519,10 @@ def _active_image_capabilities() -> Dict[str, Any]:
                     info["modalities"] = list(caps["modalities"])
                 if caps.get("max_reference_images"):
                     info["max_reference_images"] = int(caps["max_reference_images"])
+                if isinstance(caps.get("model_params"), dict):
+                    info["model_params"] = caps["model_params"]
+                if isinstance(caps.get("model_capabilities"), dict):
+                    info["model_capabilities"] = caps["model_capabilities"]
                 return info
         except Exception:  # noqa: BLE001
             pass
@@ -2024,6 +2587,28 @@ def _build_dynamic_image_schema() -> Dict[str, Any]:
             "reference_image_urls (they will be rejected). Provide a "
             "text-only prompt."
         )
+
+    # Surface optional model-specific params when the active provider declares them.
+    model_params = info.get("model_params") if isinstance(info.get("model_params"), dict) else None
+    if not model_params:
+        try:
+            raw_caps = info.get("model_capabilities") if isinstance(info.get("model_capabilities"), dict) else {}
+            model_params = raw_caps.get("params") if isinstance(raw_caps.get("params"), dict) else None
+        except Exception:
+            model_params = None
+    if model_params:
+        declared = [k for k in model_params.keys() if k != "prompt"]
+        if declared:
+            parts.append(
+                "- optional params supported by the active model: "
+                + ", ".join(declared)
+                + ". Omit unsupported fields; the backend ignores them."
+            )
+        else:
+            parts.append(
+                "- this model accepts prompt only among generation options "
+                "(no size/quality/n/aspect_ratio extras)."
+            )
 
     return {"description": "\n".join(parts)}
 

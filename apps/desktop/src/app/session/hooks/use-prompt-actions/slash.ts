@@ -667,6 +667,27 @@ export function useSlashCommand(deps: SlashCommandDeps) {
             notify({ kind: 'error', title: copy.yoloTitle, message: copy.yoloToggleFailed })
           }
         },
+        // /create-image opens the Desktop create-image panel (plugin listens on
+        // window event). Works even when the plugin middleware didn't catch it.
+        'create-image': async ctx => {
+          const seed = ctx.arg.trim()
+          try {
+            window.dispatchEvent(
+              new CustomEvent('hermes:create-image', {
+                detail: { seed }
+              })
+            )
+          } catch {
+            /* ignore */
+          }
+          notify({
+            kind: 'info',
+            title: 'Create Image',
+            message: seed
+              ? 'opened panel (if Create Image plugin is enabled)'
+              : 'opened panel — enable Create Image in Settings → Plugins if nothing appears'
+          })
+        },
         // /wake must stay in the gateway process that owns the Desktop wake
         // lease. Sending it through slash.exec creates a separate HermesCLI in
         // the slash worker, which can claim the machine-wide microphone lock

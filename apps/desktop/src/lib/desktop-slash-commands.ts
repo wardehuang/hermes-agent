@@ -47,6 +47,7 @@ export type DesktopActionId =
   | 'branch'
   | 'browser'
   | 'compress'
+  | 'create-image'
   | 'handoff'
   | 'hatch'
   | 'help'
@@ -169,6 +170,13 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     surface: action('branch')
   },
   { name: '/yolo', description: 'Toggle YOLO — auto-approve dangerous commands', surface: action('yolo') },
+  {
+    name: '/create-image',
+    description: 'Open image generation config bar above the composer',
+    aliases: ['/img', '/image'],
+    surface: action('create-image'),
+    argumentMode: 'text'
+  },
   {
     name: '/wake',
     description: 'Control the desktop wake-word listener [on|off|status]',

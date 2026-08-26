@@ -10480,6 +10480,7 @@ def _run_prompt_submit(
     display_metadata: dict | None = None,
     image_paths: list[str] | None = None,
     queued_prompt_generation: int | None = None,
+    persist_text: str | None = None,
 ) -> bool:
     with session["history_lock"]:
         if session.get("_closing"):
@@ -10793,8 +10794,17 @@ def _run_prompt_submit(
             run_kwargs = {
                 "conversation_history": list(history),
                 "stream_callback": _stream,
+                # Model receives `prompt`/`run_message`. Bubble/DB can show a
+                # shorter label when the client sent display_text (skills,
+                # create-image force-tool scaffolding).
                 "persist_user_message": (
-                    _build_persist_user_message(prompt, images, run_message) if images else prompt
+                    persist_text
+                    if isinstance(persist_text, str) and persist_text.strip()
+                    else (
+                        _build_persist_user_message(prompt, images, run_message)
+                        if images
+                        else prompt
+                    )
                 ),
             }
             # Type a synthesized turn at turn START so the crash persist writes

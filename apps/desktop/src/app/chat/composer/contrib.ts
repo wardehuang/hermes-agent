@@ -43,6 +43,11 @@ export const COMPOSER_AREAS = {
 export interface ComposerDraft {
   text: string
   attachments?: ComposerAttachment[]
+  /**
+   * Optional bubble label. When set, the transcript shows this while `text`
+   * is what the model receives (same seam skills use via SubmitTextOptions).
+   */
+  displayText?: string
 }
 
 /** Payload of a `composer.middleware` data contribution. */
