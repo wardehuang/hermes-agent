@@ -1864,6 +1864,45 @@ def get_custom_provider_context_length(
     return None
 
 
+def get_custom_provider_api_mode(
+    model: str,
+    base_url: str,
+    custom_providers: Optional[List[Dict[str, Any]]] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Return the per-model transport declared for a custom-provider route."""
+    if not model or not base_url:
+        return None
+    if custom_providers is None:
+        try:
+            custom_providers = get_compatible_custom_providers(config)
+        except Exception:
+            return None
+    if not isinstance(custom_providers, list):
+        return None
+
+    target_url = normalize_route_base_url(base_url)
+    if not target_url:
+        return None
+
+    for entry in custom_providers:
+        if not isinstance(entry, dict):
+            continue
+        entry_url = normalize_route_base_url(entry.get("base_url"))
+        if not entry_url or entry_url != target_url:
+            continue
+        models = entry.get("models")
+        if not isinstance(models, dict):
+            continue
+        model_cfg = models.get(model)
+        if not isinstance(model_cfg, dict):
+            continue
+        raw_mode = model_cfg.get("api_mode") or model_cfg.get("transport")
+        if isinstance(raw_mode, str) and raw_mode.strip():
+            return _canonical_api_mode(raw_mode)
+    return None
+
+
 def get_custom_provider_model_capability(
     model: str,
     base_url: str,

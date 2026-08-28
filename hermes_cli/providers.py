@@ -612,6 +612,8 @@ _FLAT_NAMESPACE_RESELLERS: frozenset[str] = frozenset({
     # Use normalized provider IDs: normalize_provider("opencode-zen") -> "opencode".
     "opencode-go",
     "opencode",
+    # OpenCode Free uses the same first-party flat namespace as Zen/Go.
+    "opencode-free",
 })
 
 

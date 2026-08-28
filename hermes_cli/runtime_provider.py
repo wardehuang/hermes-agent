@@ -781,6 +781,9 @@ def _get_named_custom_provider(requested_provider: str) -> Optional[Dict[str, An
                         "api_key": resolved_api_key,
                         "model": entry.get("default_model", ""),
                     }
+                    models = entry.get("models")
+                    if isinstance(models, dict):
+                        result["models"] = dict(models)
                     extra_body = entry.get("extra_body")
                     if isinstance(extra_body, dict):
                         result["extra_body"] = dict(extra_body)
@@ -834,6 +837,9 @@ def _get_named_custom_provider(requested_provider: str) -> Optional[Dict[str, An
             "base_url": base_url.strip(),
             "api_key": str(entry.get("api_key", "") or "").strip(),
         }
+        models = entry.get("models")
+        if isinstance(models, dict):
+            result["models"] = dict(models)
         key_env = str(entry.get("key_env", "") or "").strip()
         if key_env:
             result["key_env"] = key_env
@@ -1162,8 +1168,30 @@ def _resolve_named_custom_runtime(
     if not base_url:
         return None
 
+    effective_model = str(
+        target_model
+        or custom_provider.get("model")
+        or _get_model_config().get("default")
+        or ""
+    ).strip()
+    from hermes_cli.config import get_custom_provider_api_mode
+
+    model_api_mode = _parse_api_mode(
+        get_custom_provider_api_mode(
+            effective_model,
+            base_url,
+            custom_providers=[custom_provider],
+        )
+    )
+    configured_api_mode = model_api_mode or _parse_api_mode(custom_provider.get("api_mode"))
+
     # Check if a credential pool exists for this custom endpoint
-    pool_result = _try_resolve_from_custom_pool(base_url, "custom", custom_provider.get("api_mode"), provider_name=custom_provider.get("name"))
+    pool_result = _try_resolve_from_custom_pool(
+        base_url,
+        "custom",
+        configured_api_mode,
+        provider_name=custom_provider.get("name"),
+    )
     if pool_result:
         # Propagate the model name even when using pooled credentials —
         # the pool doesn't know about the custom_providers model field.
@@ -1219,7 +1247,7 @@ def _resolve_named_custom_runtime(
 
     result = {
         "provider": "custom",
-        "api_mode": custom_provider.get("api_mode")
+        "api_mode": configured_api_mode
         or _detect_api_mode_for_url(base_url)
         or "chat_completions",
         "base_url": base_url,
@@ -1259,20 +1287,14 @@ def _resolve_named_custom_runtime(
                 )
         except Exception:
             _oc_family = None
-    if _oc_family is not None and not custom_provider.get("api_mode"):
+    if _oc_family is not None and configured_api_mode is None:
         from hermes_cli.models import (
             normalize_opencode_base_url,
             opencode_model_api_mode,
         )
 
-        _effective_model = str(
-            target_model
-            or custom_provider.get("model")
-            or _get_model_config().get("default")
-            or ""
-        ).strip()
-        if _effective_model:
-            result["api_mode"] = opencode_model_api_mode(_oc_family, _effective_model)
+        if effective_model:
+            result["api_mode"] = opencode_model_api_mode(_oc_family, effective_model)
         result["base_url"] = normalize_opencode_base_url(
             _oc_family, result["api_mode"], result["base_url"]
         )

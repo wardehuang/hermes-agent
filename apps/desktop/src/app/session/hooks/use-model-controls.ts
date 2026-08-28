@@ -217,6 +217,28 @@ export function useModelControls({ queryClient, requestGateway }: ModelControlsO
         return true
       }
 
+      const rollbackSelection = () => {
+        if (touchesPrimary) {
+          setCurrentModel(prevModel)
+          setCurrentProvider(prevProvider)
+          setCurrentModelSource(prevSource)
+        } else {
+          sessionTileDelegate()?.updateSession(liveSessionId, state => ({
+            ...state,
+            model: prevModel,
+            provider: prevProvider
+          }))
+        }
+
+        updateModelOptionsCache(
+          liveSessionId,
+          prevProvider,
+          prevModel,
+          false,
+          liveGatewayProfile
+        )
+      }
+
       try {
         // The PRIMARY profile's main agent is the profile's default — its
         // model/provider choice IS the default, so persist it to config.yaml
@@ -235,11 +257,28 @@ export function useModelControls({ queryClient, requestGateway }: ModelControlsO
         const persistsAsDefault = touchesPrimary && !isSessionOnlyPreset
         const scope = persistsAsDefault ? '--global' : '--session'
 
-        const result = await requestGateway<{ deferred?: boolean }>('config.set', {
-          session_id: liveSessionId,
-          key: 'model',
-          value: `${selection.model} --provider ${selection.provider} ${scope}`
-        })
+        const requestModelChange = (confirmed = false) =>
+          requestGateway<{
+            confirm_message?: string
+            confirm_required?: boolean
+            deferred?: boolean
+            warning?: string
+          }>('config.set', {
+            confirm_expensive_model: confirmed,
+            key: 'model',
+            session_id: liveSessionId,
+            value: `${selection.model} --provider ${selection.provider} ${scope}`
+          })
+
+        let result = await requestModelChange()
+
+        if (result.confirm_required) {
+          result = await requestModelChange(true)
+
+          if (result.confirm_required) {
+            throw new Error(result.confirm_message || result.warning || 'Model switch confirmation was rejected.')
+          }
+        }
 
         // A pick made DURING a turn is queued by the gateway and applied at the
         // next turn start (`deferred`). Re-fetching now would answer with the
@@ -261,25 +300,7 @@ export function useModelControls({ queryClient, requestGateway }: ModelControlsO
           return true
         }
 
-        if (touchesPrimary) {
-          setCurrentModel(prevModel)
-          setCurrentProvider(prevProvider)
-          setCurrentModelSource(prevSource)
-        } else if (liveSessionId) {
-          sessionTileDelegate()?.updateSession(liveSessionId, state => ({
-            ...state,
-            model: prevModel,
-            provider: prevProvider
-          }))
-        }
-
-        updateModelOptionsCache(
-          liveSessionId,
-          prevProvider,
-          prevModel,
-          touchesPrimary && !liveSessionId,
-          liveGatewayProfile
-        )
+        rollbackSelection()
         notifyError(err, copy.modelSwitchFailed)
 
         return false
