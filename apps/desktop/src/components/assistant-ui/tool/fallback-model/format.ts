@@ -94,13 +94,35 @@ export function parseMaybeObject(value: unknown): Record<string, unknown> {
     return {}
   }
 
+  const candidate = unwrapUntrustedToolResult(value)
+
   try {
-    const parsed = JSON.parse(value)
+    const parsed = JSON.parse(candidate)
 
     return isRecord(parsed) ? parsed : {}
   } catch {
     return {}
   }
+}
+
+function unwrapUntrustedToolResult(value: string): string {
+  const trimmed = value.trim()
+  const openTag = trimmed.match(/^<untrusted_tool_result\b[^>]*>\s*/)
+
+  if (!openTag) {
+    return trimmed
+  }
+
+  const closeIndex = trimmed.lastIndexOf('</untrusted_tool_result>')
+
+  if (closeIndex <= openTag[0].length) {
+    return trimmed
+  }
+
+  const wrapped = trimmed.slice(openTag[0].length, closeIndex).trim()
+  const payloadStart = wrapped.indexOf('\n\n')
+
+  return (payloadStart === -1 ? wrapped : wrapped.slice(payloadStart + 2)).trim()
 }
 
 export function unwrapToolPayload(value: unknown): unknown {

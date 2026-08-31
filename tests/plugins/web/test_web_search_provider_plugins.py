@@ -79,6 +79,7 @@ class TestBundledPluginsRegister:
             "brave-free",
             "ddgs",
             "exa",
+            "fathom",
             "firecrawl",
             "keenable",
             "parallel",
@@ -97,6 +98,7 @@ class TestBundledPluginsRegister:
             ("parallel", True, True),
             ("tavily", True, True),
             ("firecrawl", True, True),
+            ("fathom", True, False),
             # xai: search-only via Grok's agentic web_search tool.
             ("xai", True, False),
         ],
@@ -117,7 +119,7 @@ class TestBundledPluginsRegister:
 
     @pytest.mark.parametrize(
         "plugin_name",
-        ["brave-free", "ddgs", "searxng", "exa", "parallel", "tavily", "firecrawl", "xai"],
+        ["brave-free", "ddgs", "searxng", "exa", "parallel", "tavily", "firecrawl", "xai", "fathom"],
     )
     def test_each_plugin_has_name_and_display_name(self, plugin_name: str) -> None:
         _ensure_plugins_loaded()

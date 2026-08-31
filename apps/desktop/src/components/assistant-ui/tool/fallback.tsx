@@ -26,6 +26,7 @@ import { FileDiffPanel } from '@/components/chat/diff-lines'
 import { DisclosureRow } from '@/components/chat/disclosure-row'
 import { SCAFFOLD_LABEL_CLASS, SCAFFOLD_META_CLASS, ScaffoldRow } from '@/components/chat/scaffold-row'
 import { ZoomableImage } from '@/components/chat/zoomable-image'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { CopyButton } from '@/components/ui/copy-button'
@@ -53,6 +54,7 @@ import {
   clampForDisplay,
   cleanVisibleText,
   countDiffLineStats,
+  extractSearchProviderLabel,
   inlineDiffFromResult,
   isCardTool,
   isFileEditTool,
@@ -574,6 +576,11 @@ function ToolEntry({ part }: ToolEntryProps) {
               title={view.title}
               titleAction={view.titleAction}
             />
+            {view.providerLabel && (
+              <Badge size="xs" variant="default">
+                {view.providerLabel}
+              </Badge>
+            )}
             {!isPending && view.countLabel && (
               <span className={cn(SCAFFOLD_META_CLASS, memoryMetaClass)}>{view.countLabel}</span>
             )}
@@ -799,6 +806,7 @@ function ToolRunHeader({
   live,
   onToggle,
   open,
+  providerLabel,
   startedAt,
   summary
 }: {
@@ -806,6 +814,7 @@ function ToolRunHeader({
   live: boolean
   onToggle?: () => void
   open: boolean
+  providerLabel?: string
   startedAt?: number
   summary: string
 }) {
@@ -816,9 +825,16 @@ function ToolRunHeader({
         open={open}
         trailing={<TimelineTimestamp completedAt={completedAt} timestamp={startedAt} />}
       >
-        <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
-          {live ? <span className="shimmer">{summary}</span> : summary}
-        </FadeText>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
+            {live ? <span className="shimmer">{summary}</span> : summary}
+          </FadeText>
+          {providerLabel && (
+            <Badge size="xs" variant="default">
+              {providerLabel}
+            </Badge>
+          )}
+        </span>
       </ScaffoldRow>
     </div>
   )
@@ -831,6 +847,7 @@ interface ToolRunState {
   entryIds: readonly string[]
   key: string
   live: boolean
+  providerLabel?: string
   startedAt?: number
   /** A call still awaiting a result that could be the one blocking on approval. */
   pendingApprovalTool: boolean
@@ -894,6 +911,10 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
             undefined
           ),
           pendingApprovalTool: tools.some(tool => tool.result === undefined && APPROVAL_TOOLS.has(tool.toolName)),
+          providerLabel: tools
+            .filter(tool => tool.toolName === 'web_search')
+            .map(tool => extractSearchProviderLabel(tool.result))
+            .find(Boolean),
           summary: summarizeToolRun(tools, live)
         }
       }
@@ -924,7 +945,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
 }) => {
   const messageRunning = useAuiState(selectMessageRunning)
 
-  const { completedAt, count, entryIds, key, live, pendingApprovalTool, startedAt, summary } = useToolRun(
+  const { completedAt, count, entryIds, key, live, pendingApprovalTool, providerLabel, startedAt, summary } = useToolRun(
     startIndex,
     endIndex
   )
@@ -963,6 +984,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
         live={live}
         onToggle={live ? undefined : () => setToolDisclosureOpen(disclosureId, !expanded)}
         open={expanded}
+        providerLabel={providerLabel}
         startedAt={startedAt}
         summary={summary}
       />

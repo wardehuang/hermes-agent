@@ -639,6 +639,16 @@ function collectResultItems(value: unknown): unknown[] {
   return payload === record ? [] : collectResultItems(payload)
 }
 
+export function extractSearchProviderLabel(result: unknown): string {
+  const payload = unwrapToolPayload(result)
+
+  if (!isRecord(payload)) {
+    return ''
+  }
+
+  return firstStringField(payload, ['provider_label'])
+}
+
 function extractSearchResults(result: unknown, limit = 6): SearchResultRow[] {
   const list = collectResultItems(result)
 
@@ -1464,6 +1474,8 @@ export function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
       ? firstStringField(argsRecord, ['search_term', 'query']) || contextValue(argsRecord)
       : ''
 
+  const providerLabel = part.toolName === 'web_search' ? extractSearchProviderLabel(part.result) : ''
+
   const resultCount = status === 'error' ? null : toolResultCount(part, argsRecord, resultRecord)
 
   // For shell/code tools we surface stdout and stderr as separate labeled
@@ -1492,6 +1504,7 @@ export function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
     rendersAnsi: rendersAnsi || undefined,
     searchQuery: searchQuery || undefined,
     searchHits: searchHits?.length ? searchHits : undefined,
+    providerLabel: providerLabel || undefined,
     stderr: hasSplitStreams ? stderrRaw || undefined : undefined,
     terminalCommand,
     terminalExitCode,

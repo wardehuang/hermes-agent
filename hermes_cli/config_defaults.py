@@ -6,7 +6,86 @@ verbatim from hermes_cli/config.py. Must not import from hermes_cli.config.
 
 DEFAULT_CONFIG = {
     "model": "",
-    "providers": {},
+    # Fork-local shared custom providers. load_config() deep-merges this into
+    # every profile; do not duplicate the block in profile config.yaml or later
+    # default edits stay shadowed.
+    "providers": {
+        "cpa": {
+            "name": "Cpa",
+            "api": "http://wcpa.edmundvps.site:18457/v1",
+            "key_env": "WCPA_API_KEY",
+            "transport": "codex_responses",
+            "discover_models": False,
+            "models": {
+                "gpt-5.6-sol": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+                "gpt-5.6-terra": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+                "gpt-5.6-luna": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+                "grok-4.6": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+            },
+        },
+        "grok2api": {
+            "name": "Grok2Api",
+            "api": "http://wcpa.edmundvps.site:18453/v1",
+            "key_env": "GROK2API_API_KEY",
+            "transport": "codex_responses",
+            "discover_models": False,
+            "base_url": "http://wcpa.edmundvps.site:18453/v1",
+            "model": "Console/grok-4.5",
+            "models": {
+                "Console/grok-4.5": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+            },
+        },
+        "chatgpt2api": {
+            "name": "ChatGPT2API",
+            "api": "http://wcpa.edmundvps.site:3000/v1",
+            "key_env": "CHATGPT2API_API_KEY",
+            "transport": "codex_responses",
+            "discover_models": False,
+            "models": {
+                "gpt-5-6-thinking": {
+                    "supports_vision": True
+                },
+            },
+        },
+        "opencode-proxy": {
+            "name": "Opencode Proxy",
+            "api": "http://wcpap.edmundvps.site:19876/v1",
+            "base_url": "http://wcpap.edmundvps.site:19876/v1",
+            "key_env": "OPENCODE_PROXY_API_KEY",
+            "transport": "openai_chat",
+            "discover_models": True,
+            "model": "hy3-free",
+            "models": {
+                "muse-spark-1.2": {},
+                "big-pickle": {},
+                "deepseek-v4-flash-free": {},
+                "x-preview-f-free": {},
+                "mimo-v2.5-free": {},
+                "hy3-free": {},
+                "nemotron-3-ultra-free": {},
+                "nemotron-3.5-lightning-free": {},
+                "laguna-s-2.1-free": {},
+                "muse-spark-1.2-contributor-free": {
+                    "api_mode": "codex_responses",
+                },
+            },
+        },
+    },
     "fallback_providers": [],
     "credential_pool_strategies": {},
     "toolsets": ["hermes-cli"],

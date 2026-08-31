@@ -45,6 +45,8 @@ export interface ToolView {
   /** Original query, shown above structured web-search results. */
   searchQuery?: string
   searchHits?: SearchResultRow[]
+  /** Search-backend badge, e.g. Fathom. Taken from result.provider_label. */
+  providerLabel?: string
   /** When the backend reports stderr as a separate stream (terminal /
    *  execute_code), the renderer shows it as its own labeled, neutrally
    *  tinted block under stdout — distinct from an error tone. */

@@ -1,0 +1,5 @@
+name: grok2api
+version: 1.0.0
+description: "Video generation via named provider grok2api (POST /v1/videos/generations)."
+author: warde
+kind: backend
