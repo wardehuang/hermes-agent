@@ -1611,6 +1611,8 @@ export interface Translations {
     defaultBadge: string
     rename: string
     renameMenu: string
+    editConfig: string
+    failedOpenConfig: string
     editSoul: string
     copySetup: string
     copying: string

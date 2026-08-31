@@ -1,0 +1,4 @@
+name: create-image
+version: 1.0.0
+description: "/create-image slash + composer panel for model-aware image generation"
+author: warde

@@ -37,6 +37,12 @@ function stringFields(record: Record<string, unknown>, keys: readonly string[]):
   return keys.map(key => record[key]).filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
 }
 
+function stringListField(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key]
+
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0) : []
+}
+
 function regexEscape(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -55,20 +61,43 @@ function imageResult(part: ToolLike): Record<string, unknown> | null {
   return record && record.success !== false ? record : null
 }
 
-/** Display source for a completed `image_generate` result (host path wins). */
-export function generatedImageFromResult(result: unknown): string | null {
+/** Every display path for a completed `image_generate` result (host paths). */
+export function generatedImagesFromResult(result: unknown): string[] {
   const record = recordFromUnknown(result)
 
   if (!record || record.success === false) {
-    return null
+    return []
   }
 
-  return stringFields(record, DISPLAY_KEYS)[0] ?? null
+  const fromArray = unique(stringListField(record, 'images'))
+
+  if (fromArray.length > 0) {
+    return fromArray
+  }
+
+  const scalar = stringFields(record, DISPLAY_KEYS)[0]
+
+  return scalar ? [scalar] : []
+}
+
+/** Display source for a completed `image_generate` result (first host path). */
+export function generatedImageFromResult(result: unknown): string | null {
+  return generatedImagesFromResult(result)[0] ?? null
 }
 
 /** Every path/URL a generated image might appear as in prose, for de-duping. */
 export function generatedImageEchoSources(parts: readonly ToolLike[]): string[] {
-  return unique(parts.flatMap(part => stringFields(imageResult(part) ?? {}, ECHO_KEYS)))
+  return unique(
+    parts.flatMap(part => {
+      const record = imageResult(part)
+
+      if (!record) {
+        return []
+      }
+
+      return [...stringListField(record, 'images'), ...stringFields(record, ECHO_KEYS)]
+    })
+  )
 }
 
 /** Strip a generated image out of prose so it only ever shows in the tool slot.

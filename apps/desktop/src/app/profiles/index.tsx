@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ProfileGlyph } from '@/components/ui/profile-glyph'
 import { getProfileSoul, type ProfileInfo, updateProfileSoul } from '@/hermes'
 import { useI18n } from '@/i18n'
+import { openDesktopPathInEditor } from '@/lib/desktop-fs'
 import { displayPath } from '@/lib/display-path'
 import { AlertTriangle, Save } from '@/lib/icons'
 import { resolveProfileColor } from '@/lib/profile-color'
@@ -34,6 +35,39 @@ import {
 import { CreateProfileDialog } from './create-profile-dialog'
 import { DeleteProfileDialog } from './delete-profile-dialog'
 import { RenameProfileDialog } from './rename-profile-dialog'
+
+export function profileConfigPath(profilePath: string): string {
+  const trimmed = profilePath.replace(/[\\/]+$/, '')
+  const sep = trimmed.includes('\\') ? '\\' : '/'
+
+  return `${trimmed}${sep}config.yaml`
+}
+
+function buildProfileMenuItems(
+  profile: ProfileInfo,
+  labels: { delete: string; editConfig: string; rename: string },
+  actions: {
+    onDelete: (profile: ProfileInfo) => void
+    onEditConfig: (profile: ProfileInfo) => void
+    onRename: (profile: ProfileInfo) => void
+  }
+): PanelMenuItem[] {
+  const items: PanelMenuItem[] = [
+    { icon: 'edit', label: labels.rename, onSelect: () => actions.onRename(profile) },
+    { icon: 'file-code', label: labels.editConfig, onSelect: () => actions.onEditConfig(profile) }
+  ]
+
+  if (!profile.is_default) {
+    items.push({
+      icon: 'trash',
+      label: labels.delete,
+      onSelect: () => actions.onDelete(profile),
+      tone: 'danger'
+    })
+  }
+
+  return items
+}
 
 interface ProfilesViewProps {
   onClose: () => void
@@ -102,6 +136,21 @@ export function ProfilesView({ onClose }: ProfilesViewProps) {
     [refresh]
   )
 
+  const openConfig = useCallback(
+    async (profile: ProfileInfo) => {
+      try {
+        const ok = await openDesktopPathInEditor(profileConfigPath(profile.path))
+
+        if (!ok) {
+          notifyError(new Error(profileConfigPath(profile.path)), p.failedOpenConfig)
+        }
+      } catch (err) {
+        notifyError(err, p.failedOpenConfig)
+      }
+    },
+    [p]
+  )
+
   return (
     <Panel closeLabel={p.close} onClose={onClose}>
       {!profiles ? (
@@ -131,21 +180,15 @@ export function ProfilesView({ onClose }: ProfilesViewProps) {
                 <ProfileRow
                   active={selected?.name === profile.name}
                   key={profile.name}
-                  menuItems={
-                    profile.is_default
-                      ? // Renaming the default profile sets a presentation-only
-                        // display name (the canonical id stays "default").
-                        [{ icon: 'edit', label: p.renameMenu, onSelect: () => setPendingRename(profile) }]
-                      : [
-                          { icon: 'edit', label: p.renameMenu, onSelect: () => setPendingRename(profile) },
-                          {
-                            icon: 'trash',
-                            label: t.common.delete,
-                            onSelect: () => setPendingDelete(profile),
-                            tone: 'danger'
-                          }
-                        ]
-                  }
+                  menuItems={buildProfileMenuItems(
+                    profile,
+                    { delete: t.common.delete, editConfig: p.editConfig, rename: p.renameMenu },
+                    {
+                      onDelete: setPendingDelete,
+                      onEditConfig: target => void openConfig(target),
+                      onRename: setPendingRename
+                    }
+                  )}
                   onSelect={() => setSelectedName(profile.name)}
                   profile={profile}
                 />

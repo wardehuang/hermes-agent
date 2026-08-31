@@ -6,7 +6,7 @@ import { DiffusionCanvas } from '@/components/chat/image-generation-placeholder'
 import { ImageActionButton, ImageLightbox } from '@/components/chat/zoomable-image'
 import { useImageDownload } from '@/hooks/use-image-download'
 import { useI18n } from '@/i18n'
-import { generatedImageFromResult } from '@/lib/generated-images'
+import { generatedImagesFromResult } from '@/lib/generated-images'
 import { filePathFromMediaPath, gatewayMediaDataUrl, isRemoteGateway, mediaExternalUrl, mediaName } from '@/lib/media'
 import { cn } from '@/lib/utils'
 
@@ -48,11 +48,13 @@ async function resolveImageSrc(path: string): Promise<string> {
   return window.hermesDesktop.readFileDataUrl(filePathFromMediaPath(path))
 }
 
-export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({ aspectRatio, result }) => {
+const GeneratedImageCard: FC<{ aspectRatio?: string; image: null | string; pending: boolean }> = ({
+  aspectRatio,
+  image,
+  pending
+}) => {
   const { t } = useI18n()
   const copy = t.desktop
-  const image = result === undefined ? null : generatedImageFromResult(result)
-  const pending = result === undefined
 
   const [ratio, setRatio] = useState(() => hintedRatio(aspectRatio))
   const [src, setSrc] = useState(() => (image && isInlineSrc(image) ? image : ''))
@@ -86,12 +88,6 @@ export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({
       cancelled = true
     }
   }, [image])
-
-  // Completed but no usable image (generation failed): the agent's prose carries
-  // the explanation, so render nothing here.
-  if (!pending && !image) {
-    return null
-  }
 
   if (failed && image) {
     return (
@@ -177,4 +173,28 @@ export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({
       )}
     </>
   )
+}
+
+export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({ aspectRatio, result }) => {
+  const pending = result === undefined
+  const images = pending ? [null] : generatedImagesFromResult(result)
+
+  if (!pending && images.length === 0) {
+    return null
+  }
+
+  const cards = images.map((image, index) => (
+    <GeneratedImageCard
+      aspectRatio={aspectRatio}
+      image={image}
+      key={image ?? `pending-${index}`}
+      pending={pending}
+    />
+  ))
+
+  if (cards.length <= 1) {
+    return cards[0] ?? null
+  }
+
+  return <div className="flex flex-col gap-2">{cards}</div>
 }

@@ -457,6 +457,93 @@ caption
         )
         assert tags == [], f"generated image re-emitted after compression: {tags}"
 
+    def test_auto_append_includes_image_generate_images_array(self):
+        """n>1 payloads put every path in ``images``; auto-append must emit all."""
+        from gateway.run import _collect_auto_append_media_tags
+
+        first = "/tmp/gen/sword_0.png"
+        second = "/tmp/gen/sword_1.png"
+        messages = [
+            {"role": "user", "content": "make 2 swords"},
+            {
+                "role": "assistant",
+                "tool_calls": [{"id": "c", "function": {"name": "image_generate"}}],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c",
+                "content": json.dumps(
+                    {
+                        "success": True,
+                        "image": first,
+                        "images": [first, second],
+                    }
+                ),
+            },
+        ]
+
+        tags, voice = _collect_auto_append_media_tags(messages, history_offset=0)
+        assert tags == [f"MEDIA:{first}", f"MEDIA:{second}"]
+        assert voice is False
+
+    def test_collect_history_media_paths_includes_images_array(self):
+        """Dedup set must remember every n>1 path so later turns do not resend."""
+        from gateway.run import _collect_history_media_paths
+
+        first = "/tmp/gen/a.png"
+        second = "/tmp/gen/b.png"
+        history = [
+            {
+                "role": "assistant",
+                "tool_calls": [{"id": "c", "function": {"name": "image_generate"}}],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c",
+                "content": json.dumps(
+                    {
+                        "success": True,
+                        "image": first,
+                        "images": [first, second],
+                    }
+                ),
+            },
+        ]
+
+        paths = _collect_history_media_paths(history)
+        assert paths == {first, second}
+
+    def test_images_array_not_reemitted_after_compression(self):
+        from gateway.run import (
+            _collect_auto_append_media_tags,
+            _collect_history_media_paths,
+        )
+
+        first = "/tmp/gen/one.png"
+        second = "/tmp/gen/two.png"
+        history = [
+            {
+                "role": "assistant",
+                "tool_calls": [{"id": "c", "function": {"name": "image_generate"}}],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "c",
+                "content": json.dumps(
+                    {
+                        "success": True,
+                        "image": first,
+                        "images": [first, second],
+                    }
+                ),
+            },
+        ]
+        history_paths = _collect_history_media_paths(history)
+        tags, _ = _collect_auto_append_media_tags(
+            history, history_offset=9999, history_media_paths=history_paths
+        )
+        assert tags == [], f"n>1 images re-emitted after compression: {tags}"
+
 
     def test_media_tags_not_extracted_from_history(self):
         """MEDIA tags from previous turns should NOT be extracted again."""

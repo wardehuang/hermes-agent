@@ -1898,6 +1898,8 @@ export const en: Translations = {
     defaultBadge: 'Default',
     rename: 'Rename',
     renameMenu: 'Rename…',
+    editConfig: 'Edit config',
+    failedOpenConfig: 'Failed to open config.yaml',
     editSoul: 'Edit SOUL.md…',
     copySetup: 'Copy setup',
     copying: 'Copying...',

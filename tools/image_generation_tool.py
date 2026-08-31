@@ -2170,6 +2170,83 @@ def _create_image_panel_overrides(task_id: str | None = None) -> Dict[str, Any]:
     return out
 
 
+def consume_panel_direct_call(
+    task_id: str | None = None,
+    user_prompt: str = "",
+) -> Optional[Dict[str, Any]]:
+    """Consume a one-shot create-image panel direct-send request.
+
+    Returns tool args (prompt + optional image_url / reference_image_urls)
+    and clears ``direct`` so a later chat turn cannot skip the main model.
+    Returns None when this turn is not a panel-direct send.
+    """
+    import tempfile
+    from pathlib import Path
+
+    try:
+        from hermes_cli.config import get_hermes_home
+
+        path = Path(get_hermes_home()) / "cache" / "create_image_panel.json"
+    except Exception:
+        return None
+    try:
+        if not path.is_file():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict) or not data.get("active") or not data.get("direct"):
+        return None
+    scoped = data.get("session_id")
+    if scoped:
+        scoped_s = str(scoped).strip()
+        tid = str(task_id or "").strip()
+        if scoped_s and tid and scoped_s != tid and scoped_s not in tid and tid not in scoped_s:
+            return None
+
+    stored = str(data.get("prompt") or "").strip()
+    incoming = str(user_prompt or "").strip()
+    data["direct"] = False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raw = json.dumps(data, ensure_ascii=False, indent=2)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix="create_image_panel_", suffix=".json", dir=str(path.parent)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(raw)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+    except Exception as exc:
+        logger.debug("consume_panel_direct_call write failed: %s", exc)
+        return None
+
+    if stored and incoming and stored != incoming and not incoming.startswith(stored):
+        return None
+
+    prompt = stored or incoming
+    if not prompt:
+        return None
+    args: Dict[str, Any] = {"prompt": prompt}
+    image_url = data.get("image_url")
+    if isinstance(image_url, str) and image_url.strip():
+        args["image_url"] = image_url.strip()
+    refs = data.get("reference_image_urls")
+    if isinstance(refs, list):
+        clean = [str(x).strip() for x in refs if str(x).strip()]
+        if clean:
+            args["reference_image_urls"] = clean
+    return args
+
+
 def _n_bounds_for_route(
     provider: str | None = None,
     model: str | None = None,

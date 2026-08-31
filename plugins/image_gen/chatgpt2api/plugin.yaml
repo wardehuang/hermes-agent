@@ -1,0 +1,5 @@
+name: chatgpt2api
+version: 1.0.0
+description: "Image generation via chatgpt2api (OpenAI-compatible /v1/images/*)."
+author: warde
+kind: backend

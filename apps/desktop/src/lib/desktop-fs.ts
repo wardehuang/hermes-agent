@@ -163,6 +163,17 @@ export async function revealDesktopPath(path: string): Promise<void> {
   await bridge().revealPath?.(path)
 }
 
+// Open a file in $EDITOR (User-scoped on Windows), else the OS association.
+export async function openDesktopPathInEditor(path: string): Promise<boolean> {
+  const desktop = bridge()
+
+  if (!desktop.openInEditor) {
+    throw new Error('Open in editor is not available')
+  }
+
+  return desktop.openInEditor(path)
+}
+
 // Rename a file/folder in place; returns the new absolute path. Local only.
 export async function renameDesktopPath(path: string, newName: string): Promise<string> {
   const desktop = bridge()

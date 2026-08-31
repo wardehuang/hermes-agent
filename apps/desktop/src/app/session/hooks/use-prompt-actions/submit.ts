@@ -756,9 +756,9 @@ export function useSubmitPrompt(deps: SubmitPromptDeps) {
         const submitParams = (targetId: string) => ({
           session_id: targetId,
           text,
-          // Bubble label when it differs from model-facing text (skills,
-          // create-image force-tool scaffolding). Gateway persists this as
-          // the user row content; the agent still receives `text`.
+          // Bubble label when it differs from model-facing text (skills).
+          // Gateway persists this as the user row content; the agent still
+          // receives `text`.
           ...(options?.displayText &&
             options.displayText.trim() &&
             options.displayText.trim() !== text.trim() && {

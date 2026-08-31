@@ -132,6 +132,26 @@ describe('collectArtifactsForSession', () => {
     ])
   })
 
+  it('keeps every path from an image_generate images array', () => {
+    const artifacts = collectArtifactsForSession(makeSession({ id: 'multi-image-session' }), [
+      {
+        content: JSON.stringify({
+          image: '/tmp/generated/sword_0.png',
+          images: ['/tmp/generated/sword_0.png', '/tmp/generated/sword_1.png'],
+          success: true
+        }),
+        role: 'tool',
+        timestamp: 1_781_774_001,
+        tool_name: 'image_generate'
+      }
+    ])
+
+    expect(artifacts.map(artifact => artifact.value)).toEqual([
+      '/tmp/generated/sword_0.png',
+      '/tmp/generated/sword_1.png'
+    ])
+  })
+
   it('keeps an explicit browser screenshot but ignores page assets', () => {
     const payload = JSON.stringify({
       images: ['https://cdn.example.com/advertising/banner.gif'],

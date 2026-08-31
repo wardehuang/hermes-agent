@@ -3791,7 +3791,12 @@ def provider_readiness_status(
     """
     env_vars = provider.get("env_vars", [])
     if env_vars:
-        if all(get_env_value(e["key"]) for e in env_vars):
+        if all(
+            get_env_value(e["key"])
+            or (e.get("fallback_key") and get_env_value(str(e.get("fallback_key"))))
+            or e.get("default")
+            for e in env_vars
+        ):
             return "ready"
         return "needs_keys"
 

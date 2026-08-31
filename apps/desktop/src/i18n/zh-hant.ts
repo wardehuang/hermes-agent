@@ -1525,6 +1525,8 @@ export const zhHant = defineLocale({
     defaultBadge: '預設',
     rename: '重新命名',
     renameMenu: '重新命名…',
+    editConfig: '編輯設定',
+    failedOpenConfig: '無法開啟 config.yaml',
     editSoul: '編輯 SOUL.md…',
     copySetup: '複製安裝指令',
     copying: '複製中…',

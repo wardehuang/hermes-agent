@@ -292,8 +292,8 @@ def _(rid, params: dict) -> dict:
     raw_text = params.get("text", "")
     text = sanitize_user_prompt_text(raw_text) if isinstance(raw_text, str) else raw_text
     # Optional bubble label when it differs from the model-facing `text`
-    # (skills, create-image force-tool scaffolding, etc.). Persisted as the
-    # user row content; the agent still receives `text`.
+    # (skills, slash labels, etc.). Persisted as the user row content; the
+    # agent still receives `text`.
     raw_display = params.get("display_text")
     display_text = None
     if isinstance(raw_display, str):

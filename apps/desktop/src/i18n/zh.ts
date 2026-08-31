@@ -2081,6 +2081,8 @@ export const zh: Translations = {
     defaultBadge: '默认',
     rename: '重命名',
     renameMenu: '重命名…',
+    editConfig: '编辑配置',
+    failedOpenConfig: '无法打开 config.yaml',
     editSoul: '编辑 SOUL.md…',
     copySetup: '复制安装命令',
     copying: '复制中…',

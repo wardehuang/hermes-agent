@@ -171,6 +171,21 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarField
       const result = await revealEnvVar(envVar.key, profile)
       setRevealed(result.value)
     } catch (err) {
+      if (envVar.fallback_key) {
+        try {
+          const result = await revealEnvVar(envVar.fallback_key, profile)
+          setRevealed(result.value)
+
+          return
+        } catch {
+          // Fall through to schema default, then the original error.
+        }
+      }
+      if (envVar.default) {
+        setRevealed(envVar.default)
+
+        return
+      }
       notifyError(err, copy.failedReveal(envVar.key))
     }
   }

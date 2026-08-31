@@ -49,6 +49,7 @@ from agent.turn_context import (
 )
 from agent.turn_retry_state import TurnRetryState
 from agent.runtime_cwd import resolve_agent_cwd
+from agent.direct_image_generate import maybe_run_direct_image_generate
 from agent.message_sanitization import (
     close_interrupted_tool_sequence,
     _repair_tool_call_arguments,
@@ -2036,6 +2037,19 @@ def run_conversation(
             if not agent.quiet_mode:
                 agent._safe_print("\n⚡ Breaking out of tool loop due to interrupt...")
             break
+
+        if api_call_count == 0:
+            _direct_response = maybe_run_direct_image_generate(
+                agent,
+                messages,
+                effective_task_id=effective_task_id,
+                conversation_history=conversation_history,
+                user_message=original_user_message,
+            )
+            if _direct_response is not None:
+                final_response = _direct_response
+                _turn_exit_reason = "direct_image_generate"
+                break
 
         # Aggregate input budget for detached auxiliary forks (background
         # review, #93057): compaction bounds each request; this bounds the

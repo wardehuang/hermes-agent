@@ -10,6 +10,8 @@ import { ipcMain, shell } from 'electron'
 import { installDesktopPluginFromGit, probePluginRepo } from './desktop-plugin-install'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
+import { openPathInEditor } from './open-in-editor'
+import { readWindowsUserEnvVar } from './windows-user-env'
 
 export interface FsIpcDeps {
   hermesHome: string
@@ -31,6 +33,27 @@ export function registerFsIpc({
   ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => readDirForIpc(dirPath))
 
   ipcMain.handle('hermes:fs:gitRoot', async (_event, startPath) => gitRootForIpc(startPath))
+
+  // Open a file in $EDITOR (User-scoped on Windows so `setx` is visible
+  // without a logoff). Falls back to the OS file association.
+  ipcMain.handle('hermes:fs:openInEditor', async (_event, targetPath) => {
+    const target = String(targetPath || '').trim()
+
+    if (!target) {
+      return false
+    }
+
+    try {
+      const resolved = resolveRequestedPathForIpc(expandUserPath(target), { purpose: 'Open in editor' })
+
+      return await openPathInEditor(resolved, {
+        openPath: filePath => shell.openPath(filePath),
+        readUserEnv: name => readWindowsUserEnvVar(name)
+      })
+    } catch {
+      return false
+    }
+  })
 
   // Reveal a path in the OS file manager (Finder / Explorer / Files).
   ipcMain.handle('hermes:fs:reveal', async (_event, targetPath) => {

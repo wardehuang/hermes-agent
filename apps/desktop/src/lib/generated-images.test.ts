@@ -4,6 +4,7 @@ import {
   dedupeGeneratedImageEchoesInParts,
   generatedImageEchoSources,
   generatedImageFromResult,
+  generatedImagesFromResult,
   stripGeneratedImageEchoes
 } from './generated-images'
 
@@ -21,6 +22,38 @@ describe('generatedImageFromResult', () => {
 
   it('ignores failed image generation results', () => {
     expect(generatedImageFromResult({ image: 'https://cdn.example/cat.png', success: false })).toBeNull()
+  })
+})
+
+describe('generatedImagesFromResult', () => {
+  it('returns every path from the images array', () => {
+    expect(
+      generatedImagesFromResult({
+        image: '/host/a.png',
+        images: ['/host/a.png', '/host/b.png'],
+        success: true
+      })
+    ).toEqual(['/host/a.png', '/host/b.png'])
+  })
+
+  it('falls back to the scalar host path when images is absent', () => {
+    expect(
+      generatedImagesFromResult({
+        host_image: '/host/cat.png',
+        image: '/host/cat.png',
+        success: true
+      })
+    ).toEqual(['/host/cat.png'])
+  })
+
+  it('ignores failed image generation results', () => {
+    expect(
+      generatedImagesFromResult({
+        image: '/host/a.png',
+        images: ['/host/a.png', '/host/b.png'],
+        success: false
+      })
+    ).toEqual([])
   })
 })
 
@@ -56,6 +89,22 @@ describe('generatedImageEchoSources', () => {
         }
       ])
     ).toEqual(['/host/cat.png', '/sandbox/cat.png'])
+  })
+
+  it('collects every n>1 path so restated extras are stripped', () => {
+    expect(
+      generatedImageEchoSources([
+        {
+          result: {
+            image: '/host/a.png',
+            images: ['/host/a.png', '/host/b.png'],
+            success: true
+          },
+          toolName: 'image_generate',
+          type: 'tool-call'
+        }
+      ])
+    ).toEqual(['/host/a.png', '/host/b.png'])
   })
 })
 

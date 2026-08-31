@@ -3,11 +3,12 @@ import type * as Nanostores from 'nanostores'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { deleteProfile } from '@/hermes'
+import { openDesktopPathInEditor } from '@/lib/desktop-fs'
 import { retireLocalProfileGateways } from '@/store/gateway'
 import { refreshProfiles, selectProfile, setActiveProfile } from '@/store/profile'
 import type { ProfileInfo } from '@/types/hermes'
 
-import { ProfilesView } from './index'
+import { profileConfigPath, ProfilesView } from './index'
 
 // These tests pin the invariant this whole area exists to hold: the Manage
 // Profiles page and the sidebar rail share ONE set of profile dialogs, so both
@@ -33,6 +34,10 @@ vi.mock('@/hermes', () => ({
   getProfileSoul: vi.fn(async () => ({ content: '', exists: true })),
   renameProfile: vi.fn(async () => ({ name: 'x', ok: true, path: '/x' })),
   updateProfileSoul: vi.fn(async () => ({ ok: true }))
+}))
+
+vi.mock('@/lib/desktop-fs', () => ({
+  openDesktopPathInEditor: vi.fn(async () => true)
 }))
 
 vi.mock('@/store/notifications', () => ({
@@ -167,5 +172,49 @@ describe('ProfilesView', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull())
     expect(selectProfile).not.toHaveBeenCalled()
     expect(setActiveProfile).not.toHaveBeenCalled()
+  })
+
+  it('opens config.yaml from the row menu below Rename', async () => {
+    const openMock = vi.mocked(openDesktopPathInEditor)
+
+    openMock.mockClear()
+    vi.mocked(refreshProfiles).mockResolvedValue([makeProfile('default', true), makeProfile(NAMED_PROFILE)])
+
+    await renderProfilesView()
+    realClick(await findRowMenu(NAMED_PROFILE))
+
+    const items = await screen.findAllByRole('menuitem')
+
+    expect(items.map(item => item.textContent)).toEqual(['Rename…', 'Edit config', 'Delete'])
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit config' }))
+
+    await waitFor(() =>
+      expect(openMock).toHaveBeenCalledWith(`/home/user/.hermes/profiles/${NAMED_PROFILE}/config.yaml`)
+    )
+  })
+
+  it('offers Edit config on the default profile without Delete', async () => {
+    vi.mocked(refreshProfiles).mockResolvedValue([makeProfile('default', true), makeProfile(NAMED_PROFILE)])
+
+    await renderProfilesView()
+    realClick(await findRowMenu('default'))
+
+    expect(screen.getByRole('menuitem', { name: 'Edit config' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /delete/i })).toBeNull()
+  })
+})
+
+describe('profileConfigPath', () => {
+  it('joins config.yaml with the native separator', () => {
+    expect(profileConfigPath('/home/user/.hermes/profiles/work')).toBe(
+      '/home/user/.hermes/profiles/work/config.yaml'
+    )
+    expect(profileConfigPath('/home/user/.hermes/profiles/work/')).toBe(
+      '/home/user/.hermes/profiles/work/config.yaml'
+    )
+    expect(profileConfigPath(String.raw`C:\Users\me\.hermes\profiles\work`)).toBe(
+      String.raw`C:\Users\me\.hermes\profiles\work\config.yaml`
+    )
   })
 })

@@ -1809,10 +1809,40 @@ def _strip_auto_continue_noise(content: Any) -> Any:
 
 # Tools in this set return their deliverable artifact as a JSON payload with a
 # local-file path field rather than a literal ``MEDIA:`` tag (e.g. image_generate
-# returns ``{"success": true, "image": "/abs/path.png"}``). The auto-append path
-# extracts the path from these fields so delivery is deterministic and does not
-# depend on the model restating the path in its final reply.
+# returns ``{"success": true, "image": "/abs/path.png"}`` and, when n>1,
+# ``"images": ["/abs/a.png", "/abs/b.png"]``). The auto-append path extracts
+# every path so delivery is deterministic and does not depend on the model
+# restating the path in its final reply.
 _JSON_MEDIA_TOOL_PATH_FIELDS = ("host_image", "image", "agent_visible_image")
+_JSON_MEDIA_TOOL_PATH_LIST_FIELD = "images"
+
+
+def _json_media_tool_paths(payload: dict) -> list[str]:
+    """Return deliverable image paths from an ``image_generate`` JSON payload.
+
+    ``images`` (n>1) is the full host-path set. Scalar fields remain the n=1
+    fallback and keep the historical first-hit preference
+    (``host_image`` / ``image`` / ``agent_visible_image``).
+    """
+    paths: list[str] = []
+    seen: set[str] = set()
+
+    def _add(path: object) -> None:
+        if isinstance(path, str) and path and path not in seen:
+            seen.add(path)
+            paths.append(path)
+
+    images = payload.get(_JSON_MEDIA_TOOL_PATH_LIST_FIELD)
+    if isinstance(images, list):
+        for item in images:
+            _add(item)
+        if paths:
+            return paths
+    for field in _JSON_MEDIA_TOOL_PATH_FIELDS:
+        _add(payload.get(field))
+        if paths:
+            break
+    return paths
 
 
 # Extension-anchored MEDIA: matcher for tool results. Mirrors the dispatch-site
@@ -1881,22 +1911,19 @@ def _collect_auto_append_media_tags(
             continue
         content = str(msg.get("content") or "")
         tool_name = tool_name_by_call_id.get(call_id)
-        # JSON-payload tools (image_generate) return a local-file path in a
-        # known field rather than a MEDIA: tag. Extract it so delivery is
-        # deterministic even when the model omits the path from its reply.
+        # JSON-payload tools (image_generate) return local-file path(s) in
+        # known fields rather than a MEDIA: tag. Extract every path so
+        # delivery is deterministic even when the model omits them.
         if tool_name == "image_generate" and "MEDIA:" not in content:
             try:
                 payload = json.loads(content)
             except Exception:
                 payload = None
             if isinstance(payload, dict) and payload.get("success"):
-                for field in _JSON_MEDIA_TOOL_PATH_FIELDS:
-                    path = payload.get(field)
-                    if (isinstance(path, str)
-                            and _TOOL_MEDIA_RE.fullmatch(f"MEDIA:{path}")
+                for path in _json_media_tool_paths(payload):
+                    if (_TOOL_MEDIA_RE.fullmatch(f"MEDIA:{path}")
                             and path not in history_media_paths):
                         media_tags.append(f"MEDIA:{path}")
-                        break
             continue
         if "MEDIA:" not in content:
             continue
@@ -1917,8 +1944,9 @@ def _collect_history_media_paths(agent_history: List[Dict[str, Any]]) -> set:
     is not re-sent on later turns. Covers three delivery shapes:
       * ``MEDIA:<path>`` text tags in tool results,
       * ``MEDIA:<path>`` text tags in assistant messages (model-generated tags),
-      * ``image_generate`` JSON-payload paths (``host_image`` / ``image`` /
-        ``agent_visible_image``), which carry no MEDIA: tag.
+      * ``image_generate`` JSON-payload paths (``images`` array, or
+        ``host_image`` / ``image`` / ``agent_visible_image``), which carry
+        no MEDIA: tag.
 
     Missing the JSON-payload shape caused #46627; missing the assistant-message
     shape caused repeated delivery when the model echoed a previous MEDIA tag.
@@ -1958,11 +1986,8 @@ def _collect_history_media_paths(agent_history: List[Dict[str, Any]]) -> set:
             except Exception:
                 payload = None
             if isinstance(payload, dict) and payload.get("success"):
-                for field in _JSON_MEDIA_TOOL_PATH_FIELDS:
-                    jp = payload.get(field)
-                    if isinstance(jp, str) and jp:
-                        paths.add(jp)
-                        break
+                for jp in _json_media_tool_paths(payload):
+                    paths.add(jp)
     return paths
 
 # ---------------------------------------------------------------------------

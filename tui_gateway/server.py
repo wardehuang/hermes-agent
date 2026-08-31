@@ -12255,8 +12255,7 @@ def _run_prompt_submit(
                 "conversation_history": list(history),
                 "stream_callback": _stream,
                 # Model receives `prompt`/`run_message`. Bubble/DB can show a
-                # shorter label when the client sent display_text (skills,
-                # create-image force-tool scaffolding).
+                # shorter label when the client sent display_text (skills).
                 "persist_user_message": (
                     persist_text
                     if isinstance(persist_text, str) and persist_text.strip()

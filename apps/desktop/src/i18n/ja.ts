@@ -1585,6 +1585,8 @@ export const ja = defineLocale({
     defaultBadge: 'デフォルト',
     rename: '名前を変更',
     renameMenu: '名前を変更…',
+    editConfig: '設定を編集',
+    failedOpenConfig: 'config.yaml を開けませんでした',
     editSoul: 'SOUL.md を編集…',
     copySetup: 'セットアップをコピー',
     copying: 'コピー中...',

@@ -1445,6 +1445,8 @@ export const ar = defineLocale({
     env: 'البيئة',
     defaultBadge: 'افتراضي',
     rename: 'إعادة تسمية',
+    editConfig: 'تحرير الإعدادات',
+    failedOpenConfig: 'تعذر فتح config.yaml',
     copySetup: 'نسخ الإعداد',
     copying: 'جار النسخ...',
     modelLabel: 'النموذج',

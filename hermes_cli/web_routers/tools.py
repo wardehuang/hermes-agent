@@ -275,7 +275,15 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
                             "prompt": e.get("prompt", e["key"]),
                             "url": e.get("url"),
                             "default": e.get("default"),
-                            "is_set": bool(get_env_value(e["key"])),
+                            "fallback_key": e.get("fallback_key"),
+                            "is_set": bool(
+                                get_env_value(e["key"])
+                                or (
+                                    e.get("fallback_key")
+                                    and get_env_value(str(e.get("fallback_key")))
+                                )
+                                or e.get("default")
+                            ),
                         }
                         for e in prov.get("env_vars", [])
                     ]

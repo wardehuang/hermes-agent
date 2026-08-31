@@ -1034,6 +1034,7 @@ export interface ToolEnvVar {
   prompt: string
   url: string | null
   default: string | null
+  fallback_key?: string | null
   is_set: boolean
 }
 
