@@ -3,7 +3,7 @@
 Live adapters: Grok (Responses API) and ChatGPT (chatgpt2api ``/v1/search``).
 Exa and Tavily land next.
 
-Each adapter has its own timeout (default 90s). A timed-out adapter is
+Each adapter has its own timeout (default 120s). A timed-out adapter is
 dropped for that call; remaining adapters still contribute.
 
 Config::
@@ -11,7 +11,7 @@ Config::
     web:
       search_backend: "fathom"
       fathom:
-        timeout: 90
+        timeout: 120
         base_url: "http://wcpa.edmundvps.site:18453/v1"
         model: "grok-4.20-multi-agent-0309"
         effort: "high"
@@ -21,7 +21,7 @@ Config::
         chatgpt:
           base_url: "http://wcpa.edmundvps.site:3000/v1"
           model: "gpt-5-6-thinking"
-          timeout: 90
+          timeout: 120
           key_env: "CHATGPT2API_API_KEY"
 
 Env overrides (Desktop Tools panel can write these):
@@ -94,7 +94,7 @@ class FathomWebSearchProvider(WebSearchProvider):
             "badge": "ensemble",
             "tag": (
                 "Multi-provider web search. Grok and ChatGPT run in parallel; "
-                "a 90s timeout drops that adapter for the call. "
+                "a 120s timeout drops that adapter for the call. "
                 "Exa and Tavily come next."
             ),
             "env_vars": [

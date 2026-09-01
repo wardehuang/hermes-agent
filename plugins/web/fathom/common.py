@@ -12,7 +12,7 @@ from agent.web_search_provider import get_provider_env
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROVIDER_TIMEOUT = 90.0
+DEFAULT_PROVIDER_TIMEOUT = 120.0
 PROVIDER_LABEL = "Fathom"
 
 

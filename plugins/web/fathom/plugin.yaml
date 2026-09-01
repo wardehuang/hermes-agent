@@ -1,6 +1,6 @@
 name: web-fathom
 version: 1.1.0
-description: "Fathom — ensemble web search. Grok + ChatGPT in parallel; 90s per adapter."
+description: "Fathom — ensemble web search. Grok + ChatGPT in parallel; 120s per adapter."
 author: warde
 kind: backend
 provides_web_providers:
