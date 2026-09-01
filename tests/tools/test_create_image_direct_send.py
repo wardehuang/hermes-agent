@@ -38,11 +38,19 @@ def _write_panel(home, **fields):
 
 
 def test_consume_returns_args_and_clears_direct(panel_home):
-    _write_panel(panel_home, image_url="C:/tmp/src.png")
+    _write_panel(
+        panel_home,
+        image_url="C:/tmp/src.png",
+        params={"size": "1024x1024", "background": "transparent", "n": 2, "quality": "high"},
+    )
     args = consume_panel_direct_call(user_prompt="a cat by the window")
     assert args == {
         "prompt": "a cat by the window",
         "image_url": "C:/tmp/src.png",
+        "size": "1024x1024",
+        "background": "transparent",
+        "n": 2,
+        "quality": "high",
     }
     data = json.loads((panel_home / "cache" / "create_image_panel.json").read_text(encoding="utf-8"))
     assert data["direct"] is False

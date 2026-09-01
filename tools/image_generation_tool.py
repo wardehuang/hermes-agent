@@ -2147,6 +2147,35 @@ def consume_panel_direct_call(
         clean = [str(x).strip() for x in refs if str(x).strip()]
         if clean:
             args["reference_image_urls"] = clean
+    # Direct send used to persist only prompt+images. Panel knobs (n,
+    # background, size, …) then had to be re-read from the overlay file
+    # during tool execution — a later close/clear could drop them and the
+    # upstream request fell back to defaults (n=1, background=auto).
+    raw_params = data.get("params") if isinstance(data.get("params"), dict) else {}
+    for key in (
+        "size",
+        "quality",
+        "n",
+        "background",
+        "output_format",
+        "output_compression",
+        "moderation",
+        "aspect_ratio",
+    ):
+        if key not in raw_params:
+            continue
+        value = raw_params.get(key)
+        if value is None or value == "":
+            continue
+        if key == "n":
+            try:
+                n = int(value)
+            except (TypeError, ValueError):
+                continue
+            if n >= 1:
+                args[key] = n
+            continue
+        args[key] = value
     return args
 
 
@@ -2179,6 +2208,18 @@ def _n_bounds_for_route(
     mblock = models.get(m) if isinstance(models.get(m), dict) else {}
     params = mblock.get("params") if isinstance(mblock.get("params"), dict) else {}
     nspec = params.get("n") if isinstance(params.get("n"), dict) else None
+    if nspec is None:
+        try:
+            from agent.image_gen_registry import get_provider
+            from hermes_cli.plugins import _ensure_plugins_discovered
+
+            _ensure_plugins_discovered()
+            plugin = get_provider(p)
+            caps = plugin.model_capabilities(m) if plugin is not None else {}
+            plugin_params = caps.get("params") if isinstance(caps, dict) else {}
+            nspec = plugin_params.get("n") if isinstance(plugin_params, dict) else None
+        except Exception:
+            nspec = None
     if nspec is None:
         # Model has no n param declared → single image only.
         return 1, 1, [1]

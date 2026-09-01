@@ -864,6 +864,15 @@ async function pushOverrides(active, fields, injectEnabled, route, extra) {
       if (Array.isArray(extra.reference_image_urls) && extra.reference_image_urls.length) {
         body.reference_image_urls = extra.reference_image_urls
       }
+      for (const key of ['size', 'quality', 'n', 'background', 'output_format', 'output_compression', 'moderation', 'aspect_ratio']) {
+        if (extra[key] == null || extra[key] === '') continue
+        if (key === 'n') {
+          const n = Number(extra.n)
+          if (Number.isFinite(n) && n >= 1) body.n = n
+          continue
+        }
+        body[key] = extra[key]
+      }
     }
     await restClient('/overrides', { method: 'PUT', body })
   } catch {
@@ -1369,9 +1378,8 @@ export default {
 
           await pushOverrides(true, lastFields, lastInjectEnabled, lastRoute, {
             direct: true,
+            ...args,
             prompt: String(args.prompt || text),
-            image_url: args.image_url,
-            reference_image_urls: args.reference_image_urls,
           })
           closePanel({ keepOverrides: true })
           const prompt = String(args.prompt || text)
