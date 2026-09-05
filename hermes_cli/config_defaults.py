@@ -17,6 +17,10 @@ DEFAULT_CONFIG = {
             "transport": "codex_responses",
             "discover_models": False,
             "models": {
+               "gpt-6-astra": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
                 "gpt-5.6-sol": {
                     "supports_vision": True,
                     "context_length": 256000,
@@ -45,6 +49,10 @@ DEFAULT_CONFIG = {
             "model": "Console/grok-4.5",
             "models": {
                 "Console/grok-4.5": {
+                    "supports_vision": True,
+                    "context_length": 256000,
+                },
+                "Console/grok-4.3": {
                     "supports_vision": True,
                     "context_length": 256000,
                 },

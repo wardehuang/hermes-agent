@@ -118,10 +118,26 @@ class TestVolcEngineXmlPollution:
         # legitimate ``"write file" -> write_file`` repair path breaks.
         assert repair("write file") == "write_file"
 
-
     def test_leading_quote_falls_through_to_fuzzy_match(self, repair):
         # Sanitizer only trims when the XML char is at idx > 0 — a
         # name that *starts* with a quote is left untouched so the
         # rest of the pipeline (fuzzy match at 0.7 cutoff) can still
         # recover the obvious target.
         assert repair('"terminal"') == "terminal"
+
+
+class TestCpaWebSearchWireAlias:
+    """CPA xAI tools[] rewrite leaks ``cpa_client_web_search`` to Hermes."""
+
+    def test_alias_maps_to_web_search(self, repair):
+        assert repair("cpa_client_web_search") == "web_search"
+
+    def test_numbered_alias_maps_to_web_search(self, repair):
+        assert repair("cpa_client_web_search_2") == "web_search"
+
+    def test_alias_ignored_when_web_search_unavailable(self, repair):
+        from run_agent import AIAgent
+
+        stub = SimpleNamespace(valid_tool_names={"terminal", "web_extract"})
+        bound = AIAgent._repair_tool_call.__get__(stub, AIAgent)
+        assert bound("cpa_client_web_search") is None

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from plugins.web.fathom import (
+    SEARCH_DISPATCH_PROMPT,
+    SEARCH_DISPATCH_SECTION_ID,
+    register,
+    search_dispatch_section,
+)
 from plugins.web.fathom.chatgpt import rows_from_chatgpt
 from plugins.web.fathom.common import AdapterOutcome, merge_rows, normalize_url
 from plugins.web.fathom.provider import FathomWebSearchProvider
@@ -194,3 +200,54 @@ def test_assemble_all_timeout_is_error_with_badge() -> None:
     assert "timed out" in assembled["error"]
     assert assembled["data"]["provider_label"] == "Fathom"
     assert assembled["data"]["web"] == []
+
+
+class _FakeProvider:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+def test_search_dispatch_prompt_allows_listed_search_name() -> None:
+    assert "web_search" in SEARCH_DISPATCH_PROMPT
+    assert "cpa_client_web_search" in SEARCH_DISPATCH_PROMPT
+    assert "execute_code" in SEARCH_DISPATCH_PROMPT
+    assert "Do not invoke cpa_client_web_search" not in SEARCH_DISPATCH_PROMPT
+
+
+def test_search_dispatch_section_only_when_fathom_active(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "agent.web_search_registry.get_active_search_provider",
+        lambda: _FakeProvider("fathom"),
+    )
+    assert search_dispatch_section({}) == SEARCH_DISPATCH_PROMPT
+
+    monkeypatch.setattr(
+        "agent.web_search_registry.get_active_search_provider",
+        lambda: _FakeProvider("firecrawl"),
+    )
+    assert search_dispatch_section({}) == ""
+
+    monkeypatch.setattr(
+        "agent.web_search_registry.get_active_search_provider",
+        lambda: None,
+    )
+    assert search_dispatch_section({}) == ""
+
+
+def test_register_adds_search_dispatch_prompt_section() -> None:
+    recorded: list[tuple] = []
+
+    class _Ctx:
+        def register_web_search_provider(self, provider) -> None:
+            recorded.append(("provider", type(provider).__name__))
+
+        def register_system_prompt_section(self, section_id, content, **kwargs) -> None:
+            recorded.append(("section", section_id, content, kwargs))
+
+    register(_Ctx())
+    assert recorded[0] == ("provider", "FathomWebSearchProvider")
+    assert recorded[1][0] == "section"
+    assert recorded[1][1] == SEARCH_DISPATCH_SECTION_ID
+    assert recorded[1][2] is search_dispatch_section
+    assert recorded[1][3]["position"] == "after_memory"
+    assert recorded[1][3]["max_chars"] == 800

@@ -3793,6 +3793,17 @@ def repair_tool_call(agent, tool_name: str) -> str | None:
     if not tool_name:
         return None
 
+    # CPA `cpa-xai-web-search-alias` rewrites tools[] `web_search` →
+    # `cpa_client_web_search` on the xAI wire. Restore is supposed to map
+    # back before Hermes, but leaked alias names reach the executor
+    # (`Tool 'cpa_client_web_search' does not exist`). Fuzzy match against
+    # `web_search` is ~0.65, below the 0.7 cutoff, so this must be explicit.
+    if "web_search" in agent.valid_tool_names and (
+        tool_name == "cpa_client_web_search"
+        or tool_name.startswith("cpa_client_web_search_")
+    ):
+        return "web_search"
+
     def _norm(s: str) -> str:
         return s.lower().replace("-", "_").replace(" ", "_")
 
