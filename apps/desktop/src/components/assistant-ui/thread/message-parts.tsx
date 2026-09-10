@@ -24,6 +24,7 @@ import { useI18n } from '@/i18n'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { generatedVideoFromResult } from '@/lib/generated-videos'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
+import { isTodoToolName } from '@/lib/todos'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { $reasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
@@ -79,7 +80,7 @@ const DelegateToolPart: FC<TimelineToolCallProps> = props => {
 
 const ChainToolFallback: FC<TimelineToolCallProps> = props => {
   // todo parts are hoisted to a dedicated panel above the message content.
-  if (props.toolName === 'todo') {
+  if (isTodoToolName(props.toolName)) {
     return null
   }
 
