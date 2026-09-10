@@ -3,13 +3,15 @@ import { bracketMatching, indentOnInput, LanguageDescription } from '@codemirror
 import { languages } from '@codemirror/language-data'
 import { Compartment, EditorState } from '@codemirror/state'
 import { Decoration, drawSelection, EditorView, keymap, lineNumbers } from '@codemirror/view'
-import { type RefObject, useEffect, useRef } from 'react'
+import { useStore } from '@nanostores/react'
+import { type CSSProperties, type RefObject, useEffect, useRef } from 'react'
 
 import { tryFormatJson } from '@/lib/json-format'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/themes/context'
 
 import { githubEditorTheme } from './code-editor-theme'
+import { $editorFontFamily, resolveEditorFontFamily } from './editor-font'
 
 type FormatOutcome = { ok: true } | { ok: false; error: string }
 
@@ -103,7 +105,7 @@ function baseName(filePath: string): string {
 // `.cm-gutterElement` rule, so we match that specificity to win. SourceView
 // reference: font var(--font-mono)/0.7rem/400, 1.25rem rows, gutter w-9 + pr-2
 // (muted/55), code 0.625rem line inset.
-const MONO_FONT = 'var(--font-mono)'
+const EDITOR_FONT = 'var(--font-editor)'
 const ROW_HEIGHT = '1.25rem'
 const CODE_SIZE = '0.7rem'
 const GUTTER_COLOR = 'color-mix(in oklab, var(--muted-foreground) 55%, transparent)'
@@ -117,7 +119,7 @@ const LAYOUT_THEME = EditorView.theme({
   // CM's base theme ships `.cm-content { padding: 4px 0 }` (~5px top/bottom).
   // Zero it explicitly so pane + framed interiors match SourceView flush-top.
   '.cm-content': {
-    fontFamily: MONO_FONT,
+    fontFamily: EDITOR_FONT,
     fontSize: CODE_SIZE,
     fontWeight: '400',
     lineHeight: ROW_HEIGHT,
@@ -129,7 +131,7 @@ const LAYOUT_THEME = EditorView.theme({
     backgroundColor: 'transparent',
     border: 'none',
     color: GUTTER_COLOR,
-    fontFamily: MONO_FONT,
+    fontFamily: EDITOR_FONT,
     fontSize: CODE_SIZE
   },
   // Two-class selector to beat CM's base `.cm-lineNumbers .cm-gutterElement`.
@@ -143,14 +145,14 @@ const LAYOUT_THEME = EditorView.theme({
     textAlign: 'right'
   },
   '.cm-line': {
-    fontFamily: MONO_FONT,
+    fontFamily: EDITOR_FONT,
     fontSize: CODE_SIZE,
     fontWeight: '400',
     lineHeight: ROW_HEIGHT,
     padding: '0 0.625rem'
   },
   '.cm-scroller': {
-    fontFamily: MONO_FONT,
+    fontFamily: EDITOR_FONT,
     fontSize: CODE_SIZE,
     lineHeight: ROW_HEIGHT,
     overflow: 'auto'
@@ -190,6 +192,8 @@ export function CodeEditor({
   onSave
 }: CodeEditorProps) {
   const { resolvedMode } = useTheme()
+  const editorFontFamily = resolveEditorFontFamily(useStore($editorFontFamily))
+  const editorFontStyle = { '--font-editor': editorFontFamily } as CSSProperties
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const languageConf = useRef(new Compartment())
@@ -370,7 +374,9 @@ export function CodeEditor({
   }, [disabled])
 
   if (!framed) {
-    return <div className={cn('h-full min-h-0 overflow-hidden', className)} ref={hostRef} />
+    return (
+      <div className={cn('h-full min-h-0 overflow-hidden', className)} ref={hostRef} style={editorFontStyle} />
+    )
   }
 
   // Border on the shell only — inner body matches preview-file / DetailPane:
@@ -381,6 +387,7 @@ export function CodeEditor({
         'flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-(--ui-stroke-tertiary)',
         className
       )}
+      style={editorFontStyle}
     >
       {/* Padding lives on the CM *mount node* itself — outside CodeMirror's
           DOM entirely, so its `.cm-content { padding: 0 }` can't fight it. This

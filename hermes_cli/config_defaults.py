@@ -657,6 +657,14 @@ DEFAULT_CONFIG = {
         "cache_exempt_hosts": [],
     },
 
+    "editor": {
+        # Desktop in-app CodeMirror editor font family (file preview edits,
+        # SOUL.md, skills, config JSON). Empty uses the active theme --font-mono.
+        # A single family name is accepted, e.g. Operator Mono Light, or a full
+        # CSS font-family stack.
+        "font_family": "",
+    },
+
     "browser": {
         # Browser tool implementation.
         # ""            — DEFAULT: Browser Use mode when the browser-use CLI

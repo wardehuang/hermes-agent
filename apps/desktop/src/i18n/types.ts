@@ -456,6 +456,11 @@ export interface Translations {
       terminalFontPlaceholder: string
       terminalFontPreview: string
       terminalFontReset: string
+      editorFontTitle: string
+      editorFontDesc: string
+      editorFontPlaceholder: string
+      editorFontPreview: string
+      editorFontReset: string
       translucencyTitle: string
       translucencyDesc: string
       translucencyGlassDesc: string

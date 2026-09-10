@@ -562,6 +562,12 @@ export const en: Translations = {
       terminalFontPlaceholder: 'MesloLGS NF or a CSS font stack',
       terminalFontPreview: 'Glyph preview',
       terminalFontReset: 'Use default',
+      editorFontTitle: 'Editor Font',
+      editorFontDesc:
+        'Choose an installed font for the in-app code editor. Leave blank to use the theme monospace font.',
+      editorFontPlaceholder: 'Operator Mono Light or a CSS font stack',
+      editorFontPreview: 'Glyph preview',
+      editorFontReset: 'Use default',
       translucencyTitle: 'Window Translucency',
       translucencyDesc: 'See your desktop through the whole window, text and all. Tuned separately for light and dark.',
       translucencyGlassDesc:

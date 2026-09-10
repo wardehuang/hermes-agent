@@ -54,6 +54,7 @@ import type { DesktopTheme } from '@/themes/types'
 import { $marketplaceInstalls, isUserTheme, removeUserTheme } from '@/themes/user-themes'
 
 import { MODE_OPTIONS } from './constants'
+import { EditorFontSetting } from './editor-font-setting'
 import { PetSettings } from './pet-settings'
 import { ListRow, SectionHeading, SettingsContent, ToggleRow } from './primitives'
 import { APPEARANCE_SETTING_IDS } from './settings-search'
@@ -582,6 +583,8 @@ export function AppearanceSettings() {
           />
 
           <TerminalFontSetting />
+
+          <EditorFontSetting />
 
           <ListRow
             action={
