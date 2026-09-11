@@ -601,6 +601,14 @@ export function overlayRepoLanes(
         (placed.isMain
           ? lanes.find(g => g.isMain && g.label.toLowerCase() === placed.label.toLowerCase())
           : undefined) ??
+        // Home-fold collapses every main-checkout branch into one live-branch
+        // lane (`isHome`, id `::branch::<live>`). Unbranched live rows still
+        // emit `::branch::main` / label "main", so id+label miss and used to
+        // FORK a phantom `main` beside home — evicting overview-preview chats
+        // out of the first page. Join the home lane at this path.
+        (placed.isMain && placedKey
+          ? lanes.find(g => g.isHome && pathKey(g.path) === placedKey)
+          : undefined) ??
         // Non-git backend heuristic (`project_tree._place_by_heuristic`): one
         // isMain lane keyed by the folder path itself (id === path, label =
         // basename) — not `::branch::<name>`. Live placement always emits

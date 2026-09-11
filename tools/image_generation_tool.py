@@ -529,7 +529,7 @@ def check_image_generation_requirements() -> bool:
             return True
     except ImportError:
         pass
-    configured = (provider_name or "").strip() or _plugin_provider_name()
+    configured = _plugin_provider_name()
     if configured is None:
         return False
     # Probe only the selected plugin: a cloud key alone must not opt a user into a paid backend.
@@ -615,7 +615,7 @@ def _dispatch_to_plugin_provider(
     model_name: Optional[str] = None):
     """JSON result from the selected plugin provider, or ``None`` to fall through to in-tree FAL
     (provider unset / ``"fal"`` / ``"nous"``). Providers without ``upscale`` ignore it via ``**kwargs``."""
-    configured = _plugin_provider_name()
+    configured = (provider_name or "").strip() or _plugin_provider_name()
     if configured is None:
         return None
     try:

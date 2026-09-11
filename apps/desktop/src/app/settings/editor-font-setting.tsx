@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import {
   EDITOR_FONT_SUGGESTIONS,
+  editorFontCss,
   normalizeEditorFontFamily,
-  resolveEditorFontFamily,
   setEditorFontFamilyFromConfig
 } from '@/components/chat/editor-font'
 import { Button } from '@/components/ui/button'
@@ -109,7 +109,7 @@ export function EditorFontSetting() {
   }
 
   const value = draft ?? ''
-  const previewFontFamily = resolveEditorFontFamily(value)
+  const previewFont = editorFontCss(value)
 
   return (
     <ListRow
@@ -137,7 +137,7 @@ export function EditorFontSetting() {
           <div
             aria-label={copy.editorFontPreview}
             className="overflow-hidden px-1 py-2 text-sm text-(--ui-text-secondary)"
-            style={{ fontFamily: previewFontFamily }}
+            style={{ fontFamily: previewFont.fontFamily, fontWeight: previewFont.fontWeight }}
           >
             <span className="mr-2 text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)">
               {copy.editorFontPreview}

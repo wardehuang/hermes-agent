@@ -13,6 +13,7 @@ import {
   NO_PROJECT_ID,
   overlayLiveLanes,
   overlayLivePreviews,
+  overlayRepoLanes,
   reconcileEnteredProjectSessions,
   sessionMatchesProjectFilter,
   sessionProjectColor,
@@ -837,6 +838,56 @@ describe('overlayLiveLanes', () => {
     expect(groups[0].label).toBe('codex-research-guardian')
     expect(groups[0].sessions.map(s => s.id).sort()).toEqual(['s1', 's2'])
     expect(groups.some(g => g.label === 'main' || g.id.endsWith('::branch::main'))).toBe(false)
+  })
+
+  it('joins unbranched live rows into the folded home lane instead of forking main', () => {
+    // Entered-project path: mergeRepoWorktreeGroups folds historical main-checkout
+    // lanes into one home lane labeled by the LIVE branch; overlay then runs on
+    // that folded set. Unbranched live rows used to miss that lane (id/label are
+    // `::branch::main` / "main") and fork a phantom `main`, evicting the
+    // overview-preview chats. They belong in home.
+    const recent = makeCwdSession('/repo', { id: 'recent', last_active: 300 })
+    const mid = makeCwdSession('/repo', { id: 'mid', last_active: 200 })
+    const old = makeCwdSession('/repo', { id: 'old', last_active: 50 })
+    const feature = makeCwdSession('/repo', { id: 'feature', git_branch: 'my-feature', last_active: 80 })
+
+    const repo = {
+      id: '/repo',
+      label: 'repo',
+      path: '/repo',
+      sessionCount: 4,
+      groups: [
+        lane({
+          id: '/repo::branch::main',
+          isMain: true,
+          label: 'main',
+          path: '/repo',
+          sessions: [recent, mid, old]
+        }),
+        lane({
+          id: '/repo::branch::my-feature',
+          isMain: true,
+          label: 'my-feature',
+          path: '/repo',
+          sessions: [feature]
+        })
+      ]
+    }
+
+    const discovered: HermesGitWorktree[] = [
+      { branch: 'my-feature', detached: false, isMain: true, locked: false, path: '/repo' }
+    ]
+
+    const merged = mergeRepoWorktreeGroups(repo, discovered)
+    const overlaid = overlayRepoLanes({ ...repo, groups: merged }, [recent, mid, feature])
+
+    expect(overlaid.groups.filter(g => g.isMain)).toHaveLength(1)
+    expect(overlaid.groups.some(g => g.label === 'main' || g.id.endsWith('::branch::main'))).toBe(false)
+
+    const home = overlaid.groups.find(g => g.isHome)
+
+    expect(home?.label).toBe('my-feature')
+    expect(home?.sessions.map(s => s.id)).toEqual(['recent', 'mid', 'feature', 'old'])
   })
 
   it('joins a fresh live session into an existing non-git workspace lane (no branch id)', () => {

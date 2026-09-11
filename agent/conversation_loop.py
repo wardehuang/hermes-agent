@@ -1483,8 +1483,7 @@ def run_conversation(
         )
 
     while (s.api_call_count < agent.max_iterations and agent.iteration_budget.remaining > 0) or agent._budget_grace_call:
-        if _run_phase(begin_iteration, agent, s).action == "break":
-            break
+        # Must run before begin_iteration: that phase increments api_call_count.
         if s.api_call_count == 0:
             _direct_response = maybe_run_direct_image_generate(
                 agent,
@@ -1497,6 +1496,9 @@ def run_conversation(
                 s.final_response = _direct_response
                 s._turn_exit_reason = "direct_image_generate"
                 break
+
+        if _run_phase(begin_iteration, agent, s).action == "break":
+            break
 
         _run_phase(prepare_iteration, agent, s)
         _run_phase(assemble_api_request, agent, s)

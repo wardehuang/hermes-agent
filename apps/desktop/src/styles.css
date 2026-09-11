@@ -1716,6 +1716,8 @@ body.guest-pointer-lock :is(webview, iframe) {
 /* Dock glow intensity scale — dimmer in light mode (the primary glow reads
    much stronger over a light backdrop), full strength in dark mode. */
 :root {
+  --font-editor: var(--font-mono);
+  --font-editor-weight: 400;
   --dock-glow-scale: 0.55;
   /* Unfocused chat surface (multi-pane): a pane the user isn't in recedes so
      the focused conversation reads as the one being worked in. Light needs a
