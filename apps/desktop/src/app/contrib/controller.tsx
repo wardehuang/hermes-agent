@@ -93,7 +93,7 @@ import { HudShell } from '../hud/hud-shell'
 import { $terminalTakeover, setTerminalTakeover } from '../right-sidebar/store'
 import { $workspaceIsPage } from '../routes'
 
-import { FilesPane, LogsPane, ReviewPaneContent } from './panes'
+import { EditorPane, FilesPane, LogsPane, ReviewPaneContent } from './panes'
 import { ContribWiring, WiredPane } from './wiring'
 
 /**
@@ -190,6 +190,23 @@ registry.registerMany([
       uncloseable: true
     },
     render: renderWorkspacePane
+  },
+  {
+    id: 'editor',
+    area: 'panes',
+    title: 'editor',
+    // Persistent slot for the Coding preset. autoAdopt:false keeps Default /
+    // Focus from growing an empty editor tab after Coding has been used.
+    // placement main: nested with workspace so side collapse cannot take it.
+    // Not a session-strip pane (store.ts isMainStripPane) — chats stay in
+    // the Agent zone; file peeks stack in as preview tiles.
+    data: {
+      placement: 'main',
+      minWidth: '22vw',
+      uncloseable: true,
+      autoAdopt: false
+    },
+    render: () => <EditorPane />
   },
   {
     id: 'terminal',
@@ -435,9 +452,43 @@ const QUAD_TREE = split(
   [3, 1]
 )
 
+// Coding: files+review left, editor over terminal (own groups so collapsing
+// the terminal cannot fold the editor), agent, sessions right. Editor+terminal
+// nest WITH workspace as one root-row child so ⌘B/⌘J side collapse cannot
+// take the editor slot.
+const CODING_TREE = split(
+  'row',
+  [
+    split(
+      'column',
+      [group(['files'], { id: 'grp-files' }), group(['review'], { id: 'grp-review' })],
+      [2, 1],
+      'spl-coding-left'
+    ),
+    split(
+      'row',
+      [
+        split(
+          'column',
+          [group(['editor'], { id: 'grp-editor' }), group(['terminal'], { id: 'grp-terminal' })],
+          [2.2, 1],
+          'spl-coding-center'
+        ),
+        group(['workspace'], { id: 'grp-main' })
+      ],
+      [2.4, 1.4],
+      'spl-coding-main'
+    ),
+    group(['sessions'], { id: 'grp-sessions' })
+  ],
+  [1, 4.4, 1],
+  'spl-coding-root'
+)
+
 registry.registerMany([
   { id: 'default', area: 'layouts', title: 'Default', order: 0, data: DEFAULT_TREE },
   { id: 'focus', area: 'layouts', title: 'Focus', order: 10, data: FOCUS_TREE },
+  { id: 'coding', area: 'layouts', title: 'Coding', order: 15, data: CODING_TREE },
   { id: 'terminal-deck', area: 'layouts', title: 'Terminal deck', order: 20, data: TERMINAL_TREE },
   { id: 'quad', area: 'layouts', title: 'Quad', order: 30, data: QUAD_TREE }
 ])
@@ -582,9 +633,10 @@ $panesFlipped.listen(flipped => {
   }
 })
 
-// POSITIONAL side toggles (titlebar buttons, ⌘B / ⌘J): $sidebarOpen ≙ the
-// LEFT side of the main zone, $fileBrowserOpen ≙ the RIGHT — everything on
-// that side hides together, whatever panes have been rearranged there.
+// Semantic side toggles: $sidebarOpen ≙ the sessions column (placement left),
+// $fileBrowserOpen ≙ the files column (placement right). Titlebar buttons
+// remap these to physical left/right after a flip or a Coding preset that
+// parks sessions right of main.
 bindTreeSideVisibility('left', $sidebarOpen, setSidebarOpen)
 bindTreeSideVisibility('right', $fileBrowserOpen, setFileBrowserOpen)
 

@@ -101,6 +101,8 @@ export interface UseProjectTreeResult {
    *  session's recorded cwd no longer exists and we fell back to the default
    *  workspace dir. */
   effectiveCwd: string
+  /** True when this cwd's tree is in the feature cache (not a loading blank). */
+  loaded: boolean
   openState: Record<string, boolean>
   rootError: string | null
   rootLoading: boolean
@@ -373,7 +375,8 @@ async function revalidateTree(
  * disclosure caret shows for unloaded folders. `refreshRoot` invalidates the
  * whole tree (used after cwd change or manual refresh).
  */
-export function useProjectTree(cwd: string): UseProjectTreeResult {
+export function useProjectTree(cwd: string, options?: { allowRead?: boolean }): UseProjectTreeResult {
+  const allowRead = options?.allowRead !== false
   const state = useStore($projectTree)
   const connection = useStore($connection)
   const workspaceTick = useStore($workspaceChangeTick)
@@ -468,12 +471,16 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
   // Live, non-destructive refresh when the agent touches the tree (skip the
   // very first render: tick 0 is the initial value, not a real change).
   useEffect(() => {
-    if (workspaceTick > 0) {
+    if (workspaceTick > 0 && allowRead) {
       void revalidateTree(cwd, consumeWorkspaceChange(), connectionKey)
     }
-  }, [connectionKey, cwd, workspaceTick])
+  }, [allowRead, connectionKey, cwd, workspaceTick])
 
   useEffect(() => {
+    if (!allowRead) {
+      return
+    }
+
     const connectionChanged = lastConnectionKey !== '' && lastConnectionKey !== connectionKey
     lastConnectionKey = connectionKey
 
@@ -487,20 +494,20 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
     }
 
     void loadRoot(cwd, { connectionKey })
-  }, [connectionKey, cwd])
+  }, [allowRead, connectionKey, cwd])
 
   // Self-heal: an errored root re-probes every few seconds while the tree is
   // mounted. Each attempt bumps requestId, so a persistent error re-arms the
   // timer; a success clears rootError and stops it.
   useEffect(() => {
-    if (!cwd || state.cwd !== cwd || !state.rootError) {
+    if (!allowRead || !cwd || state.cwd !== cwd || !state.rootError) {
       return
     }
 
     const timer = window.setTimeout(() => void loadRoot(cwd, { connectionKey, force: true }), ROOT_ERROR_RETRY_MS)
 
     return () => window.clearTimeout(timer)
-  }, [connectionKey, cwd, state.cwd, state.requestId, state.rootError])
+  }, [allowRead, connectionKey, cwd, state.cwd, state.requestId, state.rootError])
 
   // While showing the fallback root, quietly re-probe the session's real cwd
   // (a worktree re-created, a checkout restored) and switch back when it
@@ -508,7 +515,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
   const usingFallback = state.cwd === cwd && Boolean(state.resolvedCwd) && state.resolvedCwd !== cwd
 
   useEffect(() => {
-    if (!cwd || !usingFallback) {
+    if (!allowRead || !cwd || !usingFallback) {
       return
     }
 
@@ -528,7 +535,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [connectionKey, cwd, usingFallback])
+  }, [allowRead, connectionKey, cwd, usingFallback])
 
   return useMemo(
     () => ({
@@ -537,13 +544,15 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
       data: state.cwd === cwd ? state.data : [],
       effectiveCwd: state.cwd === cwd && state.resolvedCwd ? state.resolvedCwd : cwd,
       loadChildren,
+      loaded: state.cwd === cwd && state.loaded,
       openState: state.cwd === cwd ? state.openState : {},
       refreshRoot,
       rootError: state.cwd === cwd ? state.rootError : null,
-      rootLoading: state.cwd === cwd ? state.rootLoading : Boolean(cwd),
+      rootLoading: state.cwd === cwd ? state.rootLoading : Boolean(cwd) && allowRead,
       setNodeOpen
     }),
     [
+      allowRead,
       collapseAll,
       cwd,
       loadChildren,
@@ -552,6 +561,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
       state.collapseNonce,
       state.cwd,
       state.data,
+      state.loaded,
       state.openState,
       state.resolvedCwd,
       state.rootError,

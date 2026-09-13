@@ -11,7 +11,6 @@ import {
 import { useResizeObserver } from '@/hooks/use-resize-observer'
 
 import {
-  COMPOSER_COMPACT_PILL_PX,
   COMPOSER_FOLD_VOICE_PX,
   COMPOSER_MINIMAL_PX,
   COMPOSER_SINGLE_LINE_MAX_PX,
@@ -28,23 +27,21 @@ interface UseComposerMetricsArgs {
 
 /** Every width-driven collapse stage, resolved from the composer's own width. */
 export interface ComposerFit {
-  compactPill: boolean
   foldVoice: boolean
   minimal: boolean
   tight: boolean
 }
 
-const ROOMY: ComposerFit = { compactPill: false, foldVoice: false, minimal: false, tight: false }
+const ROOMY: ComposerFit = { foldVoice: false, minimal: false, tight: false }
 
 const fitForWidth = (width: number): ComposerFit => ({
-  compactPill: width < COMPOSER_COMPACT_PILL_PX,
   foldVoice: width < COMPOSER_FOLD_VOICE_PX,
   minimal: width < COMPOSER_MINIMAL_PX,
   tight: width < COMPOSER_STACK_BREAKPOINT_PX
 })
 
 const sameFit = (a: ComposerFit, b: ComposerFit) =>
-  a.compactPill === b.compactPill && a.foldVoice === b.foldVoice && a.minimal === b.minimal && a.tight === b.tight
+  a.foldVoice === b.foldVoice && a.minimal === b.minimal && a.tight === b.tight
 
 interface UseComposerMetricsResult extends ComposerFit {
   stacked: boolean
@@ -215,11 +212,10 @@ export function useComposerMetrics({
   // stack) by 160px. The ResizeObserver knows the real width; the viewport is
   // not a proxy for it.
   //
-  // The ladder is monotonic: each stage implies the ones above it, so the pill
-  // is always compact by the time the row stacks, and the voice controls are
-  // always folded before minimal drops them.
+  // The ladder is monotonic: each stage implies the ones above it, so the
+  // voice controls are always folded before minimal drops them. The model
+  // pill keeps its full label at every width.
   return {
-    compactPill: fit.compactPill || fit.tight,
     foldVoice: fit.foldVoice || fit.minimal,
     minimal: fit.minimal,
     stacked: expanded || fit.tight,

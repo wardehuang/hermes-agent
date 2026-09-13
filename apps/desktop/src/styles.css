@@ -1718,6 +1718,8 @@ body.guest-pointer-lock :is(webview, iframe) {
 :root {
   --font-editor: var(--font-mono);
   --font-editor-weight: 400;
+  --font-editor-size: 0.7rem;
+  --font-editor-line: 1.25rem;
   --dock-glow-scale: 0.55;
   /* Unfocused chat surface (multi-pane): a pane the user isn't in recedes so
      the focused conversation reads as the one being worked in. Light needs a
@@ -1973,6 +1975,14 @@ body.guest-pointer-lock :is(webview, iframe) {
   background: transparent !important;
 }
 
+/* Tailwind preflight sets font-family on pre/code, which would ignore the
+   SourceView wrapper's --font-editor. Inherit so preview matches CodeEditor. */
+.preview-source-code :is(pre, code, kbd, samp) {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 [data-slot='file-diff-panel'] .shiki code,
 .preview-source-code .shiki code {
   display: grid;
@@ -1985,7 +1995,7 @@ body.guest-pointer-lock :is(webview, iframe) {
 
 /* Inline diff rows keep their utility-class padding; just floor the height. */
 [data-slot='file-diff-panel'] .shiki code .line {
-  min-height: 1.25rem;
+  min-height: var(--font-editor-line, 1.25rem);
   white-space: pre;
 }
 
@@ -1997,9 +2007,9 @@ body.guest-pointer-lock :is(webview, iframe) {
 
 .preview-source-code .shiki code .line {
   display: block;
-  height: 1.25rem;
+  height: var(--font-editor-line, 1.25rem);
   padding: 0 0.625rem;
-  line-height: 1.25rem;
+  line-height: var(--font-editor-line, 1.25rem);
   white-space: pre;
 }
 

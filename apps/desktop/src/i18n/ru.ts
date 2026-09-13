@@ -3438,6 +3438,8 @@ export const ru = defineLocale({
     pluginDisabled: pluginId => `Плагин «${pluginId}» отключён`,
     pluginDisabledBody: 'Включите его снова в Настройки → Плагины, чтобы вернуть панель.',
     missingPane: paneId => `нет панели: ${paneId}`,
+    editorEmptyTitle: 'Файл не открыт',
+    editorEmptyDescription: 'Откройте файл в проводнике, чтобы начать правку.',
     editTitle: 'Раскладки',
     editHint: 'Выберите раскладку или перетащите панели между зонами.',
     reset: 'Сбросить',

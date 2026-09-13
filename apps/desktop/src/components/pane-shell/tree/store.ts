@@ -49,6 +49,13 @@ import { rootChildSide } from './renderer/track-model'
 // assignment (chat could land in a corner cell). Retire them wholesale.
 const STORAGE_KEY = 'hermes.desktop.layoutTree.v2'
 
+/** Persistent editor slot named by the Coding preset. Not auto-adopted into
+ *  other layouts — a Default/Focus tree must not grow an empty editor tab
+ *  just because Coding was used earlier this session. */
+export const EDITOR_PANE_ID = 'editor'
+
+const PREVIEW_TILE_PREFIX = 'preview-tile:'
+
 writeKey('hermes.desktop.layoutTree.v1', null)
 
 let defaultTree: LayoutNode | null = null
@@ -507,8 +514,9 @@ export const isSessionStripPane = (paneId: string): boolean =>
  *  over a Browser/page zone while ⌘1…⌘9 worked. Standing side chrome (files /
  *  sessions / terminal) isn't 'main', so those zones still fall through. */
 export const isMainStripPane = (paneId: string): boolean =>
+  paneId !== EDITOR_PANE_ID &&
   (registry.getArea('panes').find(c => c.id === paneId)?.data as { placement?: string } | undefined)?.placement ===
-  'main'
+    'main'
 
 /** Whether a zone may receive a SESSION drop — an existing session dragged
  *  from the sidebar, or a brand-new one dropped from a create-drag ("New
@@ -1180,23 +1188,45 @@ export const $sessionTileEdgeHover = computed(
 /**
  * Adopt panes present in `source` but missing from `target`: each joins the
  * group its source siblings map to in the target (first group as a last
- * resort). Layout changes never lose panes.
+ * resort). Layout changes never lose panes — except `autoAdopt: false` slots
+ * (the Coding editor), which only live in trees that name them.
  */
+function paneAutoAdopts(paneId: string): boolean {
+  const data = registry.getArea('panes').find(c => c.id === paneId)?.data as { autoAdopt?: boolean } | undefined
+
+  return data?.autoAdopt !== false
+}
+
 function adoptMissingPanes(target: LayoutNode, source: LayoutNode): LayoutNode {
   const have = new Set(allPaneIds(target))
   let next = target
 
   for (const paneId of allPaneIds(source)) {
-    if (have.has(paneId)) {
+    if (have.has(paneId) || !paneAutoAdopts(paneId)) {
+      continue
+    }
+
+    const isPreview = paneId.startsWith(PREVIEW_TILE_PREFIX)
+    const editorGroup = have.has(EDITOR_PANE_ID) ? findGroupOfPane(next, EDITOR_PANE_ID) : null
+
+    if (isPreview && editorGroup) {
+      next = insertAtGroup(next, editorGroup.id, paneId, 'center', null, false) ?? next
+      have.add(paneId)
       continue
     }
 
     const sibling = findGroupOfPane(source, paneId)?.panes.find(p => have.has(p))
-    const targetId = (sibling ? findGroupOfPane(next, sibling)?.id : undefined) ?? groupLeafIds(next)[0]
+    const stackedPreview = isPreview ? [...have].find(id => id.startsWith(PREVIEW_TILE_PREFIX)) : undefined
+    const targetId =
+      (stackedPreview ? findGroupOfPane(next, stackedPreview)?.id : undefined) ??
+      (sibling ? findGroupOfPane(next, sibling)?.id : undefined) ??
+      (isPreview ? findGroupOfPane(next, 'workspace')?.id : undefined) ??
+      groupLeafIds(next)[0]
+    const pos: DropPosition = stackedPreview || sibling ? 'center' : isPreview ? 'right' : 'center'
 
     if (targetId) {
       // Silent adoption: don't steal the target zone's active tab (logs).
-      next = insertAtGroup(next, targetId, paneId, 'center', null, false) ?? next
+      next = insertAtGroup(next, targetId, paneId, pos, null, false) ?? next
       have.add(paneId)
     }
   }
@@ -1370,7 +1400,11 @@ function adoptContributedPanes(): void {
   // turn it into a track that steals width from a zone, which is the whole
   // thing floating exists to avoid.
   const missing = panes.filter(
-    c => !inTree.has(c.id) && !dismissed.has(c.id) && placementOf(c.id) !== FLOATING_PLACEMENT
+    c =>
+      !inTree.has(c.id) &&
+      !dismissed.has(c.id) &&
+      placementOf(c.id) !== FLOATING_PLACEMENT &&
+      paneAutoAdopts(c.id)
   )
 
   if (missing.length === 0) {
@@ -1502,7 +1536,7 @@ export function dockPaneBeside(paneId: string, anchorPaneId: string) {
   const mainId = panes.find(c => {
     const data = c.data as { placement?: string; uncloseable?: boolean } | undefined
 
-    return data?.placement === 'main' && data.uncloseable
+    return c.id !== EDITOR_PANE_ID && data?.placement === 'main' && data.uncloseable
   })?.id
 
   const order = allPaneIds(tree)

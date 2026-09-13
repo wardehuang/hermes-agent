@@ -159,8 +159,78 @@ export function setPaneHeightOverride(id: string, height: number | undefined) {
 export const clearPaneWidthOverride = (id: string) => setPaneWidthOverride(id, undefined)
 export const clearPaneHeightOverride = (id: string) => setPaneHeightOverride(id, undefined)
 
+/** Drag-resize px captured with a user-saved layout. Open flags stay out —
+ *  a preset restores SIZES, not whether a toggle-gated pane is showing. */
+export type PaneSizeOverrides = Record<string, { widthOverride?: number; heightOverride?: number }>
+
+function finitePx(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+/** Snapshot current width/height drag overrides (empty object when none). */
+export function snapshotPaneSizeOverrides(): PaneSizeOverrides {
+  const out: PaneSizeOverrides = {}
+
+  for (const [id, state] of Object.entries($paneStates.get())) {
+    const widthOverride = finitePx(state.widthOverride)
+    const heightOverride = finitePx(state.heightOverride)
+
+    if (widthOverride === undefined && heightOverride === undefined) {
+      continue
+    }
+
+    const entry: { widthOverride?: number; heightOverride?: number } = {}
+
+    if (widthOverride !== undefined) {
+      entry.widthOverride = widthOverride
+    }
+
+    if (heightOverride !== undefined) {
+      entry.heightOverride = heightOverride
+    }
+
+    out[id] = entry
+  }
+
+  return out
+}
+
+/** Re-apply saved drag overrides after `clearAllPaneSizeOverrides`. Open
+ *  state is left alone so a layout click doesn't reopen a closed sidebar. */
+export function restorePaneSizeOverrides(sizes: PaneSizeOverrides | undefined) {
+  if (!sizes) {
+    return
+  }
+
+  const current = $paneStates.get()
+  let changed = false
+  const next: Record<string, PaneStateSnapshot> = { ...current }
+
+  for (const [id, size] of Object.entries(sizes)) {
+    const widthOverride = finitePx(size?.widthOverride)
+    const heightOverride = finitePx(size?.heightOverride)
+
+    if (widthOverride === undefined && heightOverride === undefined) {
+      continue
+    }
+
+    const existing = next[id] ?? { open: false }
+
+    if (existing.widthOverride === widthOverride && existing.heightOverride === heightOverride) {
+      continue
+    }
+
+    next[id] = { ...existing, widthOverride, heightOverride }
+    changed = true
+  }
+
+  if (changed) {
+    $paneStates.set(next)
+  }
+}
+
 /** Drop every pane's drag-resize override (open state untouched). Layout
- *  reset / preset application: zones return to their declared sizes. */
+ *  reset / bundled preset application: zones return to their declared sizes. */
 export function clearAllPaneSizeOverrides() {
   const current = $paneStates.get()
   let changed = false

@@ -81,6 +81,12 @@ describe('ModelPill pinned-override badge', () => {
 })
 
 describe('ModelPill per-surface model label', () => {
+  it('renders the model name, not a lone chevron', () => {
+    render(<ModelPill disabled={false} model={modelState()} />)
+
+    expect(screen.getByText(/GPT-6/)).toBeTruthy()
+  })
+
   it('shows the chat-bar model even when the primary global differs', () => {
     setCurrentModel('primary/model')
     $activeSessionId.set('primary-runtime')

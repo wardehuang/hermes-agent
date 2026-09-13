@@ -18,10 +18,12 @@ import type { GroupSetter } from '@/app/shell/group-setter'
 import type { StatusbarItem } from '@/app/shell/statusbar-controls'
 import type { TitlebarTool } from '@/app/shell/titlebar-controls'
 import { DecodeText } from '@/components/ui/decode-text'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ContribBoundary, ContribRender } from '@/contrib/react/boundary'
 import { useContributions } from '@/contrib/react/use-contributions'
 import { registry } from '@/contrib/registry'
 import { getLogs } from '@/hermes'
+import { useI18n } from '@/i18n'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import { openPreview } from '@/store/preview'
@@ -90,6 +92,18 @@ export function FilesPane() {
     <div className={ZONE_CONTENT}>
       <RightSidebarPane onActivateFile={previewFile} onActivateFolder={previewFile} />
     </div>
+  )
+}
+
+export function EditorPane() {
+  const { t } = useI18n()
+
+  return (
+    <EmptyState
+      className="h-full min-h-0"
+      description={t.zones.editorEmptyDescription}
+      title={t.zones.editorEmptyTitle}
+    />
   )
 }
 

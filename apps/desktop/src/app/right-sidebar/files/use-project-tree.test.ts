@@ -161,6 +161,28 @@ describe('useProjectTree', () => {
     expect(readDir).toHaveBeenCalledTimes(1)
   })
 
+  it('does not reread or clear when allowRead flips false for the same cwd', async () => {
+    readDir.mockResolvedValue(ok([{ isDirectory: true, name: 'src', path: '/p/src' }]))
+
+    const { result, rerender } = renderHook(({ allowRead }: { allowRead: boolean }) => useProjectTree('/p', { allowRead }), {
+      initialProps: { allowRead: true }
+    })
+
+    await waitFor(() => expect(result.current.loaded).toBe(true))
+    readDir.mockClear()
+
+    rerender({ allowRead: false })
+
+    expect(result.current.data.map(n => n.name)).toEqual(['src'])
+    expect(result.current.loaded).toBe(true)
+    expect(readDir).not.toHaveBeenCalled()
+
+    rerender({ allowRead: true })
+
+    expect(result.current.loaded).toBe(true)
+    expect(readDir).not.toHaveBeenCalled()
+  })
+
   it('reads gitignore from the real path while caching per connection', async () => {
     const readFileDataUrl = vi.fn(async () => `data:text/plain;base64,${btoa('ignored.log\n')}`)
     const gitRoot = vi.fn(async () => '/repo')

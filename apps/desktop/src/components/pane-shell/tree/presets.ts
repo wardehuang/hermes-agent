@@ -10,6 +10,11 @@
 
 import { registry } from '@/contrib/registry'
 import { readJson, writeJson, writeKey } from '@/lib/storage'
+import {
+  restorePaneSizeOverrides,
+  snapshotPaneSizeOverrides,
+  type PaneSizeOverrides
+} from '@/store/panes'
 
 import { isLayoutNode, type LayoutNode } from './model'
 import { $layoutTree, applyTree, markActivePreset } from './store'
@@ -24,6 +29,39 @@ writeKey('hermes.desktop.layoutPresets.v1', null)
 interface StoredPreset {
   name: string
   tree: LayoutNode
+  /** Drag-resize px for fixed tracks (files/sessions/terminal). Flex split
+   *  weights already live on the tree; applyTree clears these overrides. */
+  paneSizes?: PaneSizeOverrides
+}
+
+function finitePx(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function parsePaneSizes(value: unknown): PaneSizeOverrides | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const out: PaneSizeOverrides = {}
+
+  for (const [id, size] of Object.entries(value as Record<string, unknown>)) {
+    if (!size || typeof size !== 'object') {
+      continue
+    }
+
+    const rec = size as Record<string, unknown>
+    const widthOverride = finitePx(rec.widthOverride)
+    const heightOverride = finitePx(rec.heightOverride)
+
+    if (widthOverride === undefined && heightOverride === undefined) {
+      continue
+    }
+
+    out[id] = { widthOverride, heightOverride }
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 const userDisposers = new Map<string, () => void>()
@@ -34,7 +72,7 @@ function loadUserPresets(): Record<string, StoredPreset> {
 
   for (const [id, preset] of Object.entries(parsed)) {
     if (preset && typeof preset.name === 'string' && isLayoutNode(preset.tree)) {
-      out[id] = preset
+      out[id] = { name: preset.name, tree: preset.tree, paneSizes: parsePaneSizes(preset.paneSizes) }
     }
   }
 
@@ -60,8 +98,11 @@ for (const [id, preset] of Object.entries(userPresets)) {
   registerUserPreset(id, preset)
 }
 
-/** Save any tree as a named user preset (and make it active). */
-export function saveLayoutPresetTree(name: string, tree: LayoutNode): string | null {
+/** Save any tree as a named user preset (and make it active).
+ *  Pass `paneSizes` from "Save current arrangement" so sash drags on
+ *  fixed tracks (sidebar widths, terminal height) come back on apply.
+ *  Zone-editor saves omit it — those trees use declared sizes. */
+export function saveLayoutPresetTree(name: string, tree: LayoutNode, paneSizes?: PaneSizeOverrides): string | null {
   const trimmed = name.trim()
 
   if (!tree || !trimmed) {
@@ -74,8 +115,9 @@ export function saveLayoutPresetTree(name: string, tree: LayoutNode): string | n
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || Date.now().toString(36)
   }`
+  const sizes = parsePaneSizes(paneSizes)
 
-  userPresets[id] = { name: trimmed, tree }
+  userPresets[id] = { name: trimmed, tree: structuredClone(tree), paneSizes: sizes }
   persistUserPresets(userPresets)
   registerUserPreset(id, userPresets[id])
   markActivePreset(id)
@@ -88,7 +130,7 @@ export function saveCurrentLayoutAs(name: string) {
   const tree = $layoutTree.get()
 
   if (tree) {
-    saveLayoutPresetTree(name, tree)
+    saveLayoutPresetTree(name, tree, snapshotPaneSizeOverrides())
   }
 }
 
@@ -105,7 +147,10 @@ export function deleteUserPreset(id: string) {
 
 export const isUserPreset = (id: string) => id in userPresets
 
-/** Apply a preset's tree (deep-cloned so live edits never mutate the preset). */
+/** Apply a preset's tree (deep-cloned so live edits never mutate the preset).
+ *  User presets restore their saved sash overrides AFTER applyTree clears
+ *  the live ones — otherwise Files/Sessions snap back to declared 237px. */
 export function applyLayoutPreset(id: string, tree: LayoutNode) {
   applyTree(structuredClone(tree), id)
+  restorePaneSizeOverrides(userPresets[id]?.paneSizes)
 }

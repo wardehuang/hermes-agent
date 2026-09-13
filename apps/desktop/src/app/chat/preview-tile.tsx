@@ -12,8 +12,14 @@
 
 import { useStore } from '@nanostores/react'
 
-import { findGroup } from '@/components/pane-shell/tree/model'
-import { $activeTreeGroup, $layoutTree, revealTreePane, treePanesWithPrefix } from '@/components/pane-shell/tree/store'
+import { allPaneIds, findGroup } from '@/components/pane-shell/tree/model'
+import {
+  $activeTreeGroup,
+  $layoutTree,
+  EDITOR_PANE_ID,
+  revealTreePane,
+  treePanesWithPrefix
+} from '@/components/pane-shell/tree/store'
 import { type MenuKit, renderActionItem } from '@/components/ui/actions-menu'
 import { FileTypeIcon } from '@/components/ui/file-type-icon'
 import { ToolIcon } from '@/components/ui/tool-icon'
@@ -190,6 +196,17 @@ function existingPreviewAnchor(tabId: string): string | undefined {
   return other ? previewPaneId(other.id) : undefined
 }
 
+/** Coding's persistent editor slot, when the live tree actually names it. */
+function editorSlotId(): string | undefined {
+  const tree = $layoutTree.get()
+
+  return tree && allPaneIds(tree).includes(EDITOR_PANE_ID) ? EDITOR_PANE_ID : undefined
+}
+
+function previewDockAnchor(tabId: string): string | undefined {
+  return existingPreviewAnchor(tabId) ?? editorSlotId()
+}
+
 /** Keep pane contributions mirroring `$previewTabs`, keep the store's selection
  *  and the tree's active pane agreeing, and front a tile when its tab is
  *  selected. Call once from the root. */
@@ -256,8 +273,11 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   // along). Every SUBSEQUENT preview stacks into that zone as a center tab:
   // without the anchor each opened file split a new zone off the right edge
   // (#93610), turning three file opens into three ever-narrower columns.
-  dir: tab => (existingPreviewAnchor(tab.id) ? 'center' : 'right'),
-  anchor: tab => existingPreviewAnchor(tab.id),
+  // Coding's editor slot, when present, is the first-preview anchor so file
+  // peeks land in the persistent editor instead of splitting a sibling zone
+  // that would fold with the terminal.
+  dir: tab => (previewDockAnchor(tab.id) ? 'center' : 'right'),
+  anchor: tab => previewDockAnchor(tab.id),
   minWidth: '22rem',
   title: previewTitle,
   tabLead: tabId => <PreviewTabLead tabId={tabId} />,

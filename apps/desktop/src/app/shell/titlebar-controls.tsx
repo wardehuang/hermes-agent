@@ -156,17 +156,23 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
 
   // POSITIONAL toggles: each button shows/hides everything on its physical
   // side of the main zone (the layout tree collapses the whole side), so they
-  // stay correct through flips and rearranges. $sidebarOpen ≙ left side,
-  // $fileBrowserOpen ≙ right side. Never an active highlight — plain
-  // show/hide affordances.
-  const leftEdge = { open: sidebarOpen, toggle: toggleSidebarOpen }
-  const rightEdge = { open: fileBrowserOpen, toggle: toggleFileBrowserOpen }
+  // stay correct through flips and rearranges. $sidebarOpen ≙ the sessions
+  // column (semantic left), $fileBrowserOpen ≙ the files column (semantic
+  // right). After a flip — or a Coding preset that parks sessions right of
+  // main — the buttons swap stores so the LEFT glyph still hides the LEFT
+  // column. Never an active highlight — plain show/hide affordances.
+  const leftEdge = panesFlipped
+    ? { actionId: 'view.toggleRightSidebar', open: fileBrowserOpen, toggle: toggleFileBrowserOpen }
+    : { actionId: 'view.toggleSidebar', open: sidebarOpen, toggle: toggleSidebarOpen }
+  const rightEdge = panesFlipped
+    ? { actionId: 'view.toggleSidebar', open: sidebarOpen, toggle: toggleSidebarOpen }
+    : { actionId: 'view.toggleRightSidebar', open: fileBrowserOpen, toggle: toggleFileBrowserOpen }
   const leftLabel = leftEdge.open ? t.titlebar.hideSidebar : t.titlebar.showSidebar
   const rightLabel = rightEdge.open ? t.titlebar.hideRightSidebar : t.titlebar.showRightSidebar
 
   const leftToolbarTools: TitlebarTool[] = [
     {
-      actionId: 'view.toggleSidebar',
+      actionId: leftEdge.actionId,
       badge: panesFlipped ? undefined : unreadBadge,
       icon: <TitlebarIcon name="layout-sidebar-left" />,
       id: 'sidebar',
@@ -190,7 +196,7 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   ]
 
   const rightSidebarTool: TitlebarTool = {
-    actionId: 'view.toggleRightSidebar',
+    actionId: rightEdge.actionId,
     badge: panesFlipped ? unreadBadge : undefined,
     icon: <TitlebarIcon name="layout-sidebar-right" />,
     id: 'right-sidebar',

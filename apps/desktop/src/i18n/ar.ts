@@ -2596,6 +2596,8 @@ export const ar = defineLocale({
     pluginDisabled: pluginId => `الإضافة "${pluginId}" معطلة`,
     pluginDisabledBody: 'أعد تفعيلها من الإعدادات ← الإضافات لإرجاع اللوحة.',
     missingPane: paneId => `لوحة مفقودة: ${paneId}`,
+    editorEmptyTitle: 'لا يوجد ملف مفتوح',
+    editorEmptyDescription: 'افتح ملفا من المستكشف لبدء التحرير.',
     editTitle: 'التخطيطات',
     editHint: 'اختر تخطيطا، أو اسحب اللوحات بين المناطق.',
     reset: 'إعادة ضبط',

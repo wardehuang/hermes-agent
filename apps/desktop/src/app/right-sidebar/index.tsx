@@ -33,10 +33,14 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
   const selectedStoredSessionId = useStore($selectedStoredSessionId)
   const workspaceCwdOwner = useStore($workspaceCwdOwner)
 
-  // A transition intentionally retains the old CWD until the new session
-  // confirms its workspace. Do not issue a filesystem read against that path:
-  // under a gateway switch it may belong to a different remote machine.
-  const hasWorkspace = Boolean(currentCwd) && (workspaceCwdOwner ?? null) === (selectedStoredSessionId ?? null)
+  // A conversation switch publishes the new stored id immediately, but the
+  // new workspace only arrives when resume settles. `$currentCwd` still names
+  // the PREVIOUS conversation's folder. Do not issue a filesystem read against
+  // that path (a gateway switch may point at a different machine) — but do
+  // NOT pass '' into the tree hook: that clears the cache and the Files pane
+  // blanks on every same-project session switch.
+  const owned = (workspaceCwdOwner ?? null) === (selectedStoredSessionId ?? null)
+  const allowRead = Boolean(currentCwd) && owned
 
   const {
     collapseAll,
@@ -44,12 +48,15 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
     data,
     effectiveCwd,
     loadChildren,
+    loaded,
     openState,
     refreshRoot,
     rootError,
     rootLoading,
     setNodeOpen
-  } = useProjectTree(hasWorkspace ? currentCwd : '')
+  } = useProjectTree(currentCwd, { allowRead })
+
+  const hasWorkspace = Boolean(currentCwd) && (owned || loaded)
 
   const cwdName =
     effectiveCwd

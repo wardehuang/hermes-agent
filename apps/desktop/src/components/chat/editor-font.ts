@@ -3,6 +3,12 @@ import { atom } from 'nanostores'
 /** Empty config means the active theme's `--font-mono`. */
 export const DEFAULT_EDITOR_FONT_FAMILY = 'var(--font-mono)'
 export const DEFAULT_EDITOR_FONT_WEIGHT = '400'
+export const DEFAULT_EDITOR_FONT_SIZE_CSS = '0.7rem'
+export const DEFAULT_EDITOR_LINE_HEIGHT_CSS = '1.25rem'
+/** Line box used by SourceView's windowed scroller when size is unset. */
+export const DEFAULT_EDITOR_LINE_PX = 20
+export const MIN_EDITOR_FONT_SIZE_PX = 8
+export const MAX_EDITOR_FONT_SIZE_PX = 48
 
 export const EDITOR_FONT_SUGGESTIONS = [
   'Operator Mono Light',
@@ -22,15 +28,38 @@ export interface ResolvedEditorFont {
   weight: string
 }
 
-/** Profile-backed value as written in config.yaml. Empty means theme mono. */
+export interface ResolvedEditorFontSize {
+  line: string
+  linePx: number
+  size: string
+}
+
+/** Profile-backed family as written in config.yaml. Empty means theme mono. */
 export const $editorFontFamily = atom('')
+/** Profile-backed size in px. 0 means the default 0.7rem / 1.25rem row. */
+export const $editorFontSizePx = atom(0)
 
 export function normalizeEditorFontFamily(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+/** 0 = unset (default rem size). Otherwise a clamped integer px. */
+export function normalizeEditorFontSizePx(value: unknown): number {
+  if (value == null || value === '') {
+    return 0
+  }
+
+  const raw = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value.trim()) : Number.NaN
+
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 0
+  }
+
+  return Math.min(MAX_EDITOR_FONT_SIZE_PX, Math.max(MIN_EDITOR_FONT_SIZE_PX, Math.round(raw)))
+}
+
 function quoteSingleFamily(value: string): string {
-  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+  return JSON.stringify(value)
 }
 
 /**
@@ -92,38 +121,78 @@ export function resolveEditorFontFamily(value: unknown): string {
   return resolveEditorFont(value).family
 }
 
-export function editorFontCss(value: unknown): {
+/**
+ * Keep the current 0.7rem : 1.25rem row ratio (20px at a 16px root).
+ * Explicit px sizes get an integer line box for SourceView's virtualizer.
+ */
+export function resolveEditorFontSize(value: unknown): ResolvedEditorFontSize {
+  const px = normalizeEditorFontSizePx(value)
+
+  if (!px) {
+    return {
+      line: DEFAULT_EDITOR_LINE_HEIGHT_CSS,
+      linePx: DEFAULT_EDITOR_LINE_PX,
+      size: DEFAULT_EDITOR_FONT_SIZE_CSS
+    }
+  }
+
+  const linePx = Math.round((px * 25) / 14)
+
+  return { line: `${linePx}px`, linePx, size: `${px}px` }
+}
+
+export function editorFontCss(
+  family?: unknown,
+  size?: unknown
+): {
   fontFamily: string
+  fontSize: string
   fontWeight: string
+  lineHeight: string
   '--font-editor': string
+  '--font-editor-line': string
+  '--font-editor-size': string
   '--font-editor-weight': string
 } {
-  const font = resolveEditorFont(value)
+  const font = resolveEditorFont(family)
+  const sizing = resolveEditorFontSize(size ?? $editorFontSizePx.get())
 
   return {
     fontFamily: font.family,
+    fontSize: sizing.size,
     fontWeight: font.weight,
+    lineHeight: sizing.line,
     '--font-editor': font.family,
+    '--font-editor-line': sizing.line,
+    '--font-editor-size': sizing.size,
     '--font-editor-weight': font.weight
   }
 }
 
-function applyEditorFontToDocument(font: ResolvedEditorFont): void {
+function applyEditorFontToDocument(): void {
   if (typeof document === 'undefined') {
     return
   }
 
+  const font = resolveEditorFont($editorFontFamily.get())
+  const sizing = resolveEditorFontSize($editorFontSizePx.get())
   const root = document.documentElement
   root.style.setProperty('--font-editor', font.family)
   root.style.setProperty('--font-editor-weight', font.weight)
+  root.style.setProperty('--font-editor-size', sizing.size)
+  root.style.setProperty('--font-editor-line', sizing.line)
 
   if (document.fonts?.load) {
-    void document.fonts.load(`${font.weight} 12px ${font.family}`)
+    void document.fonts.load(`${font.weight} ${sizing.size} ${font.family}`)
   }
 }
 
 export function setEditorFontFamilyFromConfig(value: unknown): void {
-  const normalized = normalizeEditorFontFamily(value)
-  $editorFontFamily.set(normalized)
-  applyEditorFontToDocument(resolveEditorFont(normalized))
+  $editorFontFamily.set(normalizeEditorFontFamily(value))
+  applyEditorFontToDocument()
+}
+
+export function setEditorFontSizeFromConfig(value: unknown): void {
+  $editorFontSizePx.set(normalizeEditorFontSizePx(value))
+  applyEditorFontToDocument()
 }

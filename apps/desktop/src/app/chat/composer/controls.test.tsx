@@ -1,14 +1,19 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { ChatBarState } from '@/app/chat/composer/types'
 import { I18nProvider } from '@/i18n'
 import { $hudMode } from '@/store/hud'
 import { applyWakeStartResult, applyWakeStatus, resetWakeWordState } from '@/store/wake-word'
+import { stubMenuDomApis } from '@/test/jsdom'
 
 import { ComposerControls } from './controls'
 
 vi.mock('./model-pill', () => ({ ModelPill: () => null }))
+
+beforeAll(() => {
+  stubMenuDomApis()
+})
 
 const state: ChatBarState = {
   model: { canSwitch: false, model: '', provider: '' },
@@ -56,26 +61,54 @@ async function expectShortcutTooltip(label: string, shortcut: string) {
   expect(tooltip.textContent).toContain(shortcut)
 }
 
+function openVoiceOverflow() {
+  fireEvent.click(screen.getByLabelText('Voice'))
+}
+
 afterEach(() => {
   cleanup()
   $hudMode.set(false)
+  resetWakeWordState()
+})
+
+// Docked composer: the three secondary voice toggles (dictation, spoken
+// replies, wake word) sit behind an up-arrow until clicked. Send stays on
+// the row. HUD still uses the text Voice menu plus the way out.
+describe('docked voice overflow', () => {
+  it('hides the three toggles behind a chevron-up and offers no HUD exit', () => {
+    renderControls()
+
+    const trigger = screen.getByLabelText('Voice')
+    expect(trigger.querySelector('.codicon-chevron-up')).toBeTruthy()
+    expect(screen.queryByLabelText('Voice dictation')).toBeNull()
+    expect(screen.queryByLabelText('Read replies aloud')).toBeNull()
+    expect(screen.queryByLabelText('Exit HUD mode')).toBeNull()
+    expect(screen.queryByLabelText('Reset HUD size and position')).toBeNull()
+  })
+
+  it('reveals the three toggles when the up-arrow is clicked', () => {
+    renderControls()
+    openVoiceOverflow()
+
+    expect(screen.getByLabelText('Voice dictation')).toBeTruthy()
+    expect(screen.getByLabelText('Read replies aloud')).toBeTruthy()
+    expect(screen.getByLabelText('Wake word: "hey hermes" — off')).toBeTruthy()
+    expect(screen.getByLabelText('Voice').querySelector('.codicon-chevron-down')).toBeTruthy()
+  })
+
+  it('paints a live recording state on the closed trigger', () => {
+    renderControls({ voiceStatus: 'recording' })
+
+    const trigger = screen.getByLabelText('Voice')
+    expect(trigger.querySelector('.codicon-chevron-up')).toBeNull()
+    expect(screen.queryByLabelText('Voice dictation')).toBeNull()
+  })
 })
 
 // The HUD is a Spotlight bar a few hundred pixels wide: the four voice
 // controls fold into one menu there, and the way out of HUD mode joins the
-// row instead of floating above the bar in a reserved strip. The docked
-// composer keeps every control inline and shows no exit.
+// row instead of floating above the bar in a reserved strip.
 describe('HUD mode', () => {
-  it('keeps the voice controls inline and offers no exit in the docked composer', () => {
-    renderControls()
-
-    expect(screen.getByLabelText('Voice dictation')).toBeTruthy()
-    expect(screen.getByLabelText('Read replies aloud')).toBeTruthy()
-    expect(screen.queryByLabelText('Exit HUD mode')).toBeNull()
-    expect(screen.queryByLabelText('Reset HUD size and position')).toBeNull()
-    expect(screen.queryByLabelText('Voice')).toBeNull()
-  })
-
   it('folds them into one menu and offers the way out in the HUD', () => {
     $hudMode.set(true)
     renderControls()
@@ -103,8 +136,8 @@ describe('HUD mode', () => {
 // A tile can be narrower than the controls cost, and the row is inside an
 // overflow-hidden surface — so anything that doesn't fold gets clipped off the
 // right edge, send button first. The ladder keeps going past `stacked`: voice
-// folds into the same menu the HUD uses, then the model pill drops. Send is
-// the last thing standing.
+// folds into the same menu the HUD uses. The model pill keeps its full label.
+// Send is the last thing standing besides the pill.
 describe('narrow tiles', () => {
   it('folds the voice controls into one menu without entering HUD mode', () => {
     renderControls({ foldVoice: true })
@@ -117,7 +150,7 @@ describe('narrow tiles', () => {
     expect(screen.queryByLabelText('Exit HUD mode')).toBeNull()
   })
 
-  it('keeps Send at the tightest width, with everything else dropped', () => {
+  it('keeps Send at the tightest width, with voice dropped', () => {
     renderControls({ foldVoice: true, minimal: true })
 
     expect(screen.getByLabelText('Send')).toBeTruthy()
@@ -165,6 +198,7 @@ describe('wake-word ear visibility', () => {
   it('stays mounted during a busy agent turn', () => {
     applyWakeStatus({ available: true, enabled: true, listening: true, phrase: 'hey hermes' })
     renderControls({ busy: true, busyAction: 'stop' })
+    openVoiceOverflow()
 
     expect(screen.getByLabelText('Wake word: "hey hermes" — listening')).toBeTruthy()
   })
@@ -174,23 +208,26 @@ describe('wake-word ear visibility', () => {
     // Transient refusal marks available false but enabled keeps it mounted.
     applyWakeStartResult({ hint: 'mic busy', reason: 'unavailable', started: false })
     renderControls()
+    openVoiceOverflow()
 
     expect(screen.getByLabelText('Wake word: "hey hermes" — off')).toBeTruthy()
   })
 
-  it('stays visible (never hides) even when unavailable and not enabled', () => {
+  it('stays reachable in the overflow even when unavailable and not enabled', () => {
     applyWakeStatus({ available: false, enabled: false, listening: false, phrase: 'hey hermes' })
     renderControls()
+    openVoiceOverflow()
 
-    // The ear ALWAYS shows so the user can click to enable; a failed start
-    // surfaces its reason in the tooltip rather than hiding the control.
+    // The ear stays in the overflow so the user can click to enable; a failed
+    // start surfaces its reason in the tooltip rather than omitting the control.
     expect(screen.getByLabelText('Wake word: "hey hermes" — off')).toBeTruthy()
   })
 
-  it('surfaces the backend refusal reason in the tooltip, still visible', () => {
+  it('surfaces the backend refusal reason in the tooltip, still reachable', () => {
     applyWakeStatus({ available: false, enabled: false, listening: false, phrase: 'hey hermes' })
     applyWakeStartResult({ hint: 'run `hermes tools` (Voice section)', reason: 'unavailable', started: false })
     renderControls()
+    openVoiceOverflow()
 
     const ear = screen.getByLabelText('Wake word: "hey hermes" — off')
     expect(ear).toBeTruthy()

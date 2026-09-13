@@ -600,10 +600,13 @@ export const en: Translations = {
       terminalFontReset: 'Use default',
       editorFontTitle: 'Editor Font',
       editorFontDesc:
-        'Choose an installed font for the in-app code editor. Leave blank to use the theme monospace font.',
+        'Installed font for the in-app code editor and file preview. Leave the family blank for the theme monospace. Size is in px; leave blank for the default.',
       editorFontPlaceholder: 'Operator Mono Light or a CSS font stack',
       editorFontPreview: 'Glyph preview',
       editorFontReset: 'Use default',
+      editorFontSizeLabel: 'Size',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: 'Window Translucency',
       translucencyDesc: 'See your desktop through the whole window, text and all. Tuned separately for light and dark.',
       translucencyGlassDesc:
@@ -3442,6 +3445,8 @@ export const en: Translations = {
     pluginDisabled: pluginId => `Plugin "${pluginId}" disabled`,
     pluginDisabledBody: 'Re-enable it in Settings → Plugins to bring the pane back.',
     missingPane: paneId => `missing pane: ${paneId}`,
+    editorEmptyTitle: 'No file open',
+    editorEmptyDescription: 'Open a file from the explorer to start editing.',
     editTitle: 'Layouts',
     editHint: 'Pick a layout, or drag panes between zones.',
     reset: 'Reset',

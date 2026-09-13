@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { HermesReadDirResult } from '@/global'
@@ -67,6 +67,25 @@ describe('RightSidebarPane', () => {
     render(<RightSidebarPane onActivateFile={vi.fn()} onActivateFolder={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Refresh tree' })).toBeNull())
+    expect(readDir).not.toHaveBeenCalled()
+  })
+
+  it('keeps the cached tree when switching sessions of the same cwd', async () => {
+    $selectedStoredSessionId.set('session-a')
+    $workspaceCwdOwner.set('session-a')
+    setCurrentCwd('/repo')
+
+    render(<RightSidebarPane onActivateFile={vi.fn()} onActivateFolder={vi.fn()} />)
+
+    await screen.findByText('README.md')
+    readDir.mockClear()
+
+    act(() => {
+      $selectedStoredSessionId.set('session-b')
+    })
+
+    expect(screen.getByText('README.md')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refresh tree' })).toBeTruthy()
     expect(readDir).not.toHaveBeenCalled()
   })
 })

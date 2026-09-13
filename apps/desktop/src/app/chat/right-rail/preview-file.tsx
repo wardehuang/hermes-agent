@@ -16,6 +16,7 @@ import { HERMES_PATHS_MIME } from '@/app/chat/hooks/use-composer-actions'
 import { RichCodeBlock } from '@/components/assistant-ui/embeds'
 import { CodeEditor } from '@/components/chat/code-editor'
 import { FileDiffPanel } from '@/components/chat/diff-lines'
+import { $editorFontSizePx, resolveEditorFontSize } from '@/components/chat/editor-font'
 import { chunkTextLines, useFixedRowWindow } from '@/components/chat/fixed-row-window'
 import { LazyShiki as ShikiHighlighter } from '@/components/chat/shiki-highlighter'
 import { PageLoader } from '@/components/page-loader'
@@ -43,7 +44,6 @@ import { notifyWorkspaceChanged } from '@/store/workspace-events'
 const SHIKI_THEME = { dark: 'github-dark-default', light: 'github-light-default' } as const
 const TEXT_PREVIEW_MAX_BYTES = 512 * 1024
 const SOURCE_CHUNK_LINES = 200
-const SOURCE_LINE_PX = 20
 const SOURCE_OVERSCAN_LINES = 400
 
 // Math plugin for the static file preview, configured once at module scope.
@@ -540,13 +540,14 @@ function startLineDrag(event: ReactDragEvent<HTMLElement>, filePath: string, { e
  *  content has no path to reference lines against). */
 export function SourceView({ filePath, language, text }: { filePath?: string; language: string; text: string }) {
   const { t } = useI18n()
+  const linePx = resolveEditorFontSize(useStore($editorFontSizePx)).linePx
   const chunks = useMemo(() => chunkTextLines(text, SOURCE_CHUNK_LINES), [text])
   const lastChunk = chunks.at(-1)
   const totalLines = lastChunk ? lastChunk.start + lastChunk.lines.length : 0
 
   const { afterRows, beforeRows, endChunk, onScroll, scrollerRef, startChunk } = useFixedRowWindow({
     overscanRows: SOURCE_OVERSCAN_LINES,
-    rowPx: SOURCE_LINE_PX,
+    rowPx: linePx,
     rowsPerChunk: SOURCE_CHUNK_LINES,
     totalRows: totalLines
   })
@@ -620,13 +621,15 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
   return (
     <div className="h-full overflow-auto" onScroll={onScroll} ref={scrollerRef}>
       <div
-        className="grid min-w-max grid-cols-[auto_minmax(0,1fr)] text-[0.7rem] leading-relaxed"
+        className="grid min-w-max grid-cols-[auto_minmax(0,1fr)]"
         style={{
           fontFamily: 'var(--font-editor, var(--font-mono))',
-          fontWeight: 'var(--font-editor-weight, 400)'
+          fontSize: 'var(--font-editor-size, 0.7rem)',
+          fontWeight: 'var(--font-editor-weight, 400)',
+          lineHeight: 'var(--font-editor-line, 1.25rem)'
         }}
       >
-        {beforeRows > 0 && <div aria-hidden className="col-span-2" style={{ height: beforeRows * SOURCE_LINE_PX }} />}
+        {beforeRows > 0 && <div aria-hidden className="col-span-2" style={{ height: beforeRows * linePx }} />}
         {visibleChunks.map(chunk => (
           <Fragment key={chunk.start}>
             <div className="select-none text-right text-muted-foreground/55">
@@ -637,7 +640,7 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
                 return (
                   <div
                     className={cn(
-                      'h-5 w-9 pr-2 leading-5 tabular-nums transition-colors',
+                      'w-9 pr-2 tabular-nums transition-colors',
                       filePath && 'cursor-pointer',
                       selected
                         ? 'bg-amber-200/45 text-amber-900 dark:bg-amber-300/20 dark:text-amber-100'
@@ -647,6 +650,7 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
                     key={line}
                     onClick={event => handleLineClick(event, line)}
                     onDragStart={event => handleDragStart(event, line)}
+                    style={{ height: linePx, lineHeight: `${linePx}px` }}
                     title={filePath ? t.preview.sourceLineTitle : undefined}
                   >
                     {line}
@@ -659,7 +663,7 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
             </div>
           </Fragment>
         ))}
-        {afterRows > 0 && <div aria-hidden className="col-span-2" style={{ height: afterRows * SOURCE_LINE_PX }} />}
+        {afterRows > 0 && <div aria-hidden className="col-span-2" style={{ height: afterRows * linePx }} />}
       </div>
     </div>
   )

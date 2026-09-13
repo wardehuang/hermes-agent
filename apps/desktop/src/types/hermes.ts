@@ -359,6 +359,7 @@ export interface HermesConfig {
   }
   editor?: {
     font_family?: string
+    font_size?: number
   }
   stt?: {
     enabled?: boolean

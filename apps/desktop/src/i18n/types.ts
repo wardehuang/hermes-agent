@@ -496,6 +496,9 @@ export interface Translations {
       editorFontPlaceholder: string
       editorFontPreview: string
       editorFontReset: string
+      editorFontSizeLabel: string
+      editorFontSizePlaceholder: string
+      editorFontSizeUnit: string
       translucencyTitle: string
       translucencyDesc: string
       translucencyGlassDesc: string
@@ -2981,6 +2984,8 @@ export interface Translations {
     pluginDisabled: (pluginId: string) => string
     pluginDisabledBody: string
     missingPane: (paneId: string) => string
+    editorEmptyTitle: string
+    editorEmptyDescription: string
     editTitle: string
     editHint: string
     reset: string

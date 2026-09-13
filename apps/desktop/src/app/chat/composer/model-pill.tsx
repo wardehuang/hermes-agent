@@ -19,11 +19,10 @@ import { onComposerModelMenuRequest } from './focus'
 import { useComposerScope } from './scope'
 import type { ChatBarState } from './types'
 
-// `shrink` (not `shrink-0`) with a truncating label: the pill is the one
-// control in the row that can give width back continuously, so it absorbs the
-// squeeze between collapse stages instead of pushing Send past the edge.
+// Full label at every width. Long ids ellipsize inside max-w-40; the pill
+// never collapses to a lone chevron.
 const PILL = cn(
-  'h-(--composer-control-size) min-w-0 max-w-40 shrink gap-1 rounded-md px-2 text-xs font-normal',
+  'h-(--composer-control-size) min-w-0 max-w-40 shrink-0 gap-1 rounded-md px-2 text-xs font-normal',
   'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground'
 )
 
@@ -36,11 +35,9 @@ const PILL = cn(
  * primary-only globals — so side-by-side panes each show their own model.
  */
 export function ModelPill({
-  compact = false,
   disabled,
   model
 }: {
-  compact?: boolean
   disabled: boolean
   model: ChatBarState['model']
 }) {
@@ -95,12 +92,10 @@ export function ModelPill({
   // The model resolves a beat after the gateway/session comes up. Rather than
   // flash a literal "No model", show a quiet loader (inherits the pill text
   // color at half opacity) until a model lands.
-  const label = compact ? (
-    <ChevronDown className="size-3.5 shrink-0 opacity-70" />
-  ) : (
+  const label = (
     <>
       {currentModel.trim() ? (
-        <span className="truncate">
+        <span className="min-w-0 truncate">
           {formatModelStatusLabel(currentModel, { defaultEffort, fastMode, reasoningEffort })}
         </span>
       ) : (
@@ -118,15 +113,6 @@ export function ModelPill({
     </>
   )
 
-  // Compact (floating composer): a snug square holding just the chevron — no pill
-  // padding, sized to match the other composer icon buttons.
-  const pillClass = compact
-    ? cn(
-        'size-(--composer-control-size) shrink-0 justify-center gap-0 rounded-md p-0',
-        'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground'
-      )
-    : PILL
-
   const baseTitle = currentProvider
     ? copy.modelTitle(currentProvider, currentModel || copy.modelNone)
     : copy.switchModel
@@ -138,7 +124,7 @@ export function ModelPill({
       <Tip label={pinnedOverride ? `${copy.openModelPicker} — ${copy.modelPinned}` : copy.openModelPicker} side="top">
         <Button
           aria-label={copy.openModelPicker}
-          className={pillClass}
+          className={PILL}
           data-tour={tourMarker}
           disabled={disabled}
           onClick={() => setModelPickerOpen(true)}
@@ -168,7 +154,7 @@ export function ModelPill({
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={title}
-            className={pillClass}
+            className={PILL}
             data-tour={tourMarker}
             disabled={disabled}
             type="button"

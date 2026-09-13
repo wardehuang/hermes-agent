@@ -91,10 +91,7 @@ test.describe('chat interaction with mock backend', () => {
     const composer = page.locator('[contenteditable="true"]').first()
     const primary = page.locator('[data-slot="composer-root"] button[type="submit"]')
     const queue = page.locator('[data-slot="composer-root"] button[aria-label="Queue message"]')
-    const dictation = page.locator('[data-slot="composer-root"] button[aria-label="Voice dictation"]')
-    const speakReplies = page.locator(
-      '[data-slot="composer-root"] button[aria-label="Read replies aloud"], [data-slot="composer-root"] button[aria-label="Stop reading replies aloud"]'
-    )
+    const voiceOverflow = page.locator('[data-slot="composer-voice-overflow"]')
 
     await composer.click()
     await composer.type(BLOCKING_CLARIFY_TRIGGER)
@@ -110,19 +107,18 @@ test.describe('chat interaction with mock backend', () => {
     // affordance mid-turn — steer is routed through the submit engine, not a
     // separate labeled button. Queue remains the explicit secondary action.
     await expect(primary).toHaveAttribute('aria-label', 'Send')
-    await expect(dictation).toBeVisible()
-    await expect(speakReplies).toBeVisible()
+    await expect(voiceOverflow).toBeVisible()
     await expect(queue).toBeVisible()
     await expect(queue.locator('svg.tabler-icon-layers-intersect-2')).toBeVisible()
     const controlLabels = await page
       .locator('[data-slot="composer-root"] button')
       .evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')))
-    const speakRepliesIndex = controlLabels.findIndex(
-      label => label === 'Read replies aloud' || label === 'Stop reading replies aloud'
-    )
-    expect(controlLabels.indexOf('Voice dictation')).toBeLessThan(speakRepliesIndex)
-    expect(speakRepliesIndex).toBeLessThan(controlLabels.indexOf('Queue message'))
+    expect(controlLabels.indexOf('Voice')).toBeLessThan(controlLabels.indexOf('Queue message'))
     expect(controlLabels.indexOf('Queue message')).toBeLessThan(controlLabels.indexOf('Send'))
+    await voiceOverflow.click()
+    await expect(page.getByRole('button', { name: 'Voice dictation' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Read replies aloud' })).toBeVisible()
+    await page.keyboard.press('Escape')
     await page.screenshot({ path: testInfo.outputPath('busy-composer-steer.png') })
     await expect(primary.locator('.codicon-arrow-up')).toBeVisible()
 

@@ -1,7 +1,10 @@
+import { useState } from 'react'
+
 import { useStore } from '@nanostores/react'
 
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
@@ -36,7 +39,6 @@ export function ComposerControls({
   busy,
   busyAction,
   canSubmit,
-  compactModelPill = false,
   conversation,
   disabled,
   foldVoice = false,
@@ -52,7 +54,6 @@ export function ComposerControls({
   busy: boolean
   busyAction: 'steer' | 'queue' | 'stop'
   canSubmit: boolean
-  compactModelPill?: boolean
   conversation: ConversationProps
   disabled: boolean
   foldVoice?: boolean
@@ -81,8 +82,12 @@ export function ComposerControls({
   // voice toggles fold into one menu there and leave the row to the input. A
   // narrow tile hits the same wall from the other direction and folds for the
   // same reason — same controls, same state, different budget. Below that
-  // even the menu goes: at `minimal` the row is the send button and nothing
-  // else, which is the one thing that must survive every width.
+  // even the menu goes: at `minimal` voice drops. The model pill keeps its
+  // full label at every width; send still has to survive.
+  //
+  // The docked composer is roomier but still shouldn't spend the row on three
+  // toggles that are set once. Those sit behind an up-arrow that pops them
+  // out; send / start-voice stays on the row.
   const foldedVoice = hudMode || foldVoice
 
   const voiceControls = foldedVoice ? (
@@ -96,21 +101,20 @@ export function ComposerControls({
       voiceStatus={voiceStatus}
     />
   ) : (
-    <>
-      <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
-      <AutoSpeakButton active={autoSpeak} disabled={disabled} onToggle={onToggleAutoSpeak} />
-      <WakeWordButton disabled={disabled} />
-    </>
+    <VoiceOverflow
+      autoSpeak={autoSpeak}
+      disabled={disabled}
+      onDictate={onDictate}
+      onToggleAutoSpeak={onToggleAutoSpeak}
+      state={state}
+      voiceStatus={voiceStatus}
+    />
   )
 
   return (
     <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
-      {minimal ? null : (
-        <>
-          <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
-          {voiceControls}
-        </>
-      )}
+      <ModelPill disabled={disabled} model={state.model} />
+      {minimal ? null : voiceControls}
       {showQueueButton ? (
         <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
           <Button
@@ -175,6 +179,93 @@ export function ComposerControls({
           things you can press. */}
       {hudMode ? <HudWindowButtons /> : null}
     </div>
+  )
+}
+
+/** The three secondary voice toggles, parked behind an up-arrow until needed.
+ *  Live state still paints the trigger (recording / transcribing / wake), so
+ *  folding them away never hides that something is listening. */
+function VoiceOverflow({
+  autoSpeak,
+  disabled,
+  state,
+  voiceStatus,
+  onDictate,
+  onToggleAutoSpeak
+}: {
+  autoSpeak: boolean
+  disabled: boolean
+  state: ChatBarState
+  voiceStatus: VoiceStatus
+  onDictate: () => void
+  onToggleAutoSpeak: () => void
+}) {
+  const { t } = useI18n()
+  const c = t.composer
+  const wake = useStore($wakeWord)
+  const [open, setOpen] = useState(false)
+
+  const phrase = wake.phrase || 'hey hermes'
+  const dictating = state.voice.active || voiceStatus !== 'idle'
+  const wakeListening = wake.listening
+  const active = dictating || wakeListening || autoSpeak
+
+  const dictationLabel =
+    voiceStatus === 'recording'
+      ? c.stopDictation
+      : voiceStatus === 'transcribing'
+        ? c.transcribingDictation
+        : c.voiceDictation
+
+  const wakeLabel = wakeListening ? c.wakeWordListening(phrase) : c.wakeWordOff(phrase)
+  const tooltip = dictating
+    ? dictationLabel
+    : wake.notice
+      ? `${wakeListening ? wakeLabel : c.voiceControls} — ${wake.notice}`
+      : wakeListening
+        ? wakeLabel
+        : c.voiceControls
+
+  return (
+    <Popover modal={false} onOpenChange={setOpen} open={open}>
+      <Tip label={tooltip}>
+        <PopoverTrigger asChild>
+          <Button
+            aria-expanded={open}
+            aria-label={c.voiceControls}
+            className={cn(GHOST_ICON_BTN, 'p-0', active && ACTIVE_ICON_BTN)}
+            data-slot="composer-voice-overflow"
+            disabled={disabled}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {voiceStatus === 'recording' ? (
+              <Square className={cn('fill-current', iconSize.xs)} />
+            ) : voiceStatus === 'transcribing' ? (
+              <Loader2 className={cn('animate-spin', iconSize.sm)} />
+            ) : wakeListening ? (
+              <Ear className={iconSize.sm} />
+            ) : (
+              <Codicon name={open ? 'chevron-down' : 'chevron-up'} size="0.875rem" />
+            )}
+          </Button>
+        </PopoverTrigger>
+      </Tip>
+      <PopoverContent
+        align="end"
+        className="w-auto min-w-0 p-0.5"
+        onOpenAutoFocus={event => event.preventDefault()}
+        side="top"
+        sideOffset={6}
+      >
+        <div className="flex items-center gap-(--composer-control-gap)">
+          <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
+          <AutoSpeakButton active={autoSpeak} disabled={disabled} onToggle={onToggleAutoSpeak} />
+          <WakeWordButton disabled={disabled} />
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -350,15 +441,16 @@ function AutoSpeakButton({ active, disabled, onToggle }: { active: boolean; disa
   )
 }
 
-// "Hey Hermes" wake-word toggle. ALWAYS rendered — the ear never hides. A
-// user must always be able to click it to turn passive listening on; if the
-// backend can't start (missing STT/TTS, deps still installing, no mic
-// permission, etc.) the click surfaces the reason in the tooltip and the
-// toggle stays off. States: listening (accent-highlighted), off (muted
-// ear-off), and paused-for-voice (disabled while a voice conversation holds
-// the mic — the one time wake genuinely must not listen). Backend refusals
-// ({started:false, reason}) keep the toggle off and put the reason/hint in
-// the tooltip.
+// "Hey Hermes" wake-word toggle. Always present in the voice overflow (and
+// in the conversation pill); the docked row no longer parks it inline. A
+// user must always be able to open the overflow and click it to turn
+// passive listening on; if the backend can't start (missing STT/TTS, deps
+// still installing, no mic permission, etc.) the click surfaces the reason
+// in the tooltip and the toggle stays off. States: listening
+// (accent-highlighted), off (muted ear-off), and paused-for-voice (disabled
+// while a voice conversation holds the mic — the one time wake genuinely
+// must not listen). Backend refusals ({started:false, reason}) keep the
+// toggle off and put the reason/hint in the tooltip.
 function WakeWordButton({ disabled, pausedForVoice = false }: { disabled: boolean; pausedForVoice?: boolean }) {
   const { t } = useI18n()
   const c = t.composer

@@ -470,6 +470,8 @@ DEFAULT_CONFIG = {
         # A single family name is accepted, e.g. Operator Mono Light, or a full
         # CSS font-family stack.
         "font_family": "",
+        # Editor/preview font size in px. 0 = default 0.7rem (row 1.25rem).
+        "font_size": 0,
     },
 
     "browser": {

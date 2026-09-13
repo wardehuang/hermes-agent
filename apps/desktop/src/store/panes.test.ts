@@ -4,11 +4,15 @@ import {
   $paneOpen,
   $paneStates,
   $paneWidthOverride,
+  clearAllPaneSizeOverrides,
   clearPaneWidthOverride,
   ensurePaneRegistered,
   getPaneStateSnapshot,
+  restorePaneSizeOverrides,
+  setPaneHeightOverride,
   setPaneOpen,
   setPaneWidthOverride,
+  snapshotPaneSizeOverrides,
   togglePane
 } from './panes'
 
@@ -141,6 +145,27 @@ describe('panes store', () => {
 
     it('$paneOpen returns the same atom instance for repeated calls', () => {
       expect($paneOpen('files')).toBe($paneOpen('files'))
+    })
+  })
+
+  describe('size override snapshot', () => {
+    it('round-trips width and height after a clear', () => {
+      ensurePaneRegistered('files', { open: true })
+      ensurePaneRegistered('terminal', { open: true })
+      setPaneWidthOverride('files', 420)
+      setPaneHeightOverride('terminal', 180)
+
+      const snap = snapshotPaneSizeOverrides()
+
+      expect(snap).toEqual({ files: { widthOverride: 420 }, terminal: { heightOverride: 180 } })
+
+      clearAllPaneSizeOverrides()
+      expect(getPaneStateSnapshot('files')?.widthOverride).toBeUndefined()
+
+      restorePaneSizeOverrides(snap)
+      expect(getPaneStateSnapshot('files')?.widthOverride).toBe(420)
+      expect(getPaneStateSnapshot('terminal')?.heightOverride).toBe(180)
+      expect(getPaneStateSnapshot('files')?.open).toBe(true)
     })
   })
 })

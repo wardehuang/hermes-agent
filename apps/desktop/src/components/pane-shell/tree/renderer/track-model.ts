@@ -70,6 +70,10 @@ interface PaneChrome extends PaneSizing {
   /** No Close in the tab menu — the one surface the app can't lose (the
    *  main workspace). Session tiles share `placement: 'main'` but close. */
   uncloseable?: boolean
+  /** When false, live adoption and preset-switch adoption skip this pane
+   *  unless the target tree already names it. The Coding preset's editor
+   *  slot uses this so Default/Focus never grow an empty editor tab. */
+  autoAdopt?: boolean
   /** Standing chrome tab (sessions / Bots) with NO close verb at all: no ✕,
    *  no middle / ⌘-click, no Close menu rows. It is shown/hidden instead (the
    *  zone menu's Show/Hide rows and a ⌘K toggle, via `setStripTabHidden`).
@@ -180,6 +184,10 @@ export const cssMax = (values: (string | null | undefined)[]): string | undefine
  *    every child is (one flex child makes the run flex).
  *  - split ACROSS the axis: the max of its visible fixed children (flex
  *    children just stretch to the container); flex only when none are fixed.
+ *    Minimized children are skipped — their strip is along the parent split's
+ *    orientation, not the cross axis. Otherwise a column of [editor,
+ *    folded-terminal] reports 1.75rem as its WIDTH and the sibling agent
+ *    swallows the leftover.
  *
  * This is how "two right sidebars over a terminal row" sizes itself from its
  * content (237px, or 474px when review is visible) instead of taking a
@@ -221,9 +229,10 @@ export function allFixedAbsorberIndex(
 
 export function fixedTrackSize(node: LayoutNode, axis: 'row' | 'column', ctx: TrackContext): string | null {
   if (node.type === 'group') {
-    // Ancestor splits must size a minimized zone as its strip, not as its
-    // panes' declared widths — otherwise the outer track keeps reserving the
-    // full sidebar width and the collapsed rail floats in a dead column.
+    // Along the parent split's orientation a minimized zone IS its strip
+    // (so a folded sidebar doesn't keep reserving full width). Cross-axis
+    // aggregation below skips minimized children — a bottom rail is 28px
+    // tall, not 28px wide.
     if (node.minimized) {
       return MINIMIZED_TRACK
     }
@@ -274,7 +283,15 @@ export function fixedTrackSize(node: LayoutNode, axis: 'row' | 'column', ctx: Tr
   }
 
   const visible = node.children.filter(child => !subtreeGone(child, ctx))
-  const sizes = visible.map(child => fixedTrackSize(child, axis, ctx))
+  const sizes = visible.map(child => {
+    // A minimized rail occupies MINIMIZED_TRACK along THIS split's
+    // orientation only. Along the cross axis it stretches.
+    if (child.type === 'group' && child.minimized && node.orientation !== axis) {
+      return null
+    }
+
+    return fixedTrackSize(child, axis, ctx)
+  })
 
   if (node.orientation === axis) {
     if (sizes.length === 0 || sizes.some(size => size === null)) {

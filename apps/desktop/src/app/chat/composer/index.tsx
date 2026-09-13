@@ -340,7 +340,7 @@ export function ChatBar({
     return onCancel()
   }, [activeQueueSessionKeyRef, onCancel])
 
-  const { compactPill, foldVoice, minimal, stacked } = useComposerMetrics({
+  const { foldVoice, minimal, stacked } = useComposerMetrics({
     composerDockRef,
     composerRef,
     composerSurfaceRef,
@@ -1018,7 +1018,6 @@ export function ChatBar({
       busy={busy}
       busyAction={busyAction}
       canSubmit={canSubmit}
-      compactModelPill={poppedOut || compactPill}
       conversation={{
         active: voiceConversationActive,
         level: conversation.level,

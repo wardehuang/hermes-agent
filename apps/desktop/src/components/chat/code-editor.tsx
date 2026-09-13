@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/themes/context'
 
 import { githubEditorTheme } from './code-editor-theme'
-import { $editorFontFamily, editorFontCss } from './editor-font'
+import { $editorFontFamily, $editorFontSizePx, editorFontCss } from './editor-font'
 
 type FormatOutcome = { ok: true } | { ok: false; error: string }
 
@@ -103,12 +103,12 @@ function baseName(filePath: string): string {
 // shifts the file. CM's base stylesheet targets some of these with two-class
 // selectors (e.g. `.cm-lineNumbers .cm-gutterElement`) that out-specify a bare
 // `.cm-gutterElement` rule, so we match that specificity to win. SourceView
-// reference: font var(--font-editor, var(--font-mono))/0.7rem/weight token,
-// 1.25rem rows, gutter w-9 + pr-2 (muted/55), code 0.625rem line inset.
+// reference: --font-editor / --font-editor-weight / --font-editor-size /
+// --font-editor-line, gutter w-9 + pr-2 (muted/55), code 0.625rem line inset.
 const EDITOR_FONT = 'var(--font-editor, var(--font-mono))'
 const EDITOR_FONT_WEIGHT = 'var(--font-editor-weight, 400)'
-const ROW_HEIGHT = '1.25rem'
-const CODE_SIZE = '0.7rem'
+const ROW_HEIGHT = 'var(--font-editor-line, 1.25rem)'
+const CODE_SIZE = 'var(--font-editor-size, 0.7rem)'
 const GUTTER_COLOR = 'color-mix(in oklab, var(--muted-foreground) 55%, transparent)'
 
 const LAYOUT_THEME = EditorView.theme({
@@ -195,7 +195,7 @@ export function CodeEditor({
   onSave
 }: CodeEditorProps) {
   const { resolvedMode } = useTheme()
-  const editorFontStyle = editorFontCss(useStore($editorFontFamily)) as CSSProperties
+  const editorFontStyle = editorFontCss(useStore($editorFontFamily), useStore($editorFontSizePx)) as CSSProperties
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const languageConf = useRef(new Compartment())
