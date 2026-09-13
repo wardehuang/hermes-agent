@@ -39,10 +39,12 @@ export function ComposerControls({
   busy,
   busyAction,
   canSubmit,
+  compactModelPill = false,
   conversation,
   disabled,
   foldVoice = false,
   hasComposerPayload,
+  hideModelPill = false,
   minimal = false,
   state,
   voiceStatus,
@@ -54,10 +56,12 @@ export function ComposerControls({
   busy: boolean
   busyAction: 'steer' | 'queue' | 'stop'
   canSubmit: boolean
+  compactModelPill?: boolean
   conversation: ConversationProps
   disabled: boolean
   foldVoice?: boolean
   hasComposerPayload: boolean
+  hideModelPill?: boolean
   minimal?: boolean
   state: ChatBarState
   voiceStatus: VoiceStatus
@@ -113,8 +117,12 @@ export function ComposerControls({
 
   return (
     <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
-      <ModelPill disabled={disabled} model={state.model} />
-      {minimal ? null : voiceControls}
+      {minimal ? null : (
+        <>
+          {hideModelPill ? null : <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />}
+          {voiceControls}
+        </>
+      )}
       {showQueueButton ? (
         <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
           <Button
