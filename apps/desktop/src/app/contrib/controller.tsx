@@ -23,7 +23,6 @@ import {
   isPaneVisible,
   markCollapsePane,
   mirrorLayoutTree,
-  paneRootSide,
   registerLayoutResetHandler,
   registerPaneCloser,
   registerPaneOpener,
@@ -34,6 +33,7 @@ import {
   targetZoneTabStripVisible,
   togglePaneVisible,
   toggleTargetZoneTabStrip,
+  treeSideOfPane,
   watchContributedPanes
 } from '@/components/pane-shell/tree/store'
 import { $workspaceOwnerLabels, workspaceOwnerTitle } from '@/components/pane-shell/workspace-scope'
@@ -772,10 +772,10 @@ registry.register(
 // skips main-bearing children), so Close falls back to dismissal there —
 // otherwise ⌘W/Close silently no-op.
 registerPaneCloser('sessions', () =>
-  paneRootSide('sessions') === 'left' ? setSidebarOpen(false) : dismissTreePane('sessions')
+  treeSideOfPane('sessions') !== null ? setSidebarOpen(false) : dismissTreePane('sessions')
 )
 registerPaneCloser('files', () =>
-  paneRootSide('files') === 'right' ? setFileBrowserOpen(false) : dismissTreePane('files')
+  treeSideOfPane('files') !== null ? setFileBrowserOpen(false) : dismissTreePane('files')
 )
 
 // ---------------------------------------------------------------------------

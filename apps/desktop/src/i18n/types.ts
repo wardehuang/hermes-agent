@@ -1605,6 +1605,7 @@ export interface Translations {
     goToSession: string
     branches: string
     projects: string
+    files: string
     openFolder: string
     openFolderAt: (path: string) => string
     newSessionInProject: (project: string) => string

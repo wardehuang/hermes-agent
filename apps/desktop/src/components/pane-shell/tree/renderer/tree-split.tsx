@@ -24,7 +24,6 @@ import {
   $hiddenTreePanes,
   $narrowViewport,
   isCollapsePane,
-  paneRootSide,
   persistTree,
   presetSplitWeights,
   setTreeGroupMinimized,
@@ -43,6 +42,7 @@ import {
   paneChrome,
   type PaneSizing,
   resolveCssPx,
+  rootChildSide,
   shownPaneIds,
   subtreeGone,
   type TrackContext
@@ -610,10 +610,11 @@ export function TreeSplit({
   // leftover; capped sidebars (review/files) keep their max and stay put.
   const isMinimized = (child: LayoutNode) => child.type === 'group' && Boolean(child.minimized)
 
-  // Side toggles own physical sides of the root row, including after a flip.
-  // In edit mode sides stay visible.
-  // `rootRow` covers both a row root (Default, Focus) and a row nested inside
-  // a column root (Terminal deck, Quad) — wherever the side columns live.
+  // SEMANTIC side collapse: $collapsedTreeSides 'left' is the sessions
+  // column (wherever it sits), 'right' is files/review. Titlebar glyphs
+  // remap stores via $panesFlipped so the RIGHT button still hits sessions
+  // after Coding parks them on the far right. paneRootSide is physical and
+  // would hide Files (now on the left) instead.
   const semanticSides = rootRow && horizontal && collapsedSides.size > 0 && !editMode
 
   const sideGone = (i: number) => {
@@ -621,7 +622,7 @@ export function TreeSplit({
       return false
     }
 
-    const side = paneRootSide(allPaneIds(node.children[i])[0])
+    const side = rootChildSide(node.children[i], paneFor)
 
     return side !== null && collapsedSides.has(side)
   }

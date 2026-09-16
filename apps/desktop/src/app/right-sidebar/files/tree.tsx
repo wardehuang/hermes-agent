@@ -7,6 +7,7 @@ import { TreeSkeleton } from '@/components/chat/skeletons'
 import { Codicon } from '@/components/ui/codicon'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { useResizeObserver } from '@/hooks/use-resize-observer'
+import { relativePathSegments, windowsPathIgnoresCase } from '@/lib/path-compare'
 import { cn } from '@/lib/utils'
 import { type RepoChangeKind, repoChangeKindForPath } from '@/store/coding-status'
 import { $renamingPath, beginInlineRename } from '@/store/file-actions'
@@ -15,7 +16,7 @@ import { $revealInTreeRequest } from '@/store/layout'
 import { FileEntryContextMenu, InlineRenameInput, isRenameShortcut } from '../file-actions'
 
 import { getFileTreeDndManager } from './dnd-manager'
-import type { TreeNode } from './use-project-tree'
+import { findProjectTreeChild, findProjectTreeNode, type TreeNode } from './use-project-tree'
 
 const ROW_HEIGHT = 22
 const INDENT = 10
@@ -101,34 +102,50 @@ export function ProjectTree({
   )
 
   // "Reveal in side bar": expand each ancestor folder top-down (lazy-loading its
-  // children first so the node exists), then select + scroll to the target. The
-  // pane is opened by the caller; this drives the tree to the file.
+  // children first so the node exists), then select + scroll to the target. Walk
+  // by basename against the live tree atom so Windows drive-letter / separator
+  // spelling cannot miss the node id.
   const revealNode = useCallback(
     async (absPath: string) => {
-      const root = cwd.replace(/[\\/]+$/, '')
-      const target = absPath.replace(/[\\/]+$/, '')
-      const rel = target.startsWith(root) ? target.slice(root.length).replace(/^[\\/]+/, '') : ''
-      const segments = rel.split(/[\\/]/).filter(Boolean)
+      const segments = relativePathSegments(cwd, absPath)
 
-      let acc = root
-
-      for (let i = 0; i < segments.length - 1; i += 1) {
-        acc = `${acc}/${segments[i]}`
-        const node = treeRef.current?.get(acc)
-
-        if (node?.data?.isDirectory && node.data.children === undefined) {
-          await onLoadChildren(acc)
-        }
-
-        onNodeOpenChange(acc, true)
-        treeRef.current?.open(acc)
-        await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+      if (!segments?.length) {
+        return
       }
 
-      treeRef.current?.select(target)
-      // 'start' lands the file at/near the top (instant — arborist sets scrollTop
-      // directly, no smooth scroll).
-      treeRef.current?.scrollTo(target, 'start')
+      const ignoreCase = windowsPathIgnoresCase(cwd)
+      let parentId: string | null = null
+
+      for (let i = 0; i < segments.length; i += 1) {
+        if (parentId) {
+          const parent = findProjectTreeNode(parentId)
+
+          if (parent?.isDirectory && parent.children === undefined) {
+            await onLoadChildren(parentId)
+          }
+
+          onNodeOpenChange(parentId, true)
+          treeRef.current?.open(parentId)
+          await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+        }
+
+        const node = findProjectTreeChild(parentId, segments[i], ignoreCase)
+
+        if (!node) {
+          return
+        }
+
+        if (i === segments.length - 1) {
+          treeRef.current?.select(node.id)
+          // 'start' lands the file at/near the top (instant — arborist sets scrollTop
+          // directly, no smooth scroll).
+          treeRef.current?.scrollTo(node.id, 'start')
+
+          return
+        }
+
+        parentId = node.id
+      }
     },
     [cwd, onLoadChildren, onNodeOpenChange]
   )

@@ -181,4 +181,39 @@ describe('coding layout editor slot', () => {
 
     expect(model.allPaneIds(tree.$layoutTree.get()!)).not.toContain(tree.EDITOR_PANE_ID)
   })
+
+  it('hides sessions, not files, when the sessions store collapses on Coding', async () => {
+    const { codingTree, model, registry, tree } = await setup()
+    const layout = await import('@/store/layout')
+    const { rootChildSide } = await import('@/components/pane-shell/tree/renderer/track-model')
+
+    tree.applyTree(codingTree, 'coding')
+    tree.bindTreeSideVisibility('left', layout.$sidebarOpen, layout.setSidebarOpen)
+    tree.bindTreeSideVisibility('right', layout.$fileBrowserOpen, layout.setFileBrowserOpen)
+    layout.setFileBrowserOpen(true)
+    layout.setSidebarOpen(true)
+
+    const paneFor = (id: string) => registry.getArea('panes').find(p => p.id === id)
+    const root = tree.$layoutTree.get()!
+
+    expect(root.type).toBe('split')
+    if (root.type !== 'split') {
+      return
+    }
+
+    expect(tree.paneRootSide('files')).toBe('left')
+    expect(tree.paneRootSide('sessions')).toBe('right')
+    expect(tree.treeSideOfPane('files')).toBe('right')
+    expect(tree.treeSideOfPane('sessions')).toBe('left')
+    expect(rootChildSide(root.children[0], paneFor)).toBe('right')
+    expect(rootChildSide(root.children[2], paneFor)).toBe('left')
+
+    // Titlebar RIGHT glyph on a flipped tree calls the sessions store.
+    layout.setSidebarOpen(false)
+    expect(tree.$collapsedTreeSides.get().has('left')).toBe(true)
+    expect(tree.$collapsedTreeSides.get().has('right')).toBe(false)
+    expect(rootChildSide(root.children[0], paneFor)).toBe('right')
+    expect(model.allPaneIds(root.children[0])).toEqual(expect.arrayContaining(['files', 'review']))
+    expect(model.allPaneIds(root.children[2])).toEqual(['sessions'])
+  })
 })

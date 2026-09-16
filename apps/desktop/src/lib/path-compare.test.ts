@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { cleanPath, comparisonPath, isUnderPath } from './path-compare'
+import {
+  cleanPath,
+  comparisonPath,
+  isUnderPath,
+  joinProjectPath,
+  relativePathSegments,
+  windowsPathIgnoresCase
+} from './path-compare'
 
 describe('cleanPath', () => {
   it('unifies separators and drops trailing slashes', () => {
@@ -34,5 +41,43 @@ describe('isUnderPath', () => {
 
   it('does not treat a sibling with a shared prefix as nested', () => {
     expect(isUnderPath('/repos/app', '/repos/app-retry')).toBe(false)
+  })
+})
+
+describe('joinProjectPath', () => {
+  it('joins a relative path onto the cwd', () => {
+    expect(joinProjectPath('C:\\Repos\\App\\', 'src\\main.tsx')).toBe('C:/Repos/App/src/main.tsx')
+    expect(joinProjectPath('/home/user/repo', 'apps/desktop/src/main.tsx')).toBe(
+      '/home/user/repo/apps/desktop/src/main.tsx'
+    )
+  })
+
+  it('keeps an absolute Windows or POSIX path', () => {
+    expect(joinProjectPath('/home/user/repo', '/etc/hosts')).toBe('/etc/hosts')
+    expect(joinProjectPath('C:/Repos/App', 'D:/other/file.ts')).toBe('D:/other/file.ts')
+  })
+})
+
+describe('relativePathSegments', () => {
+  it('splits the nested path even when separators and drive case differ', () => {
+    expect(relativePathSegments('C:\\Repos\\App', 'c:/repos/app/src/main.tsx')).toEqual(['src', 'main.tsx'])
+    expect(relativePathSegments('/home/user/repo', '/home/user/repo/apps/desktop/src/main.tsx')).toEqual([
+      'apps',
+      'desktop',
+      'src',
+      'main.tsx'
+    ])
+  })
+
+  it('returns null outside the project and [] at the root', () => {
+    expect(relativePathSegments('/home/user/repo', '/home/user/other/file.ts')).toBeNull()
+    expect(relativePathSegments('C:/Repos/App', 'C:/Repos/App')).toEqual([])
+  })
+})
+
+describe('windowsPathIgnoresCase', () => {
+  it('is true only for Windows drive and UNC paths', () => {
+    expect(windowsPathIgnoresCase('C:/Repos/App')).toBe(true)
+    expect(windowsPathIgnoresCase('/home/User/Repo')).toBe(false)
   })
 })

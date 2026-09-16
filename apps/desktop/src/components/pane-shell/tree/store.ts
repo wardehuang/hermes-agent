@@ -43,6 +43,7 @@ import {
 } from './model'
 import { FLOATING_PLACEMENT } from './renderer/floating-rect'
 import { tabStripVisibleForZone } from './renderer/strip-visibility'
+import { rootChildSide } from './renderer/track-model'
 
 // v2: v1 trees were saved against placeholder panes with index-order zone
 // assignment (chat could land in a corner cell). Retire them wholesale.
@@ -974,11 +975,12 @@ export function closeTreePane(paneId: string) {
 }
 
 /**
- * POSITIONAL side collapse — the titlebar's left/right sidebar toggles (and
- * ⌘B / ⌘J). Everything on that side of the MAIN zone in the root row hides
- * together, whatever panes live there (this is what makes the buttons agree
- * with a rearranged layout; the flip derivation works the same way). An AND
- * on top of per-pane visibility: zone shown ⇔ side open ∧ some pane shown.
+ * SEMANTIC side collapse — $collapsedTreeSides `'left'` is the sessions
+ * column (⌘B / placement left) and `'right'` is the files column (⌘J),
+ * wherever those sit in the root row. Titlebar glyphs remap stores through
+ * `$panesFlipped` so the RIGHT button still hides the physical-right column
+ * after Coding parks sessions there. Mixing this set with paneRootSide
+ * (physical index vs main) inverts the buttons on a flipped tree.
  */
 export type TreeSide = 'left' | 'right'
 
@@ -1009,7 +1011,7 @@ export function setTreeSideCollapsed(side: TreeSide, collapsed: boolean) {
 /** Explicit side-open also recovers hide-only tabs, without fronting over Bots. */
 export function restoreHiddenTreeSideTabs(side: TreeSide): void {
   for (const paneId of [...$hiddenStripTabs.get()]) {
-    if (paneRootSide(paneId) === side) {
+    if (treeSideOfPane(paneId) === side) {
       setStripTabHidden(paneId, false)
     }
   }
@@ -1027,7 +1029,7 @@ export function restoreMinimizedTreeSide(side: TreeSide): boolean {
   let next = tree
 
   for (const child of row.children) {
-    if (paneRootSide(allPaneIds(child)[0]) !== side) {
+    if (semanticSideOfChild(child) !== side) {
       continue
     }
 
@@ -1060,7 +1062,7 @@ export function layoutHasRootSide(side: TreeSide): boolean {
     return false
   }
 
-  return row.children.some(child => paneRootSide(allPaneIds(child)[0]) === side)
+  return row.children.some(child => semanticSideOfChild(child) === side)
 }
 
 /**
@@ -1109,9 +1111,26 @@ export function bindTreeSideVisibility(
   $open.listen(open => setTreeSideCollapsed(side, !open))
 }
 
-/** The physical column's chrome toggle; main columns never side-collapse. */
+function contributionFor(id: string) {
+  return registry.getArea('panes').find(p => p.id === id)
+}
+
+function semanticSideOfChild(child: LayoutNode): TreeSide | null {
+  return rootChildSide(child, contributionFor)
+}
+
+/** Which chrome toggle owns this pane: `'left'` = sessions/⌘B, `'right'` =
+ *  files/⌘J, `null` = nested with main. Physical index is `paneRootSide`. */
 export function treeSideOfPane(paneId: string): TreeSide | null {
-  return paneRootSide(paneId)
+  const row = rootRow()
+
+  if (!row) {
+    return null
+  }
+
+  const child = row.children.find(c => allPaneIds(c).includes(paneId))
+
+  return child ? semanticSideOfChild(child) : null
 }
 
 /**

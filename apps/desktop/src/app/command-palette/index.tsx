@@ -13,6 +13,7 @@ import {
   HUD_SURFACE,
   HUD_TEXT
 } from '@/app/floating-hud'
+import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
 import { SESSION_IMPORT_ROUTE } from '@/app/routes'
 import { codiconIcon } from '@/components/ui/codicon'
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -34,6 +35,8 @@ import {
   Cpu,
   Download,
   Egg,
+  FileText,
+  FolderOpen,
   GitBranch,
   Globe,
   type IconComponent,
@@ -71,10 +74,11 @@ import {
 } from '@/store/command-palette'
 import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, filterVisibleProjects } from '@/store/layout'
+import { notifyError } from '@/store/notifications'
 import { openPetGenerate } from '@/store/pet-generate'
 import { openBrowserTab } from '@/store/preview'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
-import { $connection } from '@/store/session'
+import { $activeSessionId, $connection, $currentCwd, $selectedStoredSessionId, $workspaceCwdOwner } from '@/store/session'
 import { runGatewayRestart } from '@/store/system-actions'
 import {
   $backendUpdateApply,
@@ -108,6 +112,7 @@ import { type SettingsSearchEntry, settingsSearchTargetQuery } from '../settings
 import { useSettingsSearchCatalog } from '../settings/use-settings-search'
 
 import { usePaletteContributions } from './contrib'
+import { fetchProjectFileHits, jumpToProjectHit } from './go-to-file'
 import { HighlightWatcher } from './highlight-watcher'
 import { MarketplaceThemePage } from './marketplace-theme-page'
 import { PetInlineToggle, PetPalettePage } from './pet-palette-page'
@@ -153,6 +158,8 @@ interface PaletteGroup {
    *  "Install theme…" entry pinned atop the theme picker). */
   heading?: string
   items: PaletteItem[]
+  /** Gateway already ranked these; keep order and do not drop subsequence hits. */
+  ranked?: boolean
 }
 
 // Nested page → its parent, so Back / Esc step up one level instead of closing
@@ -239,6 +246,16 @@ const rankGroups = (groups: PaletteGroup[], search: string): PaletteGroup[] => {
 
   return groups
     .map(group => {
+      if (group.ranked) {
+        if (group.items.length === 0) {
+          return { group, max: 0 }
+        }
+
+        const best = Math.max(0.75, ...group.items.map(item => scoreItem(item, needle)))
+
+        return { group, max: best }
+      }
+
       const scored = group.items
         .map(item => ({ item, score: scoreItem(item, needle) }))
         .filter(entry => entry.score > 0)
@@ -246,7 +263,7 @@ const rankGroups = (groups: PaletteGroup[], search: string): PaletteGroup[] => {
 
       return { group: { ...group, items: scored.map(entry => entry.item) }, max: scored[0]?.score ?? 0 }
     })
-    .filter(entry => entry.max > 0)
+    .filter(entry => entry.max > 0 && entry.group.items.length > 0)
     .sort((a, b) => b.max - a.max)
     .map(entry => entry.group)
 }
@@ -543,7 +560,12 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const worktrees = useStore($repoWorktrees)
   const projectTree = useStore($projectTree)
   const dismissedAutoProjects = useStore($dismissedAutoProjectIds)
+  const currentCwd = useStore($currentCwd).trim()
+  const activeSessionId = useStore($activeSessionId)
+  const selectedStoredSessionId = useStore($selectedStoredSessionId)
+  const workspaceCwdOwner = useStore($workspaceCwdOwner)
   const navigate = useNavigate()
+  const { requestGateway } = useGatewayRequest()
 
   const { availableThemes, clearThemePreview, mode, previewTheme, resolvedMode, setMode, setTheme, themeName } =
     useTheme()
@@ -645,6 +667,23 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const archivedQuery = useQuery({
     queryKey: ['command-palette', 'archived'],
     queryFn: () => listAllProfileSessions(200, 0, 'only')
+  })
+
+  const fileQuery = search.trim()
+  const filesOwned = (workspaceCwdOwner ?? null) === (selectedStoredSessionId ?? null)
+  // Gated: empty query / nested pages / unowned cwd would list the wrong tree.
+  const filesQuery = useQuery({
+    enabled: !page && filesOwned && Boolean(fileQuery && currentCwd),
+    placeholderData: previous => previous,
+    queryFn: () =>
+      fetchProjectFileHits(requestGateway, {
+        cwd: currentCwd,
+        query: fileQuery,
+        sessionId: activeSessionId
+      }),
+    queryKey: ['command-palette', 'files', currentCwd, activeSessionId, fileQuery],
+    retry: false,
+    staleTime: 15_000
   })
 
   // getServers is the shared choke point that also drops malformed (null/
@@ -1038,6 +1077,30 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     }
 
     const result: PaletteGroup[] = []
+    const fileHits = filesQuery.data ?? []
+
+    if (fileHits.length > 0 && currentCwd) {
+      result.push({
+        heading: t.commandCenter.files,
+        items: fileHits.map(hit => ({
+          detail: hit.parent,
+          icon: hit.kind === 'folder' ? FolderOpen : FileText,
+          id: `file-${hit.kind}-${hit.rel}`,
+          keywords: [hit.rel, hit.label, hit.kind, hit.parent],
+          label: hit.label,
+          run: () => {
+            void jumpToProjectHit(hit, currentCwd)
+              .then(ok => {
+                if (!ok) {
+                  throw new Error(t.rightSidebar.couldNotPreview(hit.rel))
+                }
+              })
+              .catch(error => notifyError(error, t.rightSidebar.previewUnavailable))
+          }
+        })),
+        ranked: true
+      })
+    }
 
     // Paste a raw session id → jump straight to it, even if it predates the
     // recent-200 window the lists below are built from.
@@ -1243,6 +1306,8 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   }, [
     archivedSessions,
     availableThemes,
+    currentCwd,
+    filesQuery.data,
     go,
     goSession,
     mcpServers,

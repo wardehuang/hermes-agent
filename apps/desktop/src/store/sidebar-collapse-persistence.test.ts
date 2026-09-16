@@ -62,7 +62,7 @@ describe('sidebar collapse persistence', () => {
     expect(s2.leftCollapsed()).toBe(true)
   })
 
-  it('explicit open restores hidden strip tabs and minimized groups only on that physical side', async () => {
+  it('explicit open restores hidden strip tabs and minimized groups only on that semantic side', async () => {
     for (const flipped of [false, true]) {
       window.localStorage.clear()
       reload()
@@ -90,9 +90,8 @@ describe('sidebar collapse persistence', () => {
         tree.setStripTabHidden('review', true)
         tree.setTreeGroupMinimized('sidebar', true)
         tree.setTreeGroupMinimized('other', true)
-        const open = flipped ? layout.setFileBrowserOpen : layout.setSidebarOpen
 
-        open(true) // already true: must not depend on a nanostores notification
+        layout.setSidebarOpen(true) // already true: must not depend on a nanostores notification
         expect(tree.isStripTabHidden('sessions')).toBe(false)
         expect(tree.$hiddenTreePanes.get().has('sessions')).toBe(false)
         expect(tree.isStripTabHidden('review')).toBe(true)
@@ -100,12 +99,11 @@ describe('sidebar collapse persistence', () => {
         expect(findGroup(tree.$layoutTree.get()!, 'other')?.minimized).toBe(true)
         expect(JSON.parse(window.localStorage.getItem('hermes.desktop.hiddenStripTabs.v1')!)).toEqual(['review'])
         const restored = tree.$layoutTree.get()
-        open(true)
+        layout.setSidebarOpen(true)
         expect(tree.$layoutTree.get()).toBe(restored)
         tree.setStripTabHidden('sessions', true)
-        const toggle = flipped ? layout.toggleFileBrowserOpen : layout.toggleSidebarOpen
-        toggle()
-        toggle()
+        layout.toggleSidebarOpen()
+        layout.toggleSidebarOpen()
         expect(tree.isStripTabHidden('sessions')).toBe(true) // ordinary toggles preserve the tab choice
       } finally {
         disposers.forEach(dispose => dispose())
@@ -113,7 +111,7 @@ describe('sidebar collapse persistence', () => {
     }
   })
 
-  it('recovers the minimized physical side after reload without changing its active tab', async () => {
+  it('recovers the minimized sessions column after reload without changing its active tab', async () => {
     for (const flipped of [false, true]) {
       window.localStorage.clear()
       reload()
@@ -141,27 +139,23 @@ describe('sidebar collapse persistence', () => {
       try {
         bind()
         tree.bindTreeSideVisibility('right', layout.$fileBrowserOpen, layout.setFileBrowserOpen)
-        const side = flipped ? 'right' : 'left'
-        const toggle = flipped ? layout.toggleFileBrowserOpen : layout.toggleSidebarOpen
-        const $open = flipped ? layout.$fileBrowserOpen : layout.$sidebarOpen
-        const otherToggle = flipped ? layout.toggleSidebarOpen : layout.toggleFileBrowserOpen
 
-        // Boot respects minimize; the OTHER physical button must not restore it.
+        // Boot respects minimize; the files toggle must not restore sessions.
         expect(findGroup(tree.$layoutTree.get()!, sidebar.id)?.minimized).toBe(true)
-        otherToggle()
-        expect(tree.$collapsedTreeSides.get().has(flipped ? 'left' : 'right')).toBe(true)
+        layout.toggleFileBrowserOpen()
+        expect(tree.$collapsedTreeSides.get().has('right')).toBe(true)
         expect(findGroup(tree.$layoutTree.get()!, sidebar.id)?.minimized).toBe(true)
 
-        toggle()
-        expect($open.get()).toBe(true)
-        expect(tree.$collapsedTreeSides.get().has(side)).toBe(false)
+        layout.toggleSidebarOpen()
+        expect(layout.$sidebarOpen.get()).toBe(true)
+        expect(tree.$collapsedTreeSides.get().has('left')).toBe(false)
         expect(findGroup(tree.$layoutTree.get()!, sidebar.id)).toMatchObject({ active: 'bots', minimized: false })
-        toggle()
-        expect($open.get()).toBe(false)
-        expect(tree.$collapsedTreeSides.get().has(side)).toBe(true)
-        toggle()
-        expect($open.get()).toBe(true)
-        expect(tree.$collapsedTreeSides.get().has(side)).toBe(false)
+        layout.toggleSidebarOpen()
+        expect(layout.$sidebarOpen.get()).toBe(false)
+        expect(tree.$collapsedTreeSides.get().has('left')).toBe(true)
+        layout.toggleSidebarOpen()
+        expect(layout.$sidebarOpen.get()).toBe(true)
+        expect(tree.$collapsedTreeSides.get().has('left')).toBe(false)
         expect(findGroup(tree.$layoutTree.get()!, sidebar.id)?.active).toBe('bots')
       } finally {
         disposers.forEach(dispose => dispose())

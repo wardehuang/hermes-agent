@@ -21,3 +21,48 @@ export const isUnderPath = (parent: string, child: string): boolean => {
 
   return c === p || c.startsWith(`${p}/`)
 }
+
+/** Windows drive/UNC paths compare case-insensitively; POSIX paths do not. */
+export const windowsPathIgnoresCase = (path: string): boolean => {
+  const cleaned = cleanPath(path)
+
+  return comparisonPath(cleaned) !== cleaned
+}
+
+/** Join a repo-relative path onto a project cwd. Absolute `rel` wins. */
+export const joinProjectPath = (root: string, rel: string): string => {
+  const r = cleanPath(root)
+  const raw = rel.trim().replace(/\\/g, '/')
+
+  if (!raw || raw === '.') {
+    return r
+  }
+
+  if (raw.startsWith('//') || /^[A-Za-z]:(?:\/|$)/.test(raw)) {
+    return cleanPath(raw)
+  }
+
+  if (raw.startsWith('/') && !/^[A-Za-z]:/.test(r)) {
+    return cleanPath(raw)
+  }
+
+  return cleanPath(`${r}/${raw.replace(/^\//, '')}`)
+}
+
+/** Path segments from `root` to `child`, or null when `child` is outside `root`. */
+export const relativePathSegments = (root: string, child: string): string[] | null => {
+  const r = cleanPath(root)
+  const c = cleanPath(child)
+  const rKey = comparisonPath(r)
+  const cKey = comparisonPath(c)
+
+  if (cKey === rKey) {
+    return []
+  }
+
+  if (!cKey.startsWith(`${rKey}/`)) {
+    return null
+  }
+
+  return c.slice(r.length + (r.endsWith('/') ? 0 : 1)).split('/').filter(Boolean)
+}

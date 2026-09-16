@@ -67,6 +67,29 @@ function findNode(nodes: TreeNode[], id: string): null | TreeNode {
   return null
 }
 
+export function findProjectTreeNode(id: string): TreeNode | null {
+  return findNode($projectTree.get().data, id)
+}
+
+export function findProjectTreeChild(parentId: string | null, name: string, ignoreCase: boolean): TreeNode | undefined {
+  const siblings = parentId ? findProjectTreeNode(parentId)?.children : $projectTree.get().data
+  const real = siblings?.filter(node => !node.placeholder)
+
+  if (!real?.length) {
+    return undefined
+  }
+
+  const exact = real.find(node => node.name === name)
+
+  if (exact || !ignoreCase) {
+    return exact
+  }
+
+  const folded = name.toLowerCase()
+
+  return real.find(node => node.name.toLowerCase() === folded)
+}
+
 // Merge a freshly-read dir's entries into its existing children: keep surviving
 // nodes (subtrees intact), add new, drop deleted. Non-recursive — a grandchild
 // dir only re-reads when it's itself in the change set.
