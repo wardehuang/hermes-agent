@@ -181,6 +181,29 @@ describe('insertInlineRefsIntoEditor', () => {
 
     editor.remove()
   })
+
+  it('appends when the live selection is outside the composer', () => {
+    const editor = document.createElement('div')
+    editor.dataset.slot = RICH_INPUT_SLOT
+    editor.append(document.createTextNode('hello'))
+    document.body.append(editor)
+
+    const outsider = document.createElement('pre')
+    outsider.textContent = 'code'
+    document.body.append(outsider)
+
+    const range = document.createRange()
+    range.selectNodeContents(outsider)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    expect(insertInlineRefsIntoEditor(editor, ['@line:gateway/__init__.py:10'])).toBe(
+      'hello @line:gateway/__init__.py:10 '
+    )
+
+    outsider.remove()
+    editor.remove()
+  })
 })
 
 describe('insertComposerContentsAtCaret', () => {

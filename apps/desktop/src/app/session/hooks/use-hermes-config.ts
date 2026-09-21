@@ -4,9 +4,12 @@ import { setTerminalFontFamilyFromConfig } from '@/app/right-sidebar/terminal/te
 import { setEditorFontFamilyFromConfig, setEditorFontSizeFromConfig } from '@/components/chat/editor-font'
 import { getHermesConfig, getHermesConfigDefaults } from '@/hermes'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '@/lib/chat-runtime'
-import { normalize } from '@/lib/text'
+import { normalizeReasoningEffortValue } from '@/lib/reasoning-effort'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
+import { composerEffortForSelection } from '@/store/model-presets'
 import {
+  $currentModel,
+  $currentProvider,
   getComposerSelectionGeneration,
   getCurrentModelSource,
   setAvailablePersonalities,
@@ -15,7 +18,8 @@ import {
   setCurrentReasoningEffort,
   setCurrentServiceTier,
   setDefaultReasoningEffort,
-  setIntroPersonality
+  setIntroPersonality,
+  setReasoningOverrides
 } from '@/store/session'
 import { refreshVoiceLiveStatus } from '@/store/voice-live'
 import {
@@ -31,21 +35,22 @@ function recordingLimit(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_SECONDS
 }
 
-/** config.yaml hands back whatever the user wrote — `reasoning_effort: false`
- *  (or `off`/`no`, which YAML also parses to boolean false) means thinking
- *  disabled, and a bare boolean must not throw on `.trim()`. */
-function normalizeConfigEffort(value: unknown): string {
-  if (value === false) {
-    return 'none'
+function normalizeReasoningOverrides(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {}
   }
 
-  if (typeof value !== 'string') {
-    return ''
+  const out: Record<string, string> = {}
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const effort = normalizeReasoningEffortValue(value)
+
+    if (key && effort) {
+      out[key] = effort
+    }
   }
 
-  const effort = normalize(value)
-
-  return effort === 'false' || effort === 'disabled' ? 'none' : effort
+  return out
 }
 
 interface HermesConfigOptions {
@@ -95,7 +100,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           ])
         ])
 
-        const reasoning = normalizeConfigEffort(config.agent?.reasoning_effort)
+        const reasoning = normalizeReasoningEffortValue(config.agent?.reasoning_effort)
+        const overrides = normalizeReasoningOverrides(config.agent?.reasoning_overrides)
         const tier = (config.agent?.service_tier ?? '').trim()
 
         // Publish the profile default regardless of whether the composer is
@@ -107,18 +113,33 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         }
 
         setDefaultReasoningEffort(reasoning)
+        setReasoningOverrides(overrides)
 
         const shouldSeedComposer =
           !activeSessionIdRef.current &&
           getComposerSelectionGeneration() === selectionGeneration &&
           (force || getCurrentModelSource() !== 'manual')
 
+        if (!activeSessionIdRef.current && getComposerSelectionGeneration() === selectionGeneration) {
+          if (!canPublish()) {
+            return
+          }
+
+          // Draft effort follows per-model overrides (and a user-pinned
+          // preset). Sticky High from the last chat must not shadow
+          // `agent.reasoning_overrides` on Cmd+N / first paint.
+          const nextEffort = composerEffortForSelection($currentProvider.get(), $currentModel.get())
+
+          if (nextEffort) {
+            setCurrentReasoningEffort(nextEffort)
+          }
+        }
+
         if (shouldSeedComposer) {
           if (!canPublish()) {
             return
           }
 
-          setCurrentReasoningEffort(reasoning)
           setCurrentFastMode(FAST_TIERS.has(tier.toLowerCase()))
         }
 

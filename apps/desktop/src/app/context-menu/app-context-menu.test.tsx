@@ -2,12 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { onComposerInsertRefsRequest } from '@/app/chat/composer/focus'
 import { registerTerminalContextMenu } from '@/app/right-sidebar/terminal/terminal-context-menu'
+import { registerCodeSource } from '@/components/chat/code-source-selection'
 import { ContextMenu, ContextMenuTrigger, HERMES_CONTEXT_MENU_TRIGGER_ATTR } from '@/components/ui/context-menu'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { formatCombo } from '@/lib/keybinds/combo'
 import { $previewTabs, closeRightRail } from '@/store/preview'
-import { $connection } from '@/store/session'
+import { $connection, $currentCwd } from '@/store/session'
 
 import { AppContextMenu } from './app-context-menu'
 import {
@@ -90,6 +92,26 @@ describe('resolveDomTarget', () => {
     const dialog = host.firstElementChild
 
     expect(resolveDomTarget(host.querySelector('a')).dialogPortalContainer).toBe(dialog)
+  })
+
+  it('resolves a registered editor selection as a code source', () => {
+    const host = attach('<pre>function foo() {}</pre>')
+    const pre = host.querySelector('pre')!
+
+    const unregister = registerCodeSource(pre, () => ({
+      filePath: '/tmp/app.ts',
+      line: 4,
+      lineEnd: 9,
+      text: 'function foo() {}'
+    }))
+
+    expect(resolveDomTarget(pre).codeSource).toEqual({
+      filePath: '/tmp/app.ts',
+      line: 4,
+      lineEnd: 9,
+      text: 'function foo() {}'
+    })
+    unregister()
   })
 })
 
@@ -459,6 +481,54 @@ describe('AppContextMenu', () => {
     expect(await screen.findByText('Select all')).toBeTruthy()
     expect(screen.queryByText('Paste')).toBeNull()
     unregister()
+  })
+
+  it('offers Add to chat for a registered editor selection and inserts a line ref', async () => {
+    $currentCwd.set('/tmp')
+    installBridge()
+    mountMenu()
+    const host = attach('<pre>function foo() {}</pre>')
+    const pre = host.querySelector('pre')!
+
+    const unregister = registerCodeSource(pre, () => ({
+      filePath: '/tmp/app.ts',
+      line: 4,
+      lineEnd: 9,
+      text: 'function foo() {}'
+    }))
+
+    const refs: string[] = []
+
+    const off = onComposerInsertRefsRequest(({ refs: incoming }) => {
+      refs.push(...incoming.map(String))
+    })
+
+    try {
+      fireEvent.contextMenu(pre)
+      expect(await screen.findByText('Add to chat')).toBeTruthy()
+      const addItem = screen.getByText('Add to chat').closest('[data-slot="dropdown-menu-item"]')!
+
+      expect(addItem.querySelector('.codicon')).not.toBeNull()
+      expect(screen.getByText(formatCombo('mod+l'))).toBeTruthy()
+      fireEvent.click(screen.getByText('Add to chat'))
+      await waitFor(() => expect(refs).toEqual(['@line:app.ts:4-9']))
+    } finally {
+      off()
+      unregister()
+    }
+  })
+
+  it('does not offer Add to chat for a plain textarea selection', async () => {
+    installBridge()
+    mountMenu()
+    const host = attach('<textarea>pick some of this</textarea>')
+    const textarea = host.querySelector('textarea')!
+
+    textarea.setSelectionRange(0, 4)
+    fireEvent.contextMenu(textarea)
+
+    await screen.findByText('Select all')
+    expect(screen.queryByText('Add to chat')).toBeNull()
   })
 })
 

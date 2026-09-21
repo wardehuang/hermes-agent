@@ -7,6 +7,8 @@
  * image section still appears because the target carries both.
  */
 
+import { codeSourceFromElement, type CodeSourceSelection } from '@/components/chat/code-source-selection'
+
 export interface ContextMenuDomTarget {
   /** The enclosing dialog content node, when the click landed inside one. */
   dialogPortalContainer: HTMLElement | null
@@ -21,6 +23,8 @@ export interface ContextMenuDomTarget {
   onImage: boolean
   /** The live selection's text at the moment of the click. */
   selectionText: string
+  /** Editor / source-view selection that can become an `@line:` composer chip. */
+  codeSource: CodeSourceSelection | null
 }
 
 /** Form fields and `contenteditable` hosts. Mirrors the keybind helper, but
@@ -52,7 +56,8 @@ export function resolveDomTarget(element: Element | null): ContextMenuDomTarget 
     linkUrl: linkUrl === '#' ? '' : linkUrl,
     imageUrl: image instanceof HTMLImageElement ? image.currentSrc || image.src : '',
     onImage: Boolean(image),
-    selectionText: window.getSelection()?.toString().trim() ?? ''
+    selectionText: window.getSelection()?.toString().trim() ?? '',
+    codeSource: codeSourceFromElement(element)
   }
 }
 

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import type { ChatBarState } from '@/app/chat/composer/types'
 import { type SessionView, SessionViewProvider } from '@/app/chat/session-view'
-import { $defaultReasoningEffort } from '@/store/session'
+import { $defaultReasoningEffort, $reasoningOverrides } from '@/store/session'
 
 import { ReasoningPill } from './reasoning-pill'
 
@@ -36,6 +36,7 @@ const tileView = (reasoningEffort: string): SessionView => ({
 afterEach(() => {
   cleanup()
   $defaultReasoningEffort.set('')
+  $reasoningOverrides.set({})
 })
 
 describe('ReasoningPill', () => {
@@ -58,6 +59,19 @@ describe('ReasoningPill', () => {
     )
 
     expect(screen.getByTestId('reasoning-pill').textContent).toBe('High')
+  })
+
+  it('falls back to a per-model reasoning override when the session has no effort', () => {
+    $defaultReasoningEffort.set('high')
+    $reasoningOverrides.set({ 'tile/claude-sonnet': 'xhigh' })
+
+    render(
+      <SessionViewProvider value={tileView('')}>
+        <ReasoningPill disabled={false} model={modelState()} />
+      </SessionViewProvider>
+    )
+
+    expect(screen.getByTestId('reasoning-pill').textContent).toBe('XHigh')
   })
 
   it('hides when the catalog says the model has no reasoning control, but not while that is unknown', () => {

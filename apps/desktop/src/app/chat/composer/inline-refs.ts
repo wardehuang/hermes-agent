@@ -150,16 +150,19 @@ export function insertInlineRefsIntoEditor(
     editor.replaceChildren()
   }
 
-  if (interactive) {
-    editor.focus({ preventScroll: true })
-  }
-
+  // Snapshot the composer caret BEFORE focus(). Focusing a contenteditable that
+  // was not the event target (context menu, editor ⌘L) plants the caret at the
+  // start, which would insert the chip at the beginning of the draft.
   const selection = interactive ? window.getSelection() : null
 
   const range =
     !hasEmptySentinel && selection?.rangeCount && editor.contains(selection.getRangeAt(0).commonAncestorContainer)
-      ? selection.getRangeAt(0)
+      ? selection.getRangeAt(0).cloneRange()
       : null
+
+  if (interactive) {
+    editor.focus({ preventScroll: true })
+  }
 
   if (range && selection) {
     const beforeText = plainTextInRange(editor, range, 'before')

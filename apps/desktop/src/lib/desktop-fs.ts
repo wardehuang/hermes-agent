@@ -174,6 +174,21 @@ export async function openDesktopPathInEditor(path: string): Promise<boolean> {
   return desktop.openInEditor(path)
 }
 
+// Open a file with the OS association (Excel, Word, …). Never $EDITOR.
+export async function openDesktopPath(path: string): Promise<void> {
+  const desktop = bridge()
+
+  if (!desktop.openPath) {
+    throw new Error('Open path is not available')
+  }
+
+  const result = await desktop.openPath(path)
+
+  if (!result.ok) {
+    throw new Error(result.error || 'Could not open file')
+  }
+}
+
 // Rename a file/folder in place; returns the new absolute path. Local only.
 export async function renameDesktopPath(path: string, newName: string): Promise<string> {
   const desktop = bridge()

@@ -5,17 +5,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { $terminalFontFamily, setTerminalFontFamilyFromConfig } from '@/app/right-sidebar/terminal/terminal-font'
 import { getHermesConfig } from '@/hermes'
 import { persistString } from '@/lib/storage'
+import { $modelPresets, setModelPreset } from '@/store/model-presets'
 import {
   $currentCwd,
   $currentFastMode,
   $currentReasoningEffort,
   $defaultReasoningEffort,
+  $reasoningOverrides,
   markComposerSelectionManual,
   setCurrentCwd,
   setCurrentFastMode,
+  setCurrentModel,
   setCurrentModelSource,
+  setCurrentProvider,
   setCurrentReasoningEffort,
-  setDefaultReasoningEffort
+  setDefaultReasoningEffort,
+  setReasoningOverrides
 } from '@/store/session'
 
 import { deferred } from '../../../test/deferred'
@@ -37,23 +42,28 @@ describe('useHermesConfig refreshHermesConfig', () => {
     // Reset atoms and localStorage between tests
     setCurrentCwd('')
     setCurrentFastMode(false)
+    setCurrentModel('')
     setCurrentModelSource('')
+    setCurrentProvider('')
     setCurrentReasoningEffort('')
     setDefaultReasoningEffort('')
+    setReasoningOverrides({})
+    $modelPresets.set({})
     setTerminalFontFamilyFromConfig('')
     persistString(WORKSPACE_CWD_KEY, null)
   })
 
-  // Regression: the composer keeps a manual model pick sticky, which skips the
-  // composer reseed. The profile default must still be published, because the
-  // model picker resolves "the default effort" from it when applying a model's
-  // preset — otherwise selecting a model silently downgrades a configured
-  // `agent.reasoning_effort: high` to Hermes' built-in medium.
+  // A manual model pick still publishes the profile default (picker rows
+  // resolve inherit from it). Draft effort reseeds from reasoning_overrides
+  // unless the user pinned a level in the effort menu.
   it('publishes the profile default effort even when a manual pick blocks the composer reseed', async () => {
+    setCurrentModel('grok-4.6')
+    setCurrentProvider('cpa')
     setCurrentModelSource('manual')
     setCurrentReasoningEffort('low')
+    setModelPreset('cpa', 'grok-4.6', { effort: 'low', effortPinned: true })
 
-    mockConfig({ agent: { reasoning_effort: 'high' } })
+    mockConfig({ agent: { reasoning_effort: 'high', reasoning_overrides: { 'grok-4.6': 'xhigh' } } })
     const { result } = renderHook(() => useHermesConfig({ activeSessionIdRef: { current: null } }))
 
     await act(async () => {
@@ -61,8 +71,25 @@ describe('useHermesConfig refreshHermesConfig', () => {
     })
 
     expect($defaultReasoningEffort.get()).toBe('high')
-    // The manual pick itself is still respected.
+    expect($reasoningOverrides.get()).toEqual({ 'grok-4.6': 'xhigh' })
+    // The user-pinned effort itself is still respected.
     expect($currentReasoningEffort.get()).toBe('low')
+  })
+
+  it('reseeds a new-session draft from reasoning_overrides even when the model pick is sticky', async () => {
+    setCurrentModel('grok-4.6')
+    setCurrentProvider('cpa')
+    setCurrentModelSource('manual')
+    setCurrentReasoningEffort('high')
+
+    mockConfig({ agent: { reasoning_effort: 'high', reasoning_overrides: { 'grok-4.6': 'xhigh' } } })
+    const { result } = renderHook(() => useHermesConfig({ activeSessionIdRef: { current: null } }))
+
+    await act(async () => {
+      await result.current.refreshHermesConfig()
+    })
+
+    expect($currentReasoningEffort.get()).toBe('xhigh')
   })
 
   it('does not let terminal.cwd replace an inactive selected workspace', async () => {

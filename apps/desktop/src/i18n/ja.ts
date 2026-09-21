@@ -3243,6 +3243,7 @@ export const ja = defineLocale({
   },
 
   contextMenu: {
+    addToChat: 'チャットに追加',
     link: {
       openInApp: 'アプリ内ブラウザーで開く',
       openExternal: '外部ブラウザーで開く',

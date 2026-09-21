@@ -3,7 +3,7 @@
  * address-bar muscle memory of a browser. The other handlers of the chord
  * keep priority:
  *
- *   - A terminal or preview selection sends itself to the composer through
+ *   - A terminal, editor, or preview selection sends itself to the composer through
  *     its own capture-phase listener. That listener stops propagation, so
  *     this handler never sees the press. This handler registers on the
  *     BUBBLE phase for that reason.

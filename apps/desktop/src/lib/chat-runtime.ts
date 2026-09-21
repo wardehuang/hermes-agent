@@ -134,14 +134,28 @@ export function isVideoGenerationTool(name?: string): boolean {
   return name === 'video_generate'
 }
 
+function toPosixPath(value: string) {
+  return value.replace(/\\/g, '/')
+}
+
 export function contextPath(path: string, cwd: string): string {
   if (!cwd) {
     return path
   }
 
-  const normalizedCwd = cwd.endsWith('/') ? cwd : `${cwd}/`
+  const posixPath = toPosixPath(path)
+  const posixCwd = `${toPosixPath(cwd).replace(/\/+$/, '')}/`
 
-  return path.startsWith(normalizedCwd) ? path.slice(normalizedCwd.length) : path
+  if (posixPath.startsWith(posixCwd)) {
+    return posixPath.slice(posixCwd.length)
+  }
+
+  // Windows drive letters are case-insensitive (`E:\` vs `e:/`).
+  if (/^[A-Za-z]:\//.test(posixPath) && posixPath.toLowerCase().startsWith(posixCwd.toLowerCase())) {
+    return posixPath.slice(posixCwd.length)
+  }
+
+  return path
 }
 
 // IDs are content-derived (`kind:value`), not uuids, so upsertAttachment's

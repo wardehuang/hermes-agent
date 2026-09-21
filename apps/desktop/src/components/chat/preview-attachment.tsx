@@ -3,10 +3,17 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { useI18n } from '@/i18n'
+import { isDesktopFsRemoteMode } from '@/lib/desktop-fs'
 import { Download, MonitorPlay } from '@/lib/icons'
-import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
+import {
+  localPreviewTarget,
+  normalizeOrLocalPreviewTarget,
+  openLocalFileWithSystemApp,
+  opensInSystemApp
+} from '@/lib/local-preview'
 import { downloadGatewayMediaFile } from '@/lib/media'
 import { previewName } from '@/lib/preview-targets'
+import { shouldOfferChatFileDownload } from '@/store/file-actions'
 import { notifyError } from '@/store/notifications'
 import { $previewTabSources, closePreviewForSource, openPreview, type PreviewRecordSource } from '@/store/preview'
 
@@ -25,6 +32,9 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
   const targetRef = useRef(target)
   const name = previewName(target)
   const isActive = openSources.includes(target)
+  const systemOpen = opensInSystemApp(target) && !isDesktopFsRemoteMode()
+  const resolvedPath = localPreviewTarget(target, cwd || undefined)?.path ?? target
+  const showDownload = shouldOfferChatFileDownload(resolvedPath, cwd)
 
   cwdRef.current = cwd
   targetRef.current = target
@@ -50,7 +60,7 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
       return
     }
 
-    if (isActive) {
+    if (!systemOpen && isActive) {
       closePreviewForSource(target)
 
       return
@@ -63,6 +73,10 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
     setOpening(true)
 
     try {
+      if (await openLocalFileWithSystemApp(requestTarget, requestCwd || undefined)) {
+        return
+      }
+
       const preview = await normalizeOrLocalPreviewTarget(requestTarget, requestCwd || undefined)
 
       if (
@@ -78,6 +92,10 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
         throw new Error(`Could not open preview target: ${requestTarget}`)
       }
 
+      if (await openLocalFileWithSystemApp(requestTarget, requestCwd || undefined, preview)) {
+        return
+      }
+
       openPreview(preview, source)
     } catch (error) {
       if (
@@ -89,7 +107,7 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
         return
       }
 
-      notifyError(error, t.preview.unavailable)
+      notifyError(error, systemOpen ? t.preview.openFailed : t.preview.unavailable)
     } finally {
       if (mountedRef.current && requestTokenRef.current === requestToken) {
         setOpening(false)
@@ -125,6 +143,8 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
     }
   }
 
+  const openLabel = systemOpen ? t.preview.openFile : isActive ? t.preview.hide : t.preview.openPreview
+
   return (
     <div className="flex w-full max-w-160 items-center gap-2 rounded-lg border border-(--ui-stroke-tertiary) bg-card/55 px-2.5 py-1.5 text-sm">
       <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted/55 text-muted-foreground/85">
@@ -133,24 +153,26 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
       <span className="min-w-0 flex-1 truncate text-[0.78rem] font-medium text-foreground/90" title={target}>
         {name}
       </span>
-      <button
-        aria-label={t.fileMenu.download}
-        className="flex shrink-0 items-center gap-1 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
-        disabled={downloading}
-        onClick={() => void downloadFile()}
-        title={t.fileMenu.download}
-        type="button"
-      >
-        <Download className="size-3" />
-        {downloaded ? t.fileMenu.downloadSaved : t.fileMenu.download}
-      </button>
+      {showDownload ? (
+        <button
+          aria-label={t.fileMenu.download}
+          className="flex shrink-0 items-center gap-1 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
+          disabled={downloading}
+          onClick={() => void downloadFile()}
+          title={t.fileMenu.download}
+          type="button"
+        >
+          <Download className="size-3" />
+          {downloaded ? t.fileMenu.downloadSaved : t.fileMenu.download}
+        </button>
+      ) : null}
       <button
         className="shrink-0 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
         disabled={opening}
         onClick={() => void togglePreview()}
         type="button"
       >
-        {opening ? t.preview.opening : isActive ? t.preview.hide : t.preview.openPreview}
+        {opening ? t.preview.opening : openLabel}
       </button>
     </div>
   )

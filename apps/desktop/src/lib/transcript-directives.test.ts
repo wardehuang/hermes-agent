@@ -15,6 +15,16 @@ describe('parseTranscriptDirective', () => {
     })
   })
 
+  it('parses a Windows path with a drive letter and non-ASCII segments', () => {
+    const source = '::preview{file="E:/Family/爸爸病情/extract/华法林图表.html"}'
+
+    expect(parseTranscriptDirective(source)).toEqual({
+      name: 'preview',
+      attrs: { file: 'E:/Family/爸爸病情/extract/华法林图表.html' },
+      source
+    })
+  })
+
   it('parses multiple attributes and accepts single quotes', () => {
     expect(parseTranscriptDirective(`::vis{file="a b.html" height='480'}`)?.attrs).toEqual({
       file: 'a b.html',

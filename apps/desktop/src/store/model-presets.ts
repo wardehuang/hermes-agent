@@ -1,18 +1,24 @@
 import { atom } from 'nanostores'
 
+import { DEFAULT_REASONING_EFFORT } from '@hermes/shared'
+
+import { resolveModelReasoningEffort } from '@/lib/reasoning-effort'
 import { persistString, storedString } from '@/lib/storage'
 
 import { notifyError } from './notifications'
-import { setCurrentFastMode, setCurrentReasoningEffort } from './session'
+import { $defaultReasoningEffort, $reasoningOverrides, setCurrentFastMode, setCurrentReasoningEffort } from './session'
 import { sessionTileDelegate } from './session-states'
 
 const STORAGE_KEY = 'hermes.desktop.model-presets'
 
 /** Per-model reasoning/fast preset, remembered globally across sessions and
  *  re-applied to the session whenever that model is selected. Unset dimensions
- *  fall back to the Hermes default (medium effort, no fast). */
+ *  fall back to the profile / per-model override. `effortPinned` is set only
+ *  when the user edits the effort control — inherited defaults must not stamp
+ *  themselves here, or they would shadow `agent.reasoning_overrides`. */
 export interface ModelPreset {
   effort?: string
+  effortPinned?: boolean
   fast?: boolean
 }
 
@@ -41,6 +47,19 @@ export const $modelPresets = atom<Record<string, ModelPreset>>(load())
 
 export function getModelPreset(provider: string, model: string): ModelPreset {
   return $modelPresets.get()[modelPresetKey(provider, model)] ?? {}
+}
+
+/** Draft / model-row effort: user-pinned preset, else `reasoning_overrides`,
+ *  else `agent.reasoning_effort` (then Hermes' built-in medium). */
+export function composerEffortForSelection(provider: string, model: string): string {
+  const preset = getModelPreset(provider, model)
+
+  return resolveModelReasoningEffort(
+    model,
+    $reasoningOverrides.get(),
+    $defaultReasoningEffort.get() || DEFAULT_REASONING_EFFORT,
+    preset.effortPinned ? preset.effort : undefined
+  )
 }
 
 /** Merge a partial preset for one model and persist. */

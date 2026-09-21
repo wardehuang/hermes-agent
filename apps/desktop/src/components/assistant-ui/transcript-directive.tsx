@@ -27,18 +27,43 @@ const onboardingEnabled = isOnboardingEnabled()
  * other contribution area.
  */
 
-/** Extract the paragraph's text when it is text-only — directives never carry
- *  inline markup, so any non-string child disqualifies the paragraph. */
-export function paragraphPlainText(children: ReactNode): string | null {
-  if (typeof children === 'string') {
-    return children
+/** Collect a paragraph's visible text, including markdown-autolinked path
+ *  fragments (`E:/Family/...` inside `::preview{file="…"}`). An empty or
+ *  unreadable node is null so callers keep the original children. */
+function childPlainText(node: ReactNode): string | null {
+  if (node == null || typeof node === 'boolean') {
+    return ''
   }
 
-  if (Array.isArray(children) && children.length > 0 && children.every(child => typeof child === 'string')) {
-    return children.join('')
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node)
+  }
+
+  if (Array.isArray(node)) {
+    if (node.length === 0) {
+      return null
+    }
+
+    const parts = node.map(childPlainText)
+
+    if (parts.some(part => part === null)) {
+      return null
+    }
+
+    return parts.join('')
+  }
+
+  if (typeof node === 'object' && 'props' in node) {
+    return childPlainText((node as { props?: { children?: ReactNode } }).props?.children)
   }
 
   return null
+}
+
+export function paragraphPlainText(children: ReactNode): string | null {
+  const text = childPlainText(children)
+
+  return text === null || text === '' ? null : text
 }
 
 /** The contribution claiming `name`, if any. First registration wins. */

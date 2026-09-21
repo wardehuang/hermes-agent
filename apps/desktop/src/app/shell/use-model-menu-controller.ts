@@ -139,11 +139,10 @@ export function useModelMenuController({
   }
 
   const controller: ModelMenuController = {
-    // Selecting a model row restores that model's remembered preset onto the
-    // session (effort/fast). applyModelPreset owns the batched gateway write.
-    applyPreset: (preset, row) => {
-      setModelPreset(row.provider, row.model, preset)
-
+    // Selecting a model row restores effort/fast onto the composer/session.
+    // Inherited defaults (profile + reasoning_overrides) must NOT be written
+    // as a preset — that would pin High forever and shadow YAML overrides.
+    applyPreset: preset => {
       void applyModelPreset(preset, {
         failMessage: t.shell.modelOptions.updateFailed,
         primary: touchesPrimary,
@@ -172,7 +171,9 @@ export function useModelMenuController({
       // provider::model, not per-surface — a tile edit re-applies to that model
       // everywhere); the active model also gets it pushed onto its OWN session.
       // Non-active edits stay preset-only — no model switch, no session write.
-      if (patch.effort !== undefined || patch.fast !== undefined) {
+      if (patch.effort !== undefined) {
+        setModelPreset(row.provider, row.model, { ...patch, effortPinned: true })
+      } else if (patch.fast !== undefined) {
         setModelPreset(row.provider, row.model, patch)
       }
 

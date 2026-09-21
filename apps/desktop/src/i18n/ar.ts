@@ -2783,6 +2783,7 @@ export const ar = defineLocale({
     tabCount: count => `${count} تبويبات`
   },
   contextMenu: {
+    addToChat: 'إضافة للمحادثة',
     link: {
       openInApp: 'فتح في متصفح التطبيق',
       openExternal: 'فتح في المتصفح الخارجي',

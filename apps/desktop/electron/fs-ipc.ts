@@ -61,6 +61,25 @@ export function registerFsIpc({
     }
   })
 
+  // Open a file with the OS association (Excel, Word, …). Unlike openInEditor,
+  // this never consults $EDITOR — VS Code would unzip an .xlsx.
+  ipcMain.handle('hermes:fs:openPath', async (_event, targetPath) => {
+    const target = String(targetPath || '').trim()
+
+    if (!target) {
+      return { ok: false, error: 'no path' }
+    }
+
+    try {
+      const resolved = resolveRequestedPathForIpc(expandUserPath(target), { purpose: 'Open path' })
+      const error = await shell.openPath(path.normalize(resolved))
+
+      return error ? { ok: false, error } : { ok: true }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
   // Reveal a path in the OS file manager (Finder / Explorer / Files).
   ipcMain.handle('hermes:fs:reveal', async (_event, targetPath) => {
     const target = String(targetPath || '').trim()

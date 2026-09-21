@@ -1,11 +1,94 @@
 import DOMPurify from 'dompurify'
 
-import { isDesktopFsRemoteMode, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
+import { isDesktopFsRemoteMode, openDesktopPath, readDesktopFileDataUrl, readDesktopFileText } from '@/lib/desktop-fs'
 import type { PreviewTarget } from '@/store/preview'
 
 const HTML_EXTENSIONS = new Set(['.htm', '.html'])
 const IMAGE_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp'])
 const PDF_EXTENSIONS = new Set(['.pdf'])
+// No in-app preview: open with the OS association. Images/PDF/HTML/text stay
+// in the preview rail. Executables are denylisted even when sniffed binary.
+const UNPREVIEWABLE_EXTENSIONS = new Set([
+  '.7z',
+  '.aac',
+  '.afdesign',
+  '.afphoto',
+  '.ai',
+  '.avi',
+  '.bz2',
+  '.doc',
+  '.docx',
+  '.dot',
+  '.dotx',
+  '.eps',
+  '.fig',
+  '.flac',
+  '.gz',
+  '.indd',
+  '.kra',
+  '.m4a',
+  '.m4v',
+  '.mkv',
+  '.mov',
+  '.mp3',
+  '.mp4',
+  '.odp',
+  '.ods',
+  '.odt',
+  '.ogg',
+  '.otf',
+  '.ppsx',
+  '.ppt',
+  '.pptx',
+  '.psb',
+  '.psd',
+  '.rar',
+  '.rtf',
+  '.sketch',
+  '.tar',
+  '.tgz',
+  '.ttf',
+  '.wav',
+  '.webm',
+  '.wma',
+  '.wmv',
+  '.woff',
+  '.woff2',
+  '.xcf',
+  '.xd',
+  '.xls',
+  '.xlsb',
+  '.xlsm',
+  '.xlsx',
+  '.xltx',
+  '.zip'
+])
+const NEVER_AUTO_OPEN_EXTENSIONS = new Set([
+  '.bat',
+  '.cmd',
+  '.com',
+  '.cpl',
+  '.dll',
+  '.drv',
+  '.efi',
+  '.exe',
+  '.hta',
+  '.inf',
+  '.jse',
+  '.lnk',
+  '.msi',
+  '.msp',
+  '.msc',
+  '.pif',
+  '.ps1',
+  '.reg',
+  '.scr',
+  '.sys',
+  '.vbe',
+  '.vbs',
+  '.wsf',
+  '.wsh'
+])
 // Mirrors `_FS_DATA_URL_MAX_BYTES` in the backend filesystem endpoint.
 const REMOTE_HTML_PREVIEW_MAX_BYTES = 16 * 1024 * 1024
 const REMOTE_HTML_PREVIEW_MAX_BASE64_BYTES = Math.ceil(REMOTE_HTML_PREVIEW_MAX_BYTES / 3) * 4
@@ -62,6 +145,48 @@ function joinPath(base: string, rel: string) {
   }
 
   return `${base.replace(/\/+$/, '')}/${rel.replace(/^\.?\//, '')}`
+}
+
+function isAbsoluteFsPath(raw: string) {
+  return raw.startsWith('/') || raw.startsWith('\\\\') || /^[a-z]:[\\/]/i.test(raw)
+}
+
+function normalizeFsPath(value: string) {
+  return value.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+/** True when `filePath` is `dir` or a descendant. Slash- and case-insensitive. */
+export function isPathInsideDir(filePath: string, dir: string): boolean {
+  const file = normalizeFsPath(filePath).toLowerCase()
+  const root = normalizeFsPath(dir).toLowerCase()
+
+  return file === root || file.startsWith(`${root}/`)
+}
+
+/** Unpreviewable local files: open with the OS. Images/PDF/HTML/text stay in-app. */
+export function opensInSystemApp(
+  filePath: string,
+  preview?: Pick<PreviewTarget, 'binary' | 'previewKind'> | null
+): boolean {
+  const ext = extension(filePath)
+
+  if (NEVER_AUTO_OPEN_EXTENSIONS.has(ext)) {
+    return false
+  }
+
+  if (HTML_EXTENSIONS.has(ext) || IMAGE_EXTENSIONS.has(ext) || PDF_EXTENSIONS.has(ext)) {
+    return false
+  }
+
+  if (UNPREVIEWABLE_EXTENSIONS.has(ext)) {
+    return true
+  }
+
+  if (LANGUAGE_BY_EXT[ext]) {
+    return false
+  }
+
+  return preview?.previewKind === 'binary' || preview?.binary === true
 }
 
 function pathToFileUrl(path: string) {
@@ -197,7 +322,7 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     } catch {
       path = raw.replace(/^file:\/\//i, '')
     }
-  } else if (!raw.startsWith('/') && cwd) {
+  } else if (!isAbsoluteFsPath(raw) && cwd) {
     path = joinPath(cwd, raw)
   }
 
@@ -218,6 +343,33 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
     source: raw,
     url: pathToFileUrl(path)
   }
+}
+
+/** Local unpreviewable file: shell.openPath. Remote / previewable: false, caller previews. */
+export async function openLocalFileWithSystemApp(
+  rawTarget: string,
+  cwd?: string | null,
+  preview?: PreviewTarget | null
+): Promise<boolean> {
+  if (isDesktopFsRemoteMode()) {
+    return false
+  }
+
+  const pathForExt = preview?.path || rawTarget
+
+  if (!opensInSystemApp(pathForExt, preview)) {
+    return false
+  }
+
+  const resolved = preview?.path || localPreviewTarget(rawTarget, cwd)?.path
+
+  if (!resolved) {
+    return false
+  }
+
+  await openDesktopPath(resolved)
+
+  return true
 }
 
 async function enrichPreviewTarget(target: PreviewTarget | null): Promise<PreviewTarget | null> {

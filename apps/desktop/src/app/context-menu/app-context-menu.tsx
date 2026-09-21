@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
 import { terminalMenuHandleFor } from '@/app/right-sidebar/terminal/terminal-context-menu'
+import { addCodeSourceSelectionToChat, type CodeSourceSelection } from '@/components/chat/code-source-selection'
 import { toggleTargetZoneTabStrip } from '@/components/pane-shell/tree/store'
 import { Codicon } from '@/components/ui/codicon'
 import { HERMES_CONTEXT_MENU_TRIGGER_ATTR } from '@/components/ui/context-menu'
@@ -51,6 +52,7 @@ const LOOPBACK_HOST_RE = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?)$/i
 // advertises them the way the native menu did. `formatCombo` renders
 // mod as ⌘ on macOS and Ctrl elsewhere.
 const EDIT_SHORTCUTS = {
+  addToChat: formatCombo('mod+l'),
   copy: formatCombo('mod+c'),
   cut: formatCombo('mod+x'),
   paste: formatCombo('mod+v'),
@@ -87,6 +89,22 @@ function Item({
       <span>{label}</span>
       {shortcut ? <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut> : null}
     </DropdownMenuItem>
+  )
+}
+
+function addToChatItem(codeSource: CodeSourceSelection | null, t: Translations) {
+  if (!codeSource) {
+    return null
+  }
+
+  return (
+    <Item
+      icon="comment-discussion"
+      key="add-to-chat"
+      label={t.contextMenu.addToChat}
+      onSelect={() => addCodeSourceSelectionToChat(codeSource)}
+      shortcut={EDIT_SHORTCUTS.addToChat}
+    />
   )
 }
 
@@ -328,28 +346,31 @@ function domSections(open: Extract<OpenContextMenu, { kind: 'dom' }>, t: Transla
       ? (formField.selectionStart ?? 0) !== (formField.selectionEnd ?? 0)
       : target.selectionText.length > 0
 
-    sections.push([
-      <Item
-        disabled={!canCutCopy}
-        key="edit-cut"
-        label={copy.edit.cut}
-        onSelect={() => editableCommand('cut')}
-        shortcut={EDIT_SHORTCUTS.cut}
-      />,
-      <Item
-        disabled={!canCutCopy}
-        key="edit-copy"
-        label={t.common.copy}
-        onSelect={() => editableCommand('copy')}
-        shortcut={EDIT_SHORTCUTS.copy}
-      />,
-      <Item
-        key="edit-paste"
-        label={copy.edit.paste}
-        onSelect={() => editableCommand('paste')}
-        shortcut={EDIT_SHORTCUTS.paste}
-      />
-    ])
+    sections.push(
+      [
+        <Item
+          disabled={!canCutCopy}
+          key="edit-cut"
+          label={copy.edit.cut}
+          onSelect={() => editableCommand('cut')}
+          shortcut={EDIT_SHORTCUTS.cut}
+        />,
+        <Item
+          disabled={!canCutCopy}
+          key="edit-copy"
+          label={t.common.copy}
+          onSelect={() => editableCommand('copy')}
+          shortcut={EDIT_SHORTCUTS.copy}
+        />,
+        addToChatItem(target.codeSource, t),
+        <Item
+          key="edit-paste"
+          label={copy.edit.paste}
+          onSelect={() => editableCommand('paste')}
+          shortcut={EDIT_SHORTCUTS.paste}
+        />
+      ].filter(Boolean)
+    )
     sections.push([
       <Item
         disabled={!hasFieldText}
@@ -360,14 +381,19 @@ function domSections(open: Extract<OpenContextMenu, { kind: 'dom' }>, t: Transla
       />
     ])
   } else if (target.selectionText) {
-    sections.push([
-      <Item
-        icon="copy"
-        key="selection-copy"
-        label={t.common.copy}
-        onSelect={() => void writeClipboardText(target.selectionText)}
-      />
-    ])
+    sections.push(
+      [
+        <Item
+          icon="copy"
+          key="selection-copy"
+          label={t.common.copy}
+          onSelect={() => void writeClipboardText(target.selectionText)}
+        />,
+        addToChatItem(target.codeSource, t)
+      ].filter(Boolean)
+    )
+  } else if (target.codeSource) {
+    sections.push([addToChatItem(target.codeSource, t)])
   }
 
   return sections
@@ -646,7 +672,10 @@ export function AppContextMenu() {
       }
 
       const target = resolveDomTarget(element)
-      const owned = Boolean(target.linkUrl || target.onImage || target.editable || target.selectionText)
+
+      const owned = Boolean(
+        target.linkUrl || target.onImage || target.editable || target.selectionText || target.codeSource
+      )
 
       // The reaction bubble owns bare right-clicks; a link inside it still
       // opens the link menu.

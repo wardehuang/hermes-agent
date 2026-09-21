@@ -8,7 +8,7 @@ import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useDelayedTrue } from '@/hooks/use-delayed-true'
 import { useI18n } from '@/i18n'
-import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
+import { normalizeOrLocalPreviewTarget, openLocalFileWithSystemApp } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import { $panesFlipped } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
@@ -68,10 +68,18 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
 
   const previewFile = async (path: string) => {
     try {
+      if (await openLocalFileWithSystemApp(path, effectiveCwd || undefined)) {
+        return
+      }
+
       const preview = await normalizeOrLocalPreviewTarget(path, effectiveCwd || undefined)
 
       if (!preview) {
         throw new Error(r.couldNotPreview(path))
+      }
+
+      if (await openLocalFileWithSystemApp(path, effectiveCwd || undefined, preview)) {
+        return
       }
 
       openPreview(preview, 'file-browser')

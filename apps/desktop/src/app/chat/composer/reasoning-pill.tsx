@@ -12,7 +12,8 @@ import { useI18n } from '@/i18n'
 import { ChevronDown } from '@/lib/icons'
 import { reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { cn } from '@/lib/utils'
-import { $defaultReasoningEffort } from '@/store/session'
+import { $modelPresets, composerEffortForSelection } from '@/store/model-presets'
+import { $defaultReasoningEffort, $reasoningOverrides } from '@/store/session'
 
 import type { ChatBarState } from './types'
 
@@ -34,14 +35,19 @@ export function ReasoningPill({ disabled, model }: { disabled: boolean; model: C
   const copy = useI18n().t.shell.modelOptions
   const view = useSessionView()
   const reasoningEffort = useStore(view.$reasoningEffort)
+  const modelId = useStore(view.$model)
+  const provider = useStore(view.$provider)
   const defaultEffort = useStore($defaultReasoningEffort)
+  useStore($reasoningOverrides)
+  useStore($modelPresets)
   const [open, setOpen] = useState(false)
 
   if (!model.reasoningMenuContent || model.supportsReasoning === false) {
     return null
   }
 
-  const label = reasoningEffortLabel(reasoningEffort || defaultEffort || DEFAULT_REASONING_EFFORT)
+  const inherited = composerEffortForSelection(provider, modelId)
+  const label = reasoningEffortLabel(reasoningEffort || inherited || defaultEffort || DEFAULT_REASONING_EFFORT)
   const title = `${copy.effort}: ${label}`
 
   // Closing the menu ends its claim on the keyboard: Radix restores focus to

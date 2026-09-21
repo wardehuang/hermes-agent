@@ -8,6 +8,7 @@ import {
   revealDesktopPath,
   trashDesktopPath
 } from '@/lib/desktop-fs'
+import { isPathInsideDir } from '@/lib/local-preview'
 import { downloadGatewayMediaFile } from '@/lib/media'
 import { notify, notifyError } from '@/store/notifications'
 import { notifyWorkspaceChanged } from '@/store/workspace-events'
@@ -78,6 +79,26 @@ export async function copyFilePath(path: string): Promise<void> {
  *  streams a single file. */
 export function shouldOfferRemoteFileDownload(isDirectory: boolean, remote = isDesktopFsRemoteMode()): boolean {
   return remote && !isDirectory
+}
+
+/** Chat file cards: Download copies a file the user does not already have.
+ *  Local files inside the session cwd are the project — no copy button. */
+export function shouldOfferChatFileDownload(
+  filePath: string,
+  cwd?: null | string,
+  remote = isDesktopFsRemoteMode()
+): boolean {
+  if (remote) {
+    return true
+  }
+
+  const root = cwd?.trim()
+
+  if (!root) {
+    return true
+  }
+
+  return !isPathInsideDir(filePath, root)
 }
 
 export async function downloadRemoteFile(path: string): Promise<void> {

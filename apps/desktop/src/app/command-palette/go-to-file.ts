@@ -1,4 +1,4 @@
-import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
+import { normalizeOrLocalPreviewTarget, openLocalFileWithSystemApp } from '@/lib/local-preview'
 import { joinProjectPath } from '@/lib/path-compare'
 import { revealFileInTree } from '@/store/layout'
 import { openPreview } from '@/store/preview'
@@ -90,10 +90,18 @@ export async function jumpToProjectHit(hit: ProjectFileHit, cwd: string): Promis
     return true
   }
 
+  if (await openLocalFileWithSystemApp(abs, cwd)) {
+    return true
+  }
+
   const target = await normalizeOrLocalPreviewTarget(abs, cwd)
 
   if (!target) {
     return false
+  }
+
+  if (await openLocalFileWithSystemApp(abs, cwd, target)) {
+    return true
   }
 
   openPreview(target, 'file-browser')

@@ -3198,6 +3198,7 @@ export const zhHant = defineLocale({
   },
 
   contextMenu: {
+    addToChat: '新增至聊天',
     link: {
       openInApp: '在應用程式內瀏覽器中開啟',
       openExternal: '在外部瀏覽器中開啟',

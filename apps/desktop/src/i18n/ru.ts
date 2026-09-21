@@ -3533,6 +3533,7 @@ export const ru = defineLocale({
     tabCount: count => `${count} ${RU_NOUN(count, 'вкладка', 'вкладки', 'вкладок')}`
   },
   contextMenu: {
+    addToChat: 'Добавить в чат',
     link: {
       openInApp: 'Открыть во встроенном браузере',
       openExternal: 'Открыть во внешнем браузере',

@@ -11,9 +11,30 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/themes/context'
 
 import { githubEditorTheme } from './code-editor-theme'
+import { type CodeSourceSelection, inclusiveLineRange, registerCodeSource } from './code-source-selection'
 import { $editorFontFamily, $editorFontSizePx, editorFontCss } from './editor-font'
 
 type FormatOutcome = { ok: true } | { ok: false; error: string }
+
+function readCodeMirrorSelection(view: EditorView, filePath: string): CodeSourceSelection | null {
+  const sel = view.state.selection.main
+
+  if (sel.empty) {
+    return null
+  }
+
+  const from = Math.min(sel.from, sel.to)
+  const to = Math.max(sel.from, sel.to)
+  const startLine = view.state.doc.lineAt(from).number
+  const endLine = view.state.doc.lineAt(Math.max(from, to - 1)).number
+  const range = inclusiveLineRange(startLine, endLine)
+
+  if (!range) {
+    return null
+  }
+
+  return { filePath, text: view.state.sliceDoc(from, to), ...range }
+}
 
 function applyFormatJson(view: EditorView, onError?: (error: string) => void): FormatOutcome {
   const text = view.state.doc.toString()
@@ -293,6 +314,7 @@ export function CodeEditor({
 
     const view = new EditorView({ parent: host, state })
     viewRef.current = view
+    const unregisterSource = registerCodeSource(host, () => readCodeMirrorSelection(view, filePath))
 
     if (apiRef) {
       apiRef.current = {
@@ -318,6 +340,7 @@ export function CodeEditor({
     view.focus()
 
     return () => {
+      unregisterSource()
       view.destroy()
       viewRef.current = null
 

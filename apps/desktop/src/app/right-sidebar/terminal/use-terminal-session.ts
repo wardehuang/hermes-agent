@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { codeSourceHasSelection } from '@/components/chat/code-source-selection'
 import { writeClipboardText } from '@/components/ui/copy-button'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { triggerHaptic } from '@/lib/haptics'
@@ -438,17 +439,9 @@ export function useTerminalSession({
     onShellRef.current = onShell
   }, [onAddSelectionToChat, onShell])
 
-  // Live selection at call time. A redraw-heavy TUI (spinners, clocks) outruns
-  // onSelectionChange, so trust xterm directly — fall back to the native
-  // selection — rather than the cached ref / React state.
-  const readSelection = useCallback(
-    () => termRef.current?.getSelection() || window.getSelection()?.toString() || '',
-    []
-  )
-
   const addSelectionToChat = useCallback(() => {
     const termSelection = (termRef.current?.getSelection() || selectionRef.current).trim()
-    const selectedText = termSelection || window.getSelection()?.toString() || ''
+    const selectedText = termSelection || (codeSourceHasSelection() ? '' : window.getSelection()?.toString() || '')
     const trimmed = selectedText.trim()
 
     if (!trimmed) {
@@ -476,7 +469,20 @@ export function useTerminalSession({
   // must reach the shell as clear-screen.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!isComposerChord(event) || !readSelection().trim()) {
+      if (!isComposerChord(event)) {
+        return
+      }
+
+      const termText = (termRef.current?.getSelection() || selectionRef.current).trim()
+
+      // Editor / source-view selections own ⌘/Ctrl+L as `@line:` chips. Do not
+      // fall back to window.getSelection() — that is the preview text the
+      // terminal used to poach as `@terminal:`.
+      if (!termText && codeSourceHasSelection()) {
+        return
+      }
+
+      if (!(termText || window.getSelection()?.toString() || '').trim()) {
         return
       }
 
@@ -488,7 +494,7 @@ export function useTerminalSession({
     window.addEventListener('keydown', onKeyDown, { capture: true })
 
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [addSelectionToChat, readSelection])
+  }, [addSelectionToChat])
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {

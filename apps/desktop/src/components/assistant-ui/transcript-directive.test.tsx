@@ -16,8 +16,19 @@ describe('paragraphPlainText', () => {
     expect(paragraphPlainText(['::preview{file=', '"a.html"}'])).toBe('::preview{file="a.html"}')
   })
 
-  it('disqualifies paragraphs with element children', () => {
-    expect(paragraphPlainText(['::tasks ', <b key="x">bold</b>])).toBeNull()
+  it('extracts text from element children so markdown autolinks do not hide directives', () => {
+    expect(
+      paragraphPlainText([
+        '::preview{file="',
+        <a href="E:/Family/chart.html" key="p">
+          E:/Family/chart.html
+        </a>,
+        '"}'
+      ])
+    ).toBe('::preview{file="E:/Family/chart.html"}')
+  })
+
+  it('rejects empty children', () => {
     expect(paragraphPlainText(null)).toBeNull()
     expect(paragraphPlainText([])).toBeNull()
   })

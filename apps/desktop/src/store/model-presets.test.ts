@@ -1,13 +1,22 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { $modelPresets, applyModelPreset, getModelPreset, modelPresetKey, setModelPreset } from './model-presets'
-import { $currentFastMode, $currentReasoningEffort, setCurrentFastMode, setCurrentReasoningEffort } from './session'
+import { $modelPresets, applyModelPreset, composerEffortForSelection, getModelPreset, modelPresetKey, setModelPreset } from './model-presets'
+import {
+  $currentFastMode,
+  $currentReasoningEffort,
+  setCurrentFastMode,
+  setCurrentReasoningEffort,
+  setDefaultReasoningEffort,
+  setReasoningOverrides
+} from './session'
 
 describe('model presets', () => {
   beforeEach(() => {
     $modelPresets.set({})
     setCurrentFastMode(false)
     setCurrentReasoningEffort('')
+    setDefaultReasoningEffort('high')
+    setReasoningOverrides({})
   })
 
   it('round-trips a preset and merges patches without dropping prior fields', () => {
@@ -54,5 +63,18 @@ describe('model presets', () => {
     expect($currentReasoningEffort.get()).toBe('high')
     expect($currentFastMode.get()).toBe(true)
     expect(calls).toEqual([])
+  })
+
+  it('uses reasoning_overrides for a draft unless the user pinned effort', () => {
+    setReasoningOverrides({ 'grok-4.6': 'xhigh' })
+
+    expect(composerEffortForSelection('cpa', 'grok-4.6')).toBe('xhigh')
+    expect(composerEffortForSelection('cpa', 'gpt-5.6-luna')).toBe('high')
+
+    setModelPreset('cpa', 'grok-4.6', { effort: 'high' })
+    expect(composerEffortForSelection('cpa', 'grok-4.6')).toBe('xhigh')
+
+    setModelPreset('cpa', 'grok-4.6', { effort: 'low', effortPinned: true })
+    expect(composerEffortForSelection('cpa', 'grok-4.6')).toBe('low')
   })
 })

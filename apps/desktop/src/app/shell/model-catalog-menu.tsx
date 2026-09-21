@@ -32,6 +32,7 @@ import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { $localModelsEnabled } from '@/store/local-models-flag'
 import { $localRuntimeJobs, runningModelDownloads, watchLocalRuntimeJobs } from '@/store/local-runtime-jobs'
+import { $modelPresets, composerEffortForSelection } from '@/store/model-presets'
 import {
   $visibleModels,
   collapseModelFamilies,
@@ -42,7 +43,7 @@ import {
   setModelVisibilityOpen
 } from '@/store/model-visibility'
 import { $collapsedProviders, toggleCollapsedProvider } from '@/store/provider-collapse'
-import { $defaultReasoningEffort } from '@/store/session'
+import { $defaultReasoningEffort, $reasoningOverrides } from '@/store/session'
 import type { LocalModelLoadProgress } from '@/types/hermes'
 
 import { type FastControl, ModelEditSubmenu, resolveFastControl } from './model-edit-submenu'
@@ -138,6 +139,8 @@ export function ModelCatalogMenu({
   const [search, setSearch] = useState('')
   const collapsedProviders = useStoreCollapsed()
   const defaultEffort = useDefaultEffort()
+  useStore($reasoningOverrides)
+  useStore($modelPresets)
   // Which models the user curated in Edit Models. Read HERE rather than taken
   // as a prop: it's one global preference, so every surface that shows a
   // catalog must show the same shortlist. A per-caller opt-in is how the board
@@ -300,7 +303,7 @@ export function ModelCatalogMenu({
 
     controller.applyPreset(
       {
-        effort: (caps?.reasoning ?? true) ? (preset.effort ?? defaultEffort) : undefined,
+        effort: (caps?.reasoning ?? true) ? composerEffortForSelection(provider.slug, family.id) : undefined,
         fast: (caps?.fast ?? false) ? (preset.fast ?? false) : undefined
       },
       { model: family.id, provider: provider.slug }
@@ -504,7 +507,8 @@ export function ModelCatalogMenu({
                     // the active model, otherwise its remembered preset. Row
                     // label AND submenu read from these so they never disagree.
                     const preset = controller.presetFor(group.provider.slug, family.id)
-                    const effEffort = isCurrent ? current.effort : (preset.effort ?? '')
+                    const inheritedEffort = composerEffortForSelection(group.provider.slug, family.id)
+                    const effEffort = isCurrent ? current.effort || inheritedEffort : inheritedEffort
                     const effFast = isCurrent ? current.fast : (preset.fast ?? false)
 
                     const fastControl: FastControl = resolveFastControl(
@@ -574,7 +578,7 @@ export function ModelCatalogMenu({
                         </DropdownMenuSubTrigger>
                         <ModelEditSubmenu
                           canDisableReasoning={caps?.can_disable_reasoning ?? undefined}
-                          defaultEffort={defaultEffort}
+                          defaultEffort={inheritedEffort}
                           effort={effEffort}
                           fastControl={fastControl}
                           isActive={isCurrent}

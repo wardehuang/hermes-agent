@@ -8,6 +8,7 @@ import {
   attachmentId,
   coalesceToolOnlyAssistants,
   coerceThinkingText,
+  contextPath,
   createToolMergeCache,
   messageCreatedAt,
   optimisticAttachmentRef,
@@ -237,5 +238,21 @@ describe('coalesceToolOnlyAssistants toolCallId uniqueness', () => {
       .map(part => (part as { toolCallId: string }).toolCallId)
 
     expect(ids).toEqual(['call-a', 'call-b'])
+  })
+})
+
+describe('contextPath', () => {
+  it('strips a posix cwd prefix', () => {
+    expect(contextPath('/repo/src/a.ts', '/repo')).toBe('src/a.ts')
+  })
+
+  it('strips a Windows path when separators disagree', () => {
+    expect(contextPath(String.raw`E:\AI\hermes-agent\gateway\__init__.py`, 'E:/AI/hermes-agent')).toBe(
+      'gateway/__init__.py'
+    )
+  })
+
+  it('is case-insensitive on a drive letter', () => {
+    expect(contextPath(String.raw`e:\AI\hermes-agent\a.ts`, 'E:/AI/hermes-agent')).toBe('a.ts')
   })
 })

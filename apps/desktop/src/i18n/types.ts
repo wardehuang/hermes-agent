@@ -3197,6 +3197,8 @@ export interface Translations {
     opening: string
     hide: string
     openPreview: string
+    openFile: string
+    openFailed: string
     openInBrowser: string
     openInExternal: string
     popIn: string
@@ -3347,6 +3349,7 @@ export interface Translations {
   }
 
   contextMenu: {
+    addToChat: string
     link: {
       openInApp: string
       openExternal: string

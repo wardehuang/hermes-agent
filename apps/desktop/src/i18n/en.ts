@@ -3667,6 +3667,8 @@ export const en: Translations = {
     opening: 'Opening...',
     hide: 'Hide',
     openPreview: 'Open preview',
+    openFile: 'Open',
+    openFailed: 'Could not open file',
     openInBrowser: 'Open in browser',
     openInExternal: 'Open in external',
     popIn: 'Pop in',
@@ -3822,6 +3824,7 @@ export const en: Translations = {
   },
 
   contextMenu: {
+    addToChat: 'Add to chat',
     link: {
       openInApp: 'Open in in-app browser',
       openExternal: 'Open in external browser',

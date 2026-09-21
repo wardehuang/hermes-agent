@@ -403,6 +403,7 @@ export interface WebhookEnableResponse {
 export interface HermesConfig {
   agent?: {
     reasoning_effort?: string
+    reasoning_overrides?: Record<string, string>
     personalities?: Record<string, unknown>
     service_tier?: string
   }

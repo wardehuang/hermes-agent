@@ -1,7 +1,13 @@
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_VALUES } from '@hermes/shared'
 import { describe, expect, it } from 'vitest'
 
-import { isThinkingEnabled, reasoningEffortLabel, resolveReasoningEffort } from './reasoning-effort'
+import {
+  isThinkingEnabled,
+  matchingReasoningOverride,
+  reasoningEffortLabel,
+  resolveModelReasoningEffort,
+  resolveReasoningEffort
+} from './reasoning-effort'
 
 describe('reasoning-effort', () => {
   it('labels every level it claims to support', () => {
@@ -29,5 +35,21 @@ describe('reasoning-effort', () => {
     // Off selects nothing on the scale.
     expect(resolveReasoningEffort('none')).toBe('')
     expect(resolveReasoningEffort('bogus')).toBe(DEFAULT_REASONING_EFFORT)
+  })
+
+  it('matches per-model reasoning overrides with spelling-tolerant keys', () => {
+    const overrides = { 'grok-4.6': 'xhigh' }
+
+    expect(matchingReasoningOverride('grok-4.6', overrides)).toBe('xhigh')
+    expect(matchingReasoningOverride('Grok-4.6', overrides)).toBe('xhigh')
+    expect(matchingReasoningOverride('cpa/grok-4.6', overrides)).toBe('xhigh')
+    expect(matchingReasoningOverride('grok-4-6', overrides)).toBe('xhigh')
+    expect(matchingReasoningOverride('gpt-5.6-luna', overrides)).toBe('')
+  })
+
+  it('prefers a user-pinned effort over the per-model override', () => {
+    expect(resolveModelReasoningEffort('grok-4.6', { 'grok-4.6': 'xhigh' }, 'high', 'low')).toBe('low')
+    expect(resolveModelReasoningEffort('grok-4.6', { 'grok-4.6': 'xhigh' }, 'high')).toBe('xhigh')
+    expect(resolveModelReasoningEffort('gpt-5.6-luna', { 'grok-4.6': 'xhigh' }, 'high')).toBe('high')
   })
 })

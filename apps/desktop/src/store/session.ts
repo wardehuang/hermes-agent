@@ -1426,6 +1426,12 @@ export const $defaultReasoningEffort = atom('')
 
 export const setDefaultReasoningEffort = (next: string) => updateAtom($defaultReasoningEffort, next)
 
+// Per-model `agent.reasoning_overrides`, mirrored from config with the same
+// lifetime as `$defaultReasoningEffort`. Empty until config loads.
+export const $reasoningOverrides = atom<Record<string, string>>({})
+
+export const setReasoningOverrides = (next: Record<string, string>) => updateAtom($reasoningOverrides, next)
+
 export const setCurrentServiceTier = (next: Updater<string>) => updateAtom($currentServiceTier, next)
 
 export const setCurrentFastMode = (next: Updater<boolean>) => {

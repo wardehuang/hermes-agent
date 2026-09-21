@@ -36,6 +36,7 @@ import {
 } from '@/store/gateway'
 import { $gatewaySwitching } from '@/store/gateway-switch'
 import { $pinnedSessionIds } from '@/store/layout'
+import { composerEffortForSelection } from '@/store/model-presets'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import {
   $activeGatewayProfile,
@@ -76,6 +77,7 @@ import {
   setCurrentBranch,
   setCurrentCwd,
   setCurrentCwdTransient,
+  setCurrentReasoningEffort,
   setCurrentServiceTier,
   setCurrentUsage,
   setFreshDraftReady,
@@ -502,12 +504,17 @@ export function useSessionActions({
       })
       setSessionStartedAt(null)
       setTurnStartedAt(null)
-      // The composer's model/effort/fast is sticky UI state (persisted in
-      // localStorage) — a new chat FOLLOWS your last pick instead of snapping
-      // back to the profile default, so we deliberately don't reset it here. The
-      // profile default still owns first-run seeding and profile switches (see
-      // refreshCurrentModel). Only $currentServiceTier (a live-session mirror)
-      // is cleared.
+      // Model and fast stay sticky. Effort on a new chat follows a user-pinned
+      // per-model preset, else `agent.reasoning_overrides`, else the profile
+      // default. Sticky High from the last chat must not shadow a grok-4.6
+      // xhigh override. Only `$currentServiceTier` (a live-session mirror) is
+      // cleared unconditionally.
+      const nextEffort = composerEffortForSelection($currentProvider.get(), $currentModel.get())
+
+      if (nextEffort) {
+        setCurrentReasoningEffort(nextEffort)
+      }
+
       setCurrentServiceTier('')
       setYoloActive(false)
       setNewChatWorkspaceTarget(hasWorkspaceTarget ? workspaceTarget : undefined)

@@ -4,14 +4,17 @@ const { readDesktopFileDataUrl } = vi.hoisted(() => ({ readDesktopFileDataUrl: v
 
 vi.mock('@/lib/desktop-fs', () => ({
   isDesktopFsRemoteMode: () => true,
+  openDesktopPath: vi.fn(),
   readDesktopFileDataUrl,
   readDesktopFileText: vi.fn()
 }))
 
 import {
+  isPathInsideDir,
   localPreviewTarget,
   normalizeOrLocalPreviewTarget,
   openPreviewTargetInBrowser,
+  opensInSystemApp,
   remoteHtmlPreviewDocument,
   validatedRemoteHtmlDataUrl
 } from './local-preview'
@@ -166,6 +169,57 @@ describe('remote HTML previews', () => {
       openPreviewTargetInBrowser({ ...remoteTarget, renderMode: 'source', transient: true })
     ).rejects.toThrow('Remote HTML preview could not be loaded')
     expect(openPreviewInBrowser).not.toHaveBeenCalled()
+  })
+})
+
+describe('opensInSystemApp', () => {
+  it('opens unpreviewable binaries with the OS and keeps previewable types in-app', () => {
+    expect(opensInSystemApp('E:/Family/华法林每日记录.xlsx')).toBe(true)
+    expect(opensInSystemApp('notes.xls')).toBe(true)
+    expect(opensInSystemApp('book.xlsm')).toBe(true)
+    expect(opensInSystemApp('cover.psd')).toBe(true)
+    expect(opensInSystemApp('logo.ai')).toBe(true)
+    expect(opensInSystemApp('brief.docx')).toBe(true)
+    expect(opensInSystemApp('deck.pptx')).toBe(true)
+    expect(opensInSystemApp('clip.mp4')).toBe(true)
+    expect(opensInSystemApp('photo.png')).toBe(false)
+    expect(opensInSystemApp('photo.jpg')).toBe(false)
+    expect(opensInSystemApp('report.md')).toBe(false)
+    expect(opensInSystemApp('chart.html')).toBe(false)
+    expect(opensInSystemApp('scan.pdf')).toBe(false)
+    expect(opensInSystemApp('notes.csv')).toBe(false)
+  })
+
+  it('does not auto-open executables even when sniffed as binary', () => {
+    expect(opensInSystemApp('setup.exe', { binary: true, previewKind: 'binary' })).toBe(false)
+    expect(opensInSystemApp('run.bat', { binary: true, previewKind: 'binary' })).toBe(false)
+  })
+
+  it('opens unknown binaries after a binary sniff, not by extension alone', () => {
+    expect(opensInSystemApp('payload.bin')).toBe(false)
+    expect(opensInSystemApp('payload.bin', { binary: true, previewKind: 'binary' })).toBe(true)
+    expect(opensInSystemApp('payload.bin', { previewKind: 'text' })).toBe(false)
+  })
+})
+
+describe('isPathInsideDir', () => {
+  it('treats workspace files as inside the cwd across slash and case variants', () => {
+    expect(isPathInsideDir('E:/Family/dad/a.xlsx', 'E:/Family/dad')).toBe(true)
+    expect(isPathInsideDir('E:\\Family\\dad\\a.xlsx', 'E:/Family/dad')).toBe(true)
+    expect(isPathInsideDir('e:/family/dad/a.xlsx', 'E:/Family/dad')).toBe(true)
+  })
+
+  it('does not treat a same-prefix sibling folder as inside', () => {
+    expect(isPathInsideDir('E:/Family/dad-backup/a.xlsx', 'E:/Family/dad')).toBe(false)
+    expect(isPathInsideDir('E:/Family/other/a.xlsx', 'E:/Family/dad')).toBe(false)
+  })
+})
+
+describe('Windows absolute paths', () => {
+  it('does not join a drive-letter path onto cwd', () => {
+    expect(localPreviewTarget('E:/Family/dad/a.xlsx', 'E:/Family/dad')).toMatchObject({
+      path: 'E:/Family/dad/a.xlsx'
+    })
   })
 })
 

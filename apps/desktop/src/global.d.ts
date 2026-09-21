@@ -408,6 +408,8 @@ declare global {
       gitRoot?: (path: string) => Promise<string | null>
       // Open a file in $EDITOR (User-scoped on Windows), else OS association.
       openInEditor?: (path: string) => Promise<boolean>
+      // Open a file with the OS association only (never $EDITOR).
+      openPath?: (path: string) => Promise<{ ok: boolean; error?: string }>
       // Reveal a path in the OS file manager (Finder / Explorer).
       revealPath?: (path: string) => Promise<boolean>
       // Open a DIRECTORY (created if missing) in the OS file manager.

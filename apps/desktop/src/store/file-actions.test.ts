@@ -9,7 +9,7 @@ vi.mock('@/lib/media', () => ({
 const media = await import('@/lib/media')
 const downloadGatewayMediaFile = vi.mocked(media.downloadGatewayMediaFile)
 
-const { downloadRemoteFile, shouldOfferRemoteFileDownload } = await import('./file-actions')
+const { downloadRemoteFile, shouldOfferChatFileDownload, shouldOfferRemoteFileDownload } = await import('./file-actions')
 
 describe('shouldOfferRemoteFileDownload', () => {
   it('is only for files on a remote backend', () => {
@@ -17,6 +17,19 @@ describe('shouldOfferRemoteFileDownload', () => {
     expect(shouldOfferRemoteFileDownload(true, true)).toBe(false)
     expect(shouldOfferRemoteFileDownload(false, false)).toBe(false)
     expect(shouldOfferRemoteFileDownload(true, false)).toBe(false)
+  })
+})
+
+describe('shouldOfferChatFileDownload', () => {
+  it('hides Download for a local file inside the session cwd', () => {
+    expect(shouldOfferChatFileDownload('E:/Family/dad/a.xlsx', 'E:/Family/dad', false)).toBe(false)
+    expect(shouldOfferChatFileDownload('E:\\Family\\dad\\a.xlsx', 'E:/Family/dad', false)).toBe(false)
+  })
+
+  it('keeps Download for remote files and local files outside the project', () => {
+    expect(shouldOfferChatFileDownload('E:/Family/dad/a.xlsx', 'E:/Family/dad', true)).toBe(true)
+    expect(shouldOfferChatFileDownload('C:/Temp/out.xlsx', 'E:/Family/dad', false)).toBe(true)
+    expect(shouldOfferChatFileDownload('E:/Family/dad/a.xlsx', '', false)).toBe(true)
   })
 })
 

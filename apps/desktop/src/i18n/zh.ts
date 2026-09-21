@@ -3827,6 +3827,8 @@ export const zh = defineLocale({
     opening: '正在打开...',
     hide: '隐藏',
     openPreview: '打开预览',
+    openFile: '打开',
+    openFailed: '无法打开文件',
     openInBrowser: '在浏览器中打开',
     openInExternal: '在外部打开',
     popIn: '弹回',
@@ -3979,6 +3981,7 @@ export const zh = defineLocale({
   },
 
   contextMenu: {
+    addToChat: '添加到对话',
     link: {
       openInApp: '在应用内浏览器中打开',
       openExternal: '在外部浏览器中打开',
