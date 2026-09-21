@@ -118,7 +118,7 @@ export function ComposerControls({
   )
 
   return (
-    <div className="ml-auto flex min-w-0 shrink items-center gap-(--composer-control-gap)">
+    <div className="flex min-w-0 shrink items-center gap-(--composer-control-gap)">
       {minimal ? null : (
         <>
           {hideModelPill ? null : (
@@ -131,7 +131,7 @@ export function ComposerControls({
         </>
       )}
       {showQueueButton ? (
-        <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />}>
+        <Tip label={<TipKeybindLabel actionId="composer.queue" text={c.queueMessage} />} placement="control">
           <Button
             aria-label={c.queueMessage}
             className={GHOST_ICON_BTN}
@@ -156,6 +156,7 @@ export function ComposerControls({
               <TipKeybindLabel actionId="composer.send" text={c.send} />
             )
           }
+          placement="control"
         >
           <Button
             aria-label={showStop ? c.stop : c.send}
@@ -229,7 +230,7 @@ function VoiceOverflow({
 
   return (
     <Popover modal={false} onOpenChange={setOpen} open={open}>
-      <Tip label={tooltip}>
+      <Tip label={tooltip} placement="control">
         <PopoverTrigger asChild>
           <Button
             aria-expanded={open}
@@ -275,7 +276,7 @@ function HudWindowButtons() {
 
   return (
     <>
-      <Tip label={t.titlebar.resetHudLayout}>
+      <Tip label={t.titlebar.resetHudLayout} placement="toolbar">
         <Button
           aria-label={t.titlebar.resetHudLayout}
           className={cn(GHOST_ICON_BTN, 'p-0')}
@@ -287,7 +288,7 @@ function HudWindowButtons() {
           <Codicon name="discard" size="0.875rem" />
         </Button>
       </Tip>
-      <Tip label={t.titlebar.exitHud}>
+      <Tip label={t.titlebar.exitHud} placement="toolbar">
         <Button
           aria-label={t.titlebar.exitHud}
           className={cn(GHOST_ICON_BTN, 'p-0')}
@@ -333,7 +334,7 @@ function ConversationPill({
       {/* Keep the ear visible during voice chat — shown paused, since the
           conversation holds the mic (the one time wake must not listen). */}
       <WakeWordButton disabled={disabled} pausedForVoice />
-      <Tip label={muted ? c.unmuteMic : c.muteMic}>
+      <Tip label={muted ? c.unmuteMic : c.muteMic} placement="control">
         <Button
           aria-label={muted ? c.unmuteMic : c.muteMic}
           aria-pressed={muted}
@@ -468,7 +469,7 @@ function WakeWordButton({ disabled, pausedForVoice = false }: { disabled: boolea
   const tooltip = !pausedForVoice && wake.notice ? `${label} — ${wake.notice}` : label
 
   return (
-    <Tip label={tooltip}>
+    <Tip label={tooltip} placement="control">
       <Button
         aria-label={label}
         aria-pressed={wake.listening && !pausedForVoice}

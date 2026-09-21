@@ -83,6 +83,7 @@ class TestBundledPluginsRegister:
             "fathom",
             "firecrawl",
             "keenable",
+            "openai-native",
             "parallel",
             "perplexity",
             "searxng",
@@ -105,6 +106,9 @@ class TestBundledPluginsRegister:
             ("fathom", True, False),
             # xai: search-only via Grok's agentic web_search tool.
             ("xai", True, False),
+            # openai-native: marker for the Codex Responses server-side web_search swap;
+            # search-only, so web_extract keeps its own backend (#19320).
+            ("openai-native", True, False),
         ],
     )
     def test_capability_flags_match_spec(
@@ -123,7 +127,7 @@ class TestBundledPluginsRegister:
 
     @pytest.mark.parametrize(
         "plugin_name",
-        ["brave-free", "ddgs", "searxng", "exa", "parallel", "tavily", "perplexity", "firecrawl", "keenable", "xai", "fathom"],
+        ["brave-free", "ddgs", "searxng", "exa", "parallel", "tavily", "perplexity", "firecrawl", "keenable", "xai", "fathom", "openai-native"],
     )
     def test_each_plugin_has_name_and_display_name(self, plugin_name: str) -> None:
         _ensure_plugins_loaded()

@@ -7,6 +7,7 @@ import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromC
 import { normalizeReasoningEffortValue } from '@/lib/reasoning-effort'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
 import { composerEffortForSelection } from '@/store/model-presets'
+import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
 import {
   $currentModel,
   $currentProvider,
@@ -27,6 +28,7 @@ import {
   applyThinkingSoundFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
+import { setChatFontFamilyFromConfig } from '@/themes/chat-font'
 
 const DEFAULT_VOICE_SECONDS = 120
 const FAST_TIERS = new Set(['fast', 'priority', 'on'])
@@ -161,9 +163,11 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         }
 
         setDisplayTimestampsFromConfig(config.display?.timestamps)
+        setShowReasoningFromConfig(config.display?.show_reasoning)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
         setEditorFontFamilyFromConfig(config.editor?.font_family)
         setEditorFontSizeFromConfig(config.editor?.font_size)
+        setChatFontFamilyFromConfig(config.desktop?.font_family)
 
         if (!canPublish()) {
           return

@@ -9,7 +9,7 @@ vi.mock('@/lib/media', () => ({
 const media = await import('@/lib/media')
 const downloadGatewayMediaFile = vi.mocked(media.downloadGatewayMediaFile)
 
-const { downloadRemoteFile, shouldOfferChatFileDownload, shouldOfferRemoteFileDownload } = await import('./file-actions')
+const { downloadRemoteFile, shouldOfferChatFileDownload, shouldOfferLocalReveal, shouldOfferRemoteFileDownload } = await import('./file-actions')
 
 describe('shouldOfferRemoteFileDownload', () => {
   it('is only for files on a remote backend', () => {
@@ -30,6 +30,20 @@ describe('shouldOfferChatFileDownload', () => {
     expect(shouldOfferChatFileDownload('E:/Family/dad/a.xlsx', 'E:/Family/dad', true)).toBe(true)
     expect(shouldOfferChatFileDownload('C:/Temp/out.xlsx', 'E:/Family/dad', false)).toBe(true)
     expect(shouldOfferChatFileDownload('E:/Family/dad/a.xlsx', '', false)).toBe(true)
+  })
+})
+
+describe('shouldOfferLocalReveal', () => {
+  // The OS file manager can only show what is on this computer (#115167): the
+  // focused row's backend decides; the primary's mode only when it is untagged.
+  it.each([
+    ['', false, true],
+    ['', true, false],
+    ['local', true, true],
+    ['mini', false, false],
+    [undefined, true, false]
+  ])('connection %s with primaryRemote=%s -> %s', (connectionId, primaryRemote, expected) => {
+    expect(shouldOfferLocalReveal(connectionId, primaryRemote)).toBe(expected)
   })
 })
 

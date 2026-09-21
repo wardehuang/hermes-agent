@@ -8,8 +8,6 @@
  * rather than inside either one.
  */
 
-import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
-
 const FILE_EDIT_TOOL_NAMES = new Set(['edit_file', 'patch', 'write_file'])
 
 /** Renders a diff — the deliverable of the turn, and the one card whose cost scales. */
@@ -39,11 +37,15 @@ const CARD_TOOL_NAMES = new Set([
   'video_generate',
 ])
 
+// Name the run splitter uses for a manage_connections part it has classified as a card.
+export const CONNECTION_CARD_KEY = 'manage_connections:card'
+
 export function isCardTool(toolName: string): boolean {
   return (
     CARD_TOOL_NAMES.has(toolName) ||
+    toolName === CONNECTION_CARD_KEY ||
     isFileEditTool(toolName) ||
-    (toolName === 'manage_connections' && isOnboardingEnabled())
+    toolName === 'manage_connections'
   )
 }
 

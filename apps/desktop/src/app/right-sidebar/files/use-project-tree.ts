@@ -7,6 +7,7 @@ import { $connection } from '@/store/session'
 import { $workspaceChangeTick, consumeWorkspaceChange } from '@/store/workspace-events'
 
 import { clearProjectDirCache, type ProjectTreeEntry, readProjectDir } from './ipc'
+import { $showIgnoredRoots, setShowIgnoredFiles, showsIgnoredFiles } from './prefs'
 
 export interface TreeNode {
   /** Absolute filesystem path. Doubles as react-arborist node id. */
@@ -129,10 +130,13 @@ export interface UseProjectTreeResult {
   openState: Record<string, boolean>
   rootError: string | null
   rootLoading: boolean
+  /** True while this project's gitignored entries are displayed. */
+  showIgnored: boolean
   collapseAll: () => void
   loadChildren: (id: string) => Promise<void>
   refreshRoot: () => Promise<void>
   setNodeOpen: (id: string, open: boolean) => void
+  setShowIgnored: (show: boolean) => void
 }
 
 interface ProjectTreeState {
@@ -320,6 +324,11 @@ async function revalidateTree(
   }
 
   const rootPath = state.resolvedCwd || cwd
+  // The gitignore filter is user-switchable, so a listing read under the old
+  // preference must not be committed after a toggle flipped it — it would
+  // re-hide entries the toggle just revealed. Snapshot the policy, re-check it
+  // on commit, same shape as the requestId / connectionKey guards.
+  const filterAtRead = showsIgnoredFiles(rootPath)
 
   if (!change.full && change.dirs.length) {
     // Only re-read changed dirs that are actually loaded (root, or an expanded
@@ -333,7 +342,12 @@ async function revalidateTree(
     const reads = await Promise.all(targets.map(async dir => ({ dir, ...(await readProjectDir(dir, rootPath)) })))
 
     setProjectTree(latest => {
-      if (latest.cwd !== cwd || !latest.loaded || desktopFsCacheKey() !== connectionKey) {
+      if (
+        latest.cwd !== cwd ||
+        !latest.loaded ||
+        desktopFsCacheKey() !== connectionKey ||
+        showsIgnoredFiles(rootPath) !== filterAtRead
+      ) {
         return latest
       }
 
@@ -385,7 +399,10 @@ async function revalidateTree(
   const nextData = await reconcile(rootPath, state.data)
 
   setProjectTree(latest =>
-    latest.cwd === cwd && latest.loaded && desktopFsCacheKey() === connectionKey
+    latest.cwd === cwd &&
+    latest.loaded &&
+    desktopFsCacheKey() === connectionKey &&
+    showsIgnoredFiles(rootPath) === filterAtRead
       ? { ...latest, data: nextData }
       : latest
   )
@@ -404,8 +421,32 @@ export function useProjectTree(cwd: string, options?: { allowRead?: boolean }): 
   const connection = useStore($connection)
   const workspaceTick = useStore($workspaceChangeTick)
   const connectionKey = desktopFsCacheKey(connection)
+  // Subscribed so a toggle re-renders the header; the roots list itself is read
+  // through showsIgnoredFiles so every caller shares one resolver.
+  useStore($showIgnoredRoots)
+
+  const effectiveCwd = state.cwd === cwd && state.resolvedCwd ? state.resolvedCwd : cwd
+  const showIgnored = showsIgnoredFiles(effectiveCwd)
 
   const refreshRoot = useCallback(() => loadRoot(cwd, { connectionKey, force: true }), [connectionKey, cwd])
+
+  // Flipping the filter changes what every already-read directory contains, so
+  // every loaded listing is stale by construction. `loadRoot(force)` is the
+  // wrong instrument: it rebuilds `data` from the root listing alone, so an
+  // expanded subtree loses its children while arborist keeps the row open —
+  // the folder renders empty and nothing re-fetches it. The full reconcile
+  // re-reads every loaded dir recursively and merges by path id, so expansion
+  // and the subtrees on screen both survive.
+  const setShowIgnored = useCallback(
+    (show: boolean) => {
+      if (!setShowIgnoredFiles(effectiveCwd, show)) {
+        return
+      }
+
+      void revalidateTree(cwd, { dirs: [], full: true }, connectionKey)
+    },
+    [connectionKey, cwd, effectiveCwd]
+  )
 
   const setNodeOpen = useCallback(
     (id: string, open: boolean) => {
@@ -461,6 +502,7 @@ export function useProjectTree(cwd: string, options?: { allowRead?: boolean }): 
       })
 
       const rootPath = $projectTree.get().resolvedCwd || cwd
+      const filterAtRead = showsIgnoredFiles(rootPath)
       let entries: ProjectTreeEntry[] = []
       let error: string | undefined
 
@@ -473,7 +515,13 @@ export function useProjectTree(cwd: string, options?: { allowRead?: boolean }): 
       }
 
       setProjectTree(current => {
-        if (current.cwd !== cwd || desktopFsCacheKey() !== connectionKey) {
+        // Same filter guard as revalidateTree: a child listing read before a
+        // show-ignored toggle must not land after it.
+        if (
+          current.cwd !== cwd ||
+          desktopFsCacheKey() !== connectionKey ||
+          showsIgnoredFiles(rootPath) !== filterAtRead
+        ) {
           return current
         }
 
@@ -565,28 +613,32 @@ export function useProjectTree(cwd: string, options?: { allowRead?: boolean }): 
       collapseAll,
       collapseNonce: state.cwd === cwd ? state.collapseNonce : 0,
       data: state.cwd === cwd ? state.data : [],
-      effectiveCwd: state.cwd === cwd && state.resolvedCwd ? state.resolvedCwd : cwd,
+      effectiveCwd,
       loadChildren,
       loaded: state.cwd === cwd && state.loaded,
       openState: state.cwd === cwd ? state.openState : {},
       refreshRoot,
       rootError: state.cwd === cwd ? state.rootError : null,
       rootLoading: state.cwd === cwd ? state.rootLoading : Boolean(cwd) && allowRead,
-      setNodeOpen
+      setNodeOpen,
+      setShowIgnored,
+      showIgnored
     }),
     [
       allowRead,
       collapseAll,
       cwd,
+      effectiveCwd,
       loadChildren,
       refreshRoot,
       setNodeOpen,
+      setShowIgnored,
+      showIgnored,
       state.collapseNonce,
       state.cwd,
       state.data,
       state.loaded,
       state.openState,
-      state.resolvedCwd,
       state.rootError,
       state.rootLoading
     ]
