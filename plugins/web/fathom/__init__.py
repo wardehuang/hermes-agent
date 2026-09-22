@@ -8,10 +8,13 @@ from plugins.web.fathom.provider import FathomWebSearchProvider
 
 SEARCH_DISPATCH_SECTION_ID = "web-fathom.search-dispatch"
 SEARCH_DISPATCH_PROMPT = (
-    "Call the search function listed in the tools array by that exact name "
-    "(web_search or cpa_client_web_search). Both execute Hermes web_search / "
-    "Fathom. Do not wrap a search in execute_code or hermes_tools.web_search; "
-    "Desktop then records execute_code and hides the Fathom badge."
+    "Call the search function listed in the tools array by that exact name. "
+    "On xAI via CPA the listed name is clientfn_web_search "
+    "(or clientfn_web_search_N if that name already exists). Otherwise it is "
+    "web_search. Both execute Hermes web_search / Fathom. Do not wrap a search "
+    "in execute_code or hermes_tools.web_search; Desktop then records "
+    "execute_code and hides the Fathom badge. Do not invoke native hosted "
+    "type=web_search."
 )
 
 
