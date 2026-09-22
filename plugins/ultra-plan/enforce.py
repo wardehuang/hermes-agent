@@ -22,6 +22,7 @@ ALLOW_TOOLS = frozenset(
         "search_files",
         "web_search",
         "web_extract",
+        "clientfn_web_search",
         "cpa_client_web_search",
         "skill_view",
         "skills_list",

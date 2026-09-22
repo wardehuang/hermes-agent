@@ -209,9 +209,10 @@ class _FakeProvider:
 
 def test_search_dispatch_prompt_allows_listed_search_name() -> None:
     assert "web_search" in SEARCH_DISPATCH_PROMPT
-    assert "cpa_client_web_search" in SEARCH_DISPATCH_PROMPT
+    assert "clientfn_web_search" in SEARCH_DISPATCH_PROMPT
     assert "execute_code" in SEARCH_DISPATCH_PROMPT
-    assert "Do not invoke cpa_client_web_search" not in SEARCH_DISPATCH_PROMPT
+    assert "type=web_search" in SEARCH_DISPATCH_PROMPT
+    assert "Do not invoke clientfn_web_search" not in SEARCH_DISPATCH_PROMPT
 
 
 def test_search_dispatch_section_only_when_fathom_active(monkeypatch) -> None:

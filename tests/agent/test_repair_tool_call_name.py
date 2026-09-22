@@ -127,12 +127,16 @@ class TestVolcEngineXmlPollution:
 
 
 class TestCpaWebSearchWireAlias:
-    """CPA xAI tools[] rewrite leaks ``cpa_client_web_search`` to Hermes."""
+    """CPA xAI tools[] rewrite leaks ``clientfn_web_search`` to Hermes."""
 
     def test_alias_maps_to_web_search(self, repair):
-        assert repair("cpa_client_web_search") == "web_search"
+        assert repair("clientfn_web_search") == "web_search"
 
     def test_numbered_alias_maps_to_web_search(self, repair):
+        assert repair("clientfn_web_search_1") == "web_search"
+
+    def test_retired_plugin_alias_maps_to_web_search(self, repair):
+        assert repair("cpa_client_web_search") == "web_search"
         assert repair("cpa_client_web_search_2") == "web_search"
 
     def test_alias_ignored_when_web_search_unavailable(self, repair):
@@ -140,4 +144,5 @@ class TestCpaWebSearchWireAlias:
 
         stub = SimpleNamespace(valid_tool_names={"terminal", "web_extract"})
         bound = AIAgent._repair_tool_call.__get__(stub, AIAgent)
+        assert bound("clientfn_web_search") is None
         assert bound("cpa_client_web_search") is None
