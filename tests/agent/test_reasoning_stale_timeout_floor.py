@@ -95,6 +95,7 @@ import pytest
     ("x-ai/grok-4.20-reasoning", 300.0),
     ("x-ai/grok-4.5", 300.0),
     ("x-ai/grok-4.6", 300.0),
+    ("x-ai/grok-4.7", 300.0),
     ("x-ai/grok-4-fast-non-reasoning", 180.0),
     # Thinking Machines Inkling — family entry covers -small and the
     # OpenRouter :free / :batch SKU suffixes (":" is a slug separator

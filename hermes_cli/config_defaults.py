@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     "providers": {
         "cpa": {
             "name": "Cpa",
-            "api": "http://wcpa.edmundvps.site:18457/v1",
+            "api": "http://wcpa.edmundvps.site:18458/v1",
             "key_env": "WCPA_API_KEY",
             "transport": "codex_responses",
             "discover_models": False,
@@ -46,6 +46,10 @@ DEFAULT_CONFIG = {
                 "gpt-5.6-luna": {
                     "supports_vision": True,
                     "context_length": 256000,
+                },
+                "grok-4.7": {
+                    "supports_vision": True,
+                    "context_length": 500000,
                 },
                 "grok-4.6": {
                     "supports_vision": True,

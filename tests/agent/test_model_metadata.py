@@ -1924,8 +1924,11 @@ class TestGrok46StaleCacheGuard:
         assert _stale_pre_catalog_cache_entry("grok-4.6", 256_000)
         assert _stale_pre_catalog_cache_entry("xai/grok-4.6", 256_000)
         assert _stale_pre_catalog_cache_entry("x-ai/grok-4.6", 256_000)
+        assert _stale_pre_catalog_cache_entry("grok-4.7", 256_000)
+        assert _stale_pre_catalog_cache_entry("x-ai/grok-4.7", 256_000)
         # Correct/probed values are never dropped.
         assert not _stale_pre_catalog_cache_entry("grok-4.6", 500_000)
+        assert not _stale_pre_catalog_cache_entry("grok-4.7", 500_000)
         # Sibling slugs with correct catalog values are untouched.
         assert not _stale_pre_catalog_cache_entry("grok-4", 256_000)
         assert not _stale_pre_catalog_cache_entry("grok-4.5", 500_000)
@@ -1941,6 +1944,22 @@ class TestGrok46StaleCacheGuard:
             "grok-4.6", base_url=base, api_key="", provider="xai"
         )
         assert ctx == 500_000
+
+
+class TestGrok46Family:
+    """Grok 4.6+ (not grok-4.20) is the xhigh / Priority Processing family."""
+
+    def test_grok_4_6_and_4_7_are_family(self):
+        from agent.model_metadata import grok_supports_reasoning_effort, is_grok_46_family
+
+        assert is_grok_46_family("grok-4.6")
+        assert is_grok_46_family("x-ai/grok-4.6")
+        assert is_grok_46_family("grok-4.7")
+        assert is_grok_46_family("cpa/grok-4.7")
+        assert is_grok_46_family("grok-4.7-preview")
+        assert not is_grok_46_family("grok-4.5")
+        assert not is_grok_46_family("grok-4.20")
+        assert grok_supports_reasoning_effort("grok-4.7")
 
 
 class TestGenericPreCatalogStaleGuard:
