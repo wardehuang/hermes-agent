@@ -15,9 +15,9 @@ import { downloadGatewayMediaFile } from '@/lib/media'
 import { previewName } from '@/lib/preview-targets'
 import { shouldOfferChatFileDownload } from '@/store/file-actions'
 import { notifyError } from '@/store/notifications'
-import { $previewTabSources, closePreviewForSource, openPreview, type PreviewRecordSource } from '@/store/preview'
+import { $previewTabSources, closePreviewForSource, openPreview } from '@/store/preview'
 
-export function PreviewAttachment({ source = 'manual', target }: { source?: PreviewRecordSource; target: string }) {
+export function PreviewAttachment({ target }: { target: string }) {
   const { t } = useI18n()
   // This link lives in one session's transcript; resolve it against THAT
   // session's cwd, not the primary chat's.
@@ -96,7 +96,7 @@ export function PreviewAttachment({ source = 'manual', target }: { source?: Prev
         return
       }
 
-      openPreview(preview, source)
+      openPreview(preview)
     } catch (error) {
       if (
         !mountedRef.current ||

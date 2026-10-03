@@ -104,7 +104,7 @@ export async function jumpToProjectHit(hit: ProjectFileHit, cwd: string): Promis
     return true
   }
 
-  openPreview(target, 'file-browser')
+  openPreview(target)
 
   return true
 }

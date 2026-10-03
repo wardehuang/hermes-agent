@@ -41,7 +41,6 @@ export function ComposerControls({
   busy,
   busyAction,
   canSubmit,
-  compactModelPill = false,
   conversation,
   disabled,
   foldVoice = false,
@@ -58,7 +57,6 @@ export function ComposerControls({
   busy: boolean
   busyAction: 'steer' | 'queue' | 'stop'
   canSubmit: boolean
-  compactModelPill?: boolean
   conversation: ConversationProps
   disabled: boolean
   foldVoice?: boolean
@@ -123,8 +121,8 @@ export function ComposerControls({
         <>
           {hideModelPill ? null : (
             <>
-              <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
-              {compactModelPill ? null : <ReasoningPill disabled={disabled} model={state.model} />}
+              <ModelPill disabled={disabled} model={state.model} />
+              <ReasoningPill disabled={disabled} model={state.model} />
             </>
           )}
           {voiceControls}

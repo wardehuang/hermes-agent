@@ -25,6 +25,7 @@ import {
 import { refreshVoiceLiveStatus } from '@/store/voice-live'
 import {
   applyAutoSpeakFromConfig,
+  applyBargeInThresholdFromConfig,
   applyThinkingSoundFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
@@ -174,7 +175,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
         }
 
         applyAutoSpeakFromConfig(config)
-        applyVoiceStopPhraseFromConfig(config)
+        applyVoiceStopPhraseFromConfig(config, defaults)
+        applyBargeInThresholdFromConfig(config)
         applyThinkingSoundFromConfig(config)
         // Resolved server-side (mode + whether a key resolves); non-critical.
         void refreshVoiceLiveStatus().catch(() => undefined)

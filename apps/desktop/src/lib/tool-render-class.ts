@@ -21,11 +21,12 @@ export function isFileEditTool(toolName: string): boolean {
 //   - File edits are the deliverable, not scaffolding. The diff is what the
 //     user reviews, so it stays visible at its place in the turn, live and
 //     settled, the way a PR shows its changes.
-//   - `clarify`, `image_generate`, `video_generate` and `delegate_task` bypass
-//     ToolEntry to render their own markup: a question the user has to answer,
-//     media they asked for, the several agents a fan-out is running.
-//   - `setup_mcp` and `manage_connections` are inline consent cards the user has to
-//     act on. Folding it into a "Using 2 tools" summary hides the buttons.
+//   - `clarify`, `image_generate`, `video_generate`, `delegate_task` and
+//     `manage_catalog` bypass ToolEntry to render their own markup: a question
+//     the user has to answer, media they asked for, agents in a fan-out, or a
+//     catalog consent card.
+//   - `setup_mcp` and `manage_connections` are inline consent cards the user has
+//     to act on. Folding them into a "Using 2 tools" summary hides the buttons.
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
 // what a run summarizes and what the live ticker cycles through.
@@ -33,8 +34,9 @@ const CARD_TOOL_NAMES = new Set([
   'clarify',
   'delegate_task',
   'image_generate',
+  'manage_catalog',
   'setup_mcp',
-  'video_generate',
+  'video_generate'
 ])
 
 // Name the run splitter uses for a manage_connections part it has classified as a card.

@@ -84,7 +84,7 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
         return
       }
 
-      openPreview(preview, 'file-browser')
+      openPreview(preview)
     } catch (error) {
       notifyError(error, r.previewUnavailable)
     }

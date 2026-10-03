@@ -6,6 +6,7 @@ import { useSessionView } from '@/app/chat/session-view'
 import { ModelMenuCloseContext } from '@/app/shell/model-menu-panel'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { releaseTypingFocus } from '@/components/ui/keyboard-first'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
@@ -13,7 +14,7 @@ import { ChevronDown } from '@/lib/icons'
 import { reasoningEffortClamp, reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { cn } from '@/lib/utils'
 import { $modelPresets, composerEffortForSelection } from '@/store/model-presets'
-import { $defaultReasoningEffort, $reasoningOverrides } from '@/store/session'
+import { $defaultReasoningEffort } from '@/store/session'
 
 import type { ChatBarState } from './types'
 
@@ -38,8 +39,8 @@ export function ReasoningPill({ disabled, model }: { disabled: boolean; model: C
   const reasoningEffortWire = useStore(view.$reasoningEffortWire)
   const modelId = useStore(view.$model)
   const provider = useStore(view.$provider)
+  const pending = useStore(view.$reasoningEffortPending)
   const defaultEffort = useStore($defaultReasoningEffort)
-  useStore($reasoningOverrides)
   useStore($modelPresets)
   const [open, setOpen] = useState(false)
 
@@ -55,9 +56,13 @@ export function ReasoningPill({ disabled, model }: { disabled: boolean; model: C
   const clamp = reasoningEffortClamp(effort, reasoningEffortWire)
   const label = reasoningEffortLabel(effort, reasoningEffortWire)
 
-  const title = clamp
-    ? `${copy.effort}: ${copy[clamp.effort]} (${copy.sendsOnRoute(copy[clamp.wire])})`
-    : `${copy.effort}: ${label}`
+  // Until the session reports its own effort, the profile default is a guess
+  // about to be replaced (#79807). Show the model pill's quiet loader instead.
+  const title = pending
+    ? copy.effort
+    : clamp
+      ? `${copy.effort}: ${copy[clamp.effort]} (${copy.sendsOnRoute(copy[clamp.wire])})`
+      : `${copy.effort}: ${label}`
 
   // Closing the menu ends its claim on the keyboard: Radix restores focus to
   // this pill (a toolbar button), so without the release the Enter that
@@ -82,7 +87,7 @@ export function ReasoningPill({ disabled, model }: { disabled: boolean; model: C
             type="button"
             variant="ghost"
           >
-            <span>{label}</span>
+            {pending ? <GlyphSpinner className="opacity-50" spinner="braille" /> : <span>{label}</span>}
             <ChevronDown className="size-2.5 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>

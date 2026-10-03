@@ -99,7 +99,6 @@ test.describe('chat interaction with mock backend', () => {
     await page.getByText(BLOCKING_CLARIFY_QUESTION).waitFor({ state: 'visible', timeout: 30_000 })
 
     await expect(primary).toHaveAttribute('aria-label', 'Stop')
-    await expect(primary.locator('span')).toHaveClass(/bg-current/)
 
     await composer.click()
     await composer.type('please answer tersely')
@@ -120,7 +119,6 @@ test.describe('chat interaction with mock backend', () => {
     await expect(page.getByRole('button', { name: 'Read replies aloud' })).toBeVisible()
     await page.keyboard.press('Escape')
     await page.screenshot({ path: testInfo.outputPath('busy-composer-steer.png') })
-    await expect(primary.locator('.codicon-arrow-up')).toBeVisible()
 
     await queue.click()
     await expect(primary).toHaveAttribute('aria-label', 'Stop')

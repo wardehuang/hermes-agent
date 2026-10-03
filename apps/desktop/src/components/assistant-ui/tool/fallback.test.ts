@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { isCardTool, isSilentTool } from '@/lib/tool-render-class'
-
+import { isCardTool, isSilentTool } from './fallback-model'
 import { splitRunItems, technicalTrace } from './fallback'
-
 describe('isCardTool', () => {
   it('keeps what the user has to look at out of a summary', () => {
     // A diff is the deliverable, a clarify is a question waiting on an answer,

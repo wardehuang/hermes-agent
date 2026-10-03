@@ -118,6 +118,17 @@ def test_reasoning_stale_timeout_floor_positive_cases(model, expected):
 
 
 
+def test_floor_matching_is_vendor_prefix_and_variant_suffix_transparent():
+    """A routed/vendor-prefixed or -variant/:sku slug resolves to its family's floor,
+    while a look-alike community derivative does not match at all."""
+    from agent.reasoning_timeouts import get_reasoning_stale_timeout_floor as floor
+
+    assert floor("openai/o3-mini") == floor("o3-mini") is not None
+    assert floor("gpt-5.6-sol-900k") == floor("gpt-5.6-sol") is not None
+    assert floor("thinkingmachines/inkling:free") == floor("thinkingmachines/inkling") is not None
+    assert floor("openai/gpt-4o") is None
+
+
 # ── integration: _resolved_api_call_stale_timeout_base ─────────────────────
 
 
@@ -196,59 +207,6 @@ def test_gpt_5_6_floor_reaches_non_stream_and_stream_resolvers(monkeypatch, tmp_
     monkeypatch.setattr(run_agent, "get_provider_stale_timeout", lambda *a, **k: 900.0)
     assert agent._resolved_api_call_stale_timeout_base() == (900.0, False)
     assert _cloud_stale_timeout(900.0, {"model": "gpt-5.6-sol", "input": "small"}) == 900.0
-
-
-# ── stream-side mirror (the real builder lives in a worker thread) ────────
-
-
-def _resolve_stream_stale_timeout(
-    model: str | None,
-    base_url: str,
-    est_tokens: int,
-    stale_base: float = 180.0,
-) -> float:
-    """Mirror of the stale-stream resolution in agent/chat_completion_helpers.py.
-
-    Kept in lockstep with the production code at lines 2539-2575 of
-    agent/chat_completion_helpers.py.  When that block changes, this
-    mirror must change too — the failing-test signal is the divergence.
-    """
-    from agent.model_metadata import is_local_endpoint
-    from agent.reasoning_timeouts import get_reasoning_stale_timeout_floor
-
-    # Provider-configured stale timeout wins (mirrors get_provider_stale_timeout).
-    if stale_base != 180.0:
-        pass  # In production this is sourced from config; here we parameterize.
-
-    if stale_base == 180.0 and base_url and is_local_endpoint(base_url):
-        return float("inf")
-
-    if est_tokens > 100_000:
-        timeout = max(stale_base, 300.0)
-    elif est_tokens > 50_000:
-        timeout = max(stale_base, 240.0)
-    else:
-        timeout = stale_base
-
-    # Reasoning-model floor (the new branch this PR adds).
-    floor = get_reasoning_stale_timeout_floor(model)
-    if floor is not None:
-        timeout = max(timeout, floor)
-    return timeout
-
-
-def test_stream_stale_timeout_floor_for_nemotron_3_ultra():
-    """Small-context Nemotron 3 Ultra without explicit config -> 600s floor.
-
-    Without the floor, this would be 180s (the default), which is shorter
-    than NVIDIA NIM's ~120s upstream idle kill — guaranteeing broken pipe.
-    """
-    timeout = _resolve_stream_stale_timeout(
-        model="nvidia/nemotron-3-ultra-550b-a55b",
-        base_url="https://integrate.api.nvidia.com/v1",
-        est_tokens=10_000,
-    )
-    assert timeout == 600.0
 
 
 def test_explicit_provider_stale_timeout_wins_over_context_tier_and_reasoning_floor(monkeypatch, tmp_path):

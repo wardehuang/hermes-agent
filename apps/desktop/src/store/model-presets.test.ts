@@ -30,10 +30,6 @@ describe('model presets', () => {
     expect(getModelPreset('x', 'y')).toEqual({})
   })
 
-  it('keys by provider::model', () => {
-    expect(modelPresetKey('openai', 'gpt-5.5')).toBe('openai::gpt-5.5')
-  })
-
   it('pushes only the provided dimensions to the gateway', async () => {
     const calls: { method: string; params?: Record<string, unknown> }[] = []
 

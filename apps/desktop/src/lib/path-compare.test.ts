@@ -4,10 +4,21 @@ import {
   cleanPath,
   comparisonPath,
   isUnderPath,
+  isWindowsAbsolutePath,
   joinProjectPath,
   relativePathSegments,
   windowsPathIgnoresCase
 } from './path-compare'
+
+describe('isWindowsAbsolutePath', () => {
+  it.each(['C:\\Users\\me', 'd:/work', '\\\\server\\share'])('accepts %s', path => {
+    expect(isWindowsAbsolutePath(path)).toBe(true)
+  })
+
+  it.each(['/home/me', './out', 'out\\report.html', 'C:relative', 'https://x.com'])('rejects %s', path => {
+    expect(isWindowsAbsolutePath(path)).toBe(false)
+  })
+})
 
 describe('cleanPath', () => {
   it('unifies separators and drops trailing slashes', () => {
