@@ -2131,6 +2131,10 @@ export const fr = defineLocale({
           label: 'Révision',
           hint: 'Sous-agent de révision /review'
         },
+        background_review: {
+          label: 'Revue en arrière-plan',
+          hint: 'Mémoire et skills après le tour'
+        },
         triage_specifier: {
           label: 'Précision du triage',
           hint: 'Détail des spécifications Kanban'

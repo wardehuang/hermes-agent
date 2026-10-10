@@ -1330,6 +1330,7 @@ export const ja = defineLocale({
         mcp: { label: 'MCP', hint: 'MCP ツールルーティング' },
         title_generation: { label: 'タイトル生成', hint: 'セッションタイトル' },
         review: { label: 'レビュー', hint: '/review レビューサブエージェント' },
+        background_review: { label: 'バックグラウンドレビュー', hint: 'ターン後の記憶とスキル' },
         triage_specifier: { label: 'トリアージ指定', hint: 'カンバン仕様の具体化' },
         kanban_decomposer: { label: 'カンバン分解', hint: 'タスク分解' },
         profile_describer: { label: 'プロファイル記述', hint: 'プロファイル概要の自動生成' },

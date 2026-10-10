@@ -2120,6 +2120,10 @@ export const es = defineLocale({
           label: 'Revisión',
           hint: 'subagente revisor de /review'
         },
+        background_review: {
+          label: 'Revisión en segundo plano',
+          hint: 'Memoria y skills tras el turno'
+        },
         triage_specifier: {
           label: 'Especificador de triaje',
           hint: 'Detalle de especificaciones de Kanban'

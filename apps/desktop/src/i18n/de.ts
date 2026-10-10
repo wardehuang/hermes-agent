@@ -2128,6 +2128,10 @@ export const de = defineLocale({
           label: 'Review',
           hint: '/review Bewertungs-Subagent'
         },
+        background_review: {
+          label: 'Hintergrund-Review',
+          hint: 'Gedächtnis und Skills nach dem Zug'
+        },
         triage_specifier: {
           label: 'Triage-Spezifizierer',
           hint: 'Kanban-Spezifikation ausarbeiten'

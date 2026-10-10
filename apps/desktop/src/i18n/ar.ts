@@ -1150,6 +1150,10 @@ export const ar = defineLocale({
           label: 'المراجعة',
           hint: 'وكيل المراجعة الفرعي /review'
         },
+        background_review: {
+          label: 'المراجعة الخلفية',
+          hint: 'الذاكرة والمهارات بعد الدور'
+        },
         triage_specifier: {
           label: 'محدد الفرز',
           hint: 'توضيح مواصفات كانبان'

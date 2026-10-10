@@ -1486,7 +1486,8 @@ export const ru = defineLocale({
         approval: { label: 'Одобрение', hint: 'Умное авто-одобрение' },
         mcp: { label: 'MCP', hint: 'Маршрутизация MCP-инструментов' },
         title_generation: { label: 'Ген. заголовка', hint: 'Заголовки сеансов' },
-        curator: { label: 'Куратор', hint: 'Просмотр использования навыков' }
+        curator: { label: 'Куратор', hint: 'Просмотр использования навыков' },
+        background_review: { label: 'Фоновый разбор', hint: 'Память и навыки после хода' }
       }
     },
     providers: {
