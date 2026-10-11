@@ -3,11 +3,16 @@
 
 Workflow:
   1. Resolve the hermes-agent repo root (parent of ``build-script/``).
-  2. Prefer the official ``hermes desktop --build-only --force-build`` path so
+  2. Refuse to pack against a stale environment: the launcher this script writes
+     pins ``HERMES_DESKTOP_HERMES_ROOT``, so the app spawns THIS checkout's
+     interpreter (``.venv``, or ``HERMES_DESKTOP_PYTHON``) — a checkout Python
+     whose version/dependencies PM has not provisioned would ship an app that
+     dies on its first turn (``No module named 'snowballstemmer'``).
+  3. Prefer the official ``hermes desktop --build-only --force-build`` path so
      Electron cache repair, Windows file-lock stop, and PE integrity checks run.
-  3. Fall back to ``npm install`` + ``npm run pack`` if the CLI module is not
+  4. Fall back to ``npm install`` + ``npm run pack`` if the CLI module is not
      importable from this checkout.
-  4. Write a one-click launcher that pins ``HERMES_DESKTOP_HERMES_ROOT`` to this
+  5. Write a one-click launcher that pins ``HERMES_DESKTOP_HERMES_ROOT`` to this
      repo so the shell always uses your fork's Python agent, not a managed install.
 
 Double-click on Windows: use ``build_desktop.bat`` (keeps the console open).
@@ -16,6 +21,7 @@ Double-click on Windows: use ``build_desktop.bat`` (keeps the console open).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -28,6 +34,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DESKTOP_DIR = REPO_ROOT / "apps" / "desktop"
 RELEASE_DIR = DESKTOP_DIR / "release"
+#: The interpreter PM provisions this checkout against (``.python-version``), e.g. "3.14".
+PINNED_PYTHON_FILE = REPO_ROOT / ".python-version"
 
 
 def log(message: str) -> None:
@@ -81,6 +89,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional Electron download mirror base URL (sets ELECTRON_MIRROR).",
     )
     parser.add_argument(
+        "--provision",
+        action="store_true",
+        help="Sync a stale checkout environment (hermes_cli.venv_sync) instead of refusing to pack.",
+    )
+    parser.add_argument(
         "--shortcut-only",
         action="store_true",
         help="Skip pack; only rewrite launchers + Start Menu shortcut for the existing exe.",
@@ -101,6 +114,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def candidate_python_interpreters() -> list[Path]:
     """Prefer checkout / managed venvs over a bare system Python."""
     candidates: list[Path] = []
+    # A developer override wins everywhere else (Desktop, no-console-git): pack
+    # against the same interpreter instead of a checkout venv it overrides.
+    for env_name in ("HERMES_DESKTOP_PYTHON", "HERMES_PYTHON"):
+        override = os.environ.get(env_name, "").strip()
+        if override:
+            candidates.append(Path(override))
     if sys.platform == "win32":
         candidates.extend(
             [
@@ -168,6 +187,104 @@ def build_python_env() -> dict[str, str]:
     # Local fork builds must not hang on code-signing identity discovery.
     environment.setdefault("CSC_IDENTITY_AUTO_DISCOVERY", "false")
     return environment
+
+
+def resolve_source_python() -> Path | None:
+    """The interpreter the packaged app resolves for this checkout.
+
+    Mirrors ``apps/desktop/electron/source-python.ts``: an explicit
+    ``HERMES_DESKTOP_PYTHON`` override, else the checkout's own virtualenv. The
+    launcher this script writes pins ``HERMES_DESKTOP_HERMES_ROOT``, so this is
+    the interpreter the app's backend runs (and the one that must be current).
+    """
+    override = os.environ.get("HERMES_DESKTOP_PYTHON", "").strip()
+    if override and Path(override).is_file():
+        return Path(override)
+    candidates = (
+        (Path(".venv") / "Scripts" / "python.exe", Path("venv") / "Scripts" / "python.exe")
+        if sys.platform == "win32"
+        else (Path(".venv") / "bin" / "python", Path("venv") / "bin" / "python")
+    )
+    for relative in candidates:
+        path = REPO_ROOT / relative
+        if path.is_file():
+            return path
+    return None
+
+
+def pinned_python_version() -> str | None:
+    """``"3.14"`` from the checkout's ``.python-version``; None when unreadable."""
+    try:
+        value = PINNED_PYTHON_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
+
+
+def interpreter_version(python_executable: Path) -> str | None:
+    probe = subprocess.run(
+        [str(python_executable), "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+        cwd=str(REPO_ROOT),
+        env=build_python_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    version = (probe.stdout or "").strip()
+    return version if probe.returncode == 0 and version else None
+
+
+def dependency_environment_state(python_executable: Path) -> tuple[str | None, str]:
+    """PM's verdict for this checkout's dependency environment, plus its detail.
+
+    ``hermes_cli.venv_sync --check`` reports ``current`` / ``would-sync``. A probe
+    that cannot run at all (older checkout, restricted shell) returns ``(None, detail)``
+    so it never blocks a pack on its own — the version pin still does.
+    """
+    probe = subprocess.run(
+        [str(python_executable), "-m", "hermes_cli.venv_sync", "--check", "--json"],
+        cwd=str(REPO_ROOT),
+        env=build_python_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        result = json.loads((probe.stdout or "").strip().splitlines()[-1])
+        return str(result.get("state") or ""), str(result.get("detail") or "")
+    except (ValueError, IndexError, AttributeError):
+        tail = (probe.stderr or probe.stdout or "").strip().splitlines()
+        return None, tail[-1] if tail else ""
+
+
+def environment_problems(python_executable: Path) -> list[str]:
+    """Why this interpreter must not ship: wrong Python, or a stale dependency set.
+
+    Catches the real failure this check exists for: a checkout ``.venv`` created
+    before PM pinned the interpreter (3.11 while ``.python-version`` says 3.14)
+    passes the ``import hermes_cli.main`` probe while missing every dependency the
+    pin gates — the packed app then dies on its first turn.
+    """
+    problems: list[str] = []
+    pinned, actual = pinned_python_version(), interpreter_version(python_executable)
+    if pinned and actual and actual != pinned:
+        problems.append(f"Python {actual}, but this checkout pins {pinned}")
+    state, detail = dependency_environment_state(python_executable)
+    if state == "would-sync":
+        problems.append("dependency environment is stale (PM reports would-sync)")
+    elif state not in (None, "current"):
+        log(f"  note: dependency check reported {state!r} ({detail}) — continuing")
+    return problems
+
+
+def provision_dependencies(python_executable: Path) -> None:
+    """Run PM's dependency transaction so this checkout's environment is current."""
+    run_command(
+        [str(python_executable), "-m", "hermes_cli.venv_sync"],
+        cwd=REPO_ROOT,
+        env=build_python_env(),
+        label="hermes_cli.venv_sync (provision dependencies)",
+    )
 
 
 def build_npm_env(electron_mirror: str | None) -> dict[str, str]:
@@ -484,6 +601,31 @@ def main(argv: list[str] | None = None) -> int:
         fail(f"Not a hermes-agent checkout (missing apps/desktop): {REPO_ROOT}")
 
     if not args.shortcut_only:
+        # The launcher pins HERMES_DESKTOP_HERMES_ROOT, so the app spawns THIS
+        # checkout's interpreter: validate that one before packing a broken app.
+        source_python = resolve_source_python()
+        if source_python is not None:
+            log(f"App interpreter : {source_python}")
+            problems = environment_problems(source_python)
+            if problems:
+                for problem in problems:
+                    log(f"  ! {problem}")
+                if args.provision:
+                    provision_dependencies(source_python)
+                else:
+                    fail(
+                        "refusing to pack — the app would spawn this checkout's interpreter and its "
+                        "environment is incomplete.\n"
+                        "  fix: run  .\\activate.ps1  (or  hermes pm install ), then re-run this script;\n"
+                        "       or re-run with --provision to sync it here.",
+                        exit_code=2,
+                    )
+        else:
+            log(
+                "WARN: no checkout interpreter (.venv/venv or HERMES_DESKTOP_PYTHON); the app will "
+                "fall back to an installed runtime."
+            )
+
         build_python = resolve_build_python()
         if build_python is not None:
             log(f"Using hermes_cli via: {build_python}")

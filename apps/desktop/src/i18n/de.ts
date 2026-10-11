@@ -2504,7 +2504,10 @@ export const deOverrides = {
           enable: 'Mein Profil verwenden'
         }
       }
-    }
+    },
+    editorFontPreview: 'Glyph-Vorschau',
+    editorFontReset: 'Standard verwenden',
+    editorFontSizeLabel: 'Größe'
   },
   skills: {
     tabSkills: 'Skills',
@@ -5567,7 +5570,8 @@ export const deOverrides = {
           pending: 'Bearbeitet Datei',
           pendingAction: 'Bearbeitet'
         }
-      }
+      },
+      video_generate: { pendingAction: 'Generiert' }
     }
   },
   prompts: {
@@ -5783,7 +5787,11 @@ export const deOverrides = {
       description: 'Zeigt die mobile Sidebar an.',
       toggle: open => `${open ? 'Anzeigen' : 'Ausblenden'}: Sidebar`
     }
-  }
+  },
+  files: 'Dateien',
+  addToChat: 'Zum Chat hinzufügen',
+  openFailed: 'Öffnen fehlgeschlagen',
+  openFile: 'Öffnen'
 } satisfies TranslationOverrides
 
 export const de = defineLocale(deOverrides)

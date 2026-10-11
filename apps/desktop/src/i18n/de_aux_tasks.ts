@@ -29,6 +29,10 @@ export const deAuxTasks: AuxTaskCopyMap = {
     label: 'Review',
     hint: '/review Bewertungs-Subagent'
   },
+  background_review: {
+    label: 'Hintergrund-Review',
+    hint: 'Gedächtnis und Skills nach dem Zug'
+  },
   voice_chat: { label: 'Sprachchat', hint: 'Gesprochene Antworten im Sprachmodus' },
   triage_specifier: {
     label: 'Triage-Spezifizierer',

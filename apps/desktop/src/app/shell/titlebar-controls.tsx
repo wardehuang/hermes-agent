@@ -164,8 +164,16 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   // from the live tree (see toggleLeftSide / toggleRightSide) — the browser
   // column, the sessions column, whatever is physically left / right. Never an
   // active highlight — plain show/hide affordances.
-  const leftEdge = { open: leftSideOpen, toggle: toggleLeftSide }
-  const rightEdge = { open: fileBrowserOpen, toggle: toggleRightSide }
+  const leftEdge = {
+    actionId: panesFlipped ? 'view.toggleRightSidebar' : 'view.toggleSidebar',
+    open: leftSideOpen,
+    toggle: toggleLeftSide,
+  }
+  const rightEdge = {
+    actionId: panesFlipped ? 'view.toggleSidebar' : 'view.toggleRightSidebar',
+    open: fileBrowserOpen,
+    toggle: toggleRightSide,
+  }
   const leftLabel = leftEdge.open ? t.titlebar.hideSidebar : t.titlebar.showSidebar
   const rightLabel = rightEdge.open ? t.titlebar.hideRightSidebar : t.titlebar.showRightSidebar
 

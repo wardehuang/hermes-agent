@@ -10,23 +10,30 @@ import type { LocalCatalogModel, LocalModelsStatus, LocalRuntimeJob } from '@/ty
 vi.mock('@/hermes', async (): Promise<object> => ({
   ...(await import('@/api/local-models')),
   getHermesConfigRecord: async (): Promise<object> => ({}),
-  getGlobalModelOptions: async (): Promise<ModelOptionsResult> => ({ providers: [] })
+  getGlobalModelOptions: async (): Promise<ModelOptionsResult> => ({ providers: [] }),
+  // `store/profile` calls this from its module-scope `$activeGatewayProfile`
+  // subscription, which the settings surfaces' store chain pulls in.
+  setApiRequestProfile: vi.fn()
 }))
-vi.mock('@/store/profile', async (): Promise<object> => {
+vi.mock('@/store/profile', async (importOriginal): Promise<object> => {
+  const actual = await importOriginal<typeof import('@/store/profile')>()
   const { atom } = await import('nanostores')
 
   // settings-scope compares the selected profile against the roster's default; 'work' IS the
-  // default here so the settings surfaces render without the non-default warning.
+  // default here so the settings surfaces render without the non-default warning. The menu's
+  // store chain (model-presets → session-states → preview → layout) reads the rest at module
+  // scope, so the double keeps the real exports.
   return {
+    ...actual,
     $activeGatewayProfile: atom<string>('work'),
-    $profiles: atom([{ name: 'work', is_default: true }]),
-    normalizeProfileKey: (name: string | null | undefined): string => (name ?? '').trim() || 'default'
+    $profiles: atom([{ name: 'work', is_default: true }])
   }
 })
-vi.mock('@/store/session', async (): Promise<object> => {
+vi.mock('@/store/session', async (importOriginal): Promise<object> => {
+  const actual = await importOriginal<typeof import('@/store/session')>()
   const { atom } = await import('nanostores')
 
-  return { $connection: atom<HermesConnection | null>(null), $defaultReasoningEffort: atom<string>('') }
+  return { ...actual, $connection: atom<HermesConnection | null>(null), $defaultReasoningEffort: atom<string>('') }
 })
 vi.mock('@/store/notifications', (): object => ({ notify: vi.fn(), notifyError: vi.fn() }))
 

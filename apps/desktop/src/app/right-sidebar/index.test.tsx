@@ -97,6 +97,8 @@ describe('RightSidebarPane', () => {
     expect(screen.getByText('README.md')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Refresh tree' })).toBeTruthy()
     expect(readDir).not.toHaveBeenCalled()
+  })
+
   it('reads the focused tile workspace cwd when a tile tab is focused', async () => {
     $selectedStoredSessionId.set('main-session')
     $workspaceCwdOwner.set('main-session')

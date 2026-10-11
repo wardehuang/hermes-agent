@@ -1647,20 +1647,21 @@ def _run_conversation_turn(
     if _prelude_action == "return":
         return _prelude_result
     if s.api_call_count == 0 and _prelude_action != "break":
+        # Must run before begin_iteration: that phase increments api_call_count.
         _direct_response = maybe_run_direct_image_generate(
-            user_message=user_message,
-            original_user_message=original_user_message,
-            messages=messages,
-            effective_task_id=effective_task_id,
-            active_profile_name=active_profile_name,
-            model=model,
-            current_platform=current_platform,
+            agent,
+            s.messages,
+            effective_task_id=s.effective_task_id,
+            conversation_history=s.conversation_history,
+            user_message=s.original_user_message,
         )
         if _direct_response is not None:
             s.final_response = _direct_response
             s._turn_exit_reason = "direct_image_generate"
             _prelude_action = "break"
-    while _prelude_action != "break" and s.api_call_count < s.api_max_total:
+    while _prelude_action != "break" and (
+        (s.api_call_count < agent.max_iterations and agent.iteration_budget.remaining > 0) or agent._budget_grace_call
+    ):
         if _run_phase(begin_iteration, agent, s).action == "break":
             break
 

@@ -1,17 +1,26 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useEffect } from 'react'
 import { MemoryRouter, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registry } from '@/contrib/registry'
 import { I18nProvider } from '@/i18n'
+import { recordAction } from '@/store/desktop-metrics'
+import { $panesFlipped, togglePanesFlipped } from '@/store/layout'
 import { setTitlebarAppActionsSide } from '@/store/titlebar-app-actions'
 
 import { ROUTES_AREA } from '../routes'
 
 import { TITLEBAR_CHROME_CHANGED_EVENT } from './titlebar'
 import { TitlebarControls, type TitlebarTool } from './titlebar-controls'
+
+// The edge toggles' only observable contract is the action they record (it also
+// feeds the keybind hint), so the mock is the seam, not a convenience.
+vi.mock('@/store/desktop-metrics', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/store/desktop-metrics')>()),
+  recordAction: vi.fn()
+}))
 
 const PLUGIN_TOOL: TitlebarTool = { icon: <span />, id: 'plugin-tool', label: 'plugin tool' }
 
@@ -184,6 +193,43 @@ describe('TitlebarControls fixed clusters', () => {
         window.removeEventListener(TITLEBAR_CHROME_CHANGED_EVENT, listener)
       }
     })
+  })
+})
+
+describe('titlebar edge toggles', () => {
+  afterEach(() => {
+    cleanup()
+    vi.mocked(recordAction).mockClear()
+
+    if ($panesFlipped.get()) {
+      act(() => togglePanesFlipped())
+    }
+  })
+
+  // POSITIONAL toggles hide whatever sits on their side, so a flip swaps which
+  // column each button acts on — the recorded action (and its keybind hint) must
+  // follow. `leftEdge.actionId`/`rightEdge.actionId` read undefined when the edge
+  // objects lose their actionId, which silently drops both records (#merge).
+  it('names the sessions column on the left and the file browser on the right', () => {
+    renderControls('/')
+
+    fireEvent.click(screen.getByLabelText(/^(Hide|Show) sidebar$/))
+    expect(recordAction).toHaveBeenCalledWith('view.toggleSidebar', 'click')
+
+    fireEvent.click(screen.getByLabelText(/^(Hide|Show) right sidebar$/))
+    expect(recordAction).toHaveBeenCalledWith('view.toggleRightSidebar', 'click')
+  })
+
+  it('swaps both action ids when the panes are flipped', () => {
+    renderControls('/')
+
+    act(() => togglePanesFlipped())
+
+    fireEvent.click(screen.getByLabelText(/^(Hide|Show) sidebar$/))
+    expect(recordAction).toHaveBeenCalledWith('view.toggleRightSidebar', 'click')
+
+    fireEvent.click(screen.getByLabelText(/^(Hide|Show) right sidebar$/))
+    expect(recordAction).toHaveBeenCalledWith('view.toggleSidebar', 'click')
   })
 })
 

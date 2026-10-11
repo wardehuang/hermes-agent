@@ -270,19 +270,7 @@ export function PreviewAttachment({ target }: { target: string }) {
       <span className="min-w-0 flex-1 truncate text-[0.78rem] font-medium text-foreground/90" title={target}>
         {name}
       </span>
-      {showDownload ? (
-        <button
-          aria-label={t.fileMenu.download}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
-          disabled={downloading}
-          onClick={() => void downloadFile()}
-          title={t.fileMenu.download}
-          type="button"
-        >
-          <Download className="size-3" />
-          {downloaded ? t.fileMenu.downloadSaved : t.fileMenu.download}
-        </button>
-      ) : localTarget?.type === 'file' ? (
+      {localTarget?.type === 'file' ? (
         <button
           className="flex shrink-0 items-center gap-1 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
           disabled={opening}
@@ -291,6 +279,17 @@ export function PreviewAttachment({ target }: { target: string }) {
         >
           <FolderOpen className="size-3" />
           {t.fileMenu.revealFileManager}
+        </button>
+      ) : showDownload ? (
+        <button
+          aria-label={t.fileMenu.download}
+          className="flex shrink-0 items-center gap-1 rounded-md border border-(--ui-stroke-tertiary) bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50"
+          disabled={downloading}
+          onClick={() => void downloadFile()}
+          type="button"
+        >
+          <Download className="size-3" />
+          {downloaded ? t.fileMenu.downloadSaved : t.fileMenu.download}
         </button>
       ) : null}
       <button

@@ -24,11 +24,16 @@ import { RICH_INPUT_SLOT } from './rich-editor'
 import { useComposerScope } from './scope'
 import type { ChatBarState } from './types'
 
-// Full label, capped at max-w-40. `shrink` still gives the row width
-// back before Send is pushed off (#49340).
+// `shrink` (not `shrink-0`) with a truncating label: the pill is the one
+// control in the row that can give width back continuously, so it absorbs the
+// squeeze between collapse stages instead of pushing Send past the edge.
+// No `max-w-*` cap: the pill sizes to its label, so a long model name only
+// truncates when the row is genuinely out of room (#49340) — not at an
+// arbitrary 160px.
 const UNKNOWN_TIER = atom('')
+
 const PILL = cn(
-  'h-(--composer-control-size) min-w-0 max-w-40 shrink gap-1 rounded-md px-2 text-xs font-normal',
+  'h-(--composer-control-size) min-w-0 shrink gap-1 rounded-md px-2 text-xs font-normal',
   'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground'
 )
 

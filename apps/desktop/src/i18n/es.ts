@@ -2497,7 +2497,10 @@ export const esOverrides = {
           enable: 'Usar mi perfil'
         }
       }
-    }
+    },
+    editorFontPreview: 'Vista previa de glifos',
+    editorFontReset: 'Usar la predeterminada',
+    editorFontSizeLabel: 'Tamaño'
   },
   skills: {
     tabSkills: 'Skills',
@@ -5562,7 +5565,8 @@ export const esOverrides = {
           pending: 'Escribir archivo',
           pendingAction: 'Escribiendo'
         }
-      }
+      },
+      video_generate: { pendingAction: 'Generando' }
     }
   },
   prompts: {
@@ -5776,7 +5780,11 @@ export const esOverrides = {
       description: 'Muestra la barra lateral móvil.',
       toggle: open => `${open ? 'Mostrar' : 'Ocultar'} barra lateral`
     }
-  }
+  },
+  files: 'Archivos',
+  addToChat: 'Añadir al chat',
+  openFailed: 'No se pudo abrir',
+  openFile: 'Abrir'
 } satisfies TranslationOverrides
 
 export const es = defineLocale(esOverrides)

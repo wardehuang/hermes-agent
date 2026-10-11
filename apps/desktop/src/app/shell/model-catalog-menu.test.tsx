@@ -1,12 +1,17 @@
-vi.mock('@/store/profile', async (): Promise<object> => {
+// The menu's store chain (model-presets → session-states → preview → layout)
+// reaches these stores at module scope, so the doubles carry the real exports
+// and only pin the values this surface reads.
+vi.mock('@/store/profile', async (importOriginal): Promise<object> => {
+  const actual = await importOriginal<typeof import('@/store/profile')>()
   const { atom } = await import('nanostores')
 
-  return { $activeGatewayProfile: atom<string>('default') }
+  return { ...actual, $activeGatewayProfile: atom<string>('default') }
 })
-vi.mock('@/store/session', async (): Promise<object> => {
+vi.mock('@/store/session', async (importOriginal): Promise<object> => {
+  const actual = await importOriginal<typeof import('@/store/session')>()
   const { atom } = await import('nanostores')
 
-  return { $connection: atom(null), $defaultReasoningEffort: atom<string>('') }
+  return { ...actual, $connection: atom(null), $defaultReasoningEffort: atom<string>('') }
 })
 
 import type { QueryClient } from '@tanstack/react-query'

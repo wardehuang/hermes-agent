@@ -1073,6 +1073,7 @@ export const zhHantSettings = {
         mcp: { label: 'MCP', hint: 'MCP 工具路由' },
         title_generation: { label: '標題生成', hint: '工作階段標題' },
         review: { label: '評審', hint: '/review 評審子代理' },
+        background_review: { label: '後台覆盤', hint: '輪後記憶與技能' },
         voice_chat: { label: '語音聊天', hint: '語音模式回覆' },
         triage_specifier: { label: '分類指定', hint: '看板任務規格補全' },
         kanban_decomposer: { label: '看板分解', hint: '任務拆解' },
@@ -1558,7 +1559,15 @@ export const zhHantSettings = {
           enable: '使用我的設定檔'
         }
       }
-    }
+    },
+    editorFontDesc: '內建程式碼編輯器與檔案預覽的字型。字型系列留空則用主題等寬。字級單位為 px，留空為預設。',
+    editorFontPlaceholder: 'Operator Mono Light 或 CSS 字型堆疊',
+    editorFontPreview: '字形預覽',
+    editorFontReset: '使用預設字型',
+    editorFontSizeLabel: '字級',
+    editorFontSizePlaceholder: '11',
+    editorFontSizeUnit: 'px',
+    editorFontTitle: '編輯器字型'
   },
 
   modelPicker: {

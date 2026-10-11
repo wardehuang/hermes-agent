@@ -56,6 +56,33 @@ function runGh(args, cwd, ghBin): Promise<{ ok: boolean; stdout: string; stderr:
   })
 }
 
+// simple-git also gate-keeps the environment handed to `.env()`: a key whose
+// name matches its vulnerability table (`EDITOR`, `PAGER`, `GIT_PAGER`,
+// `GIT_SSH_COMMAND`, `GIT_CONFIG_*`, `GIT_EXTERNAL_DIFF`, …) makes the NEXT
+// command reject with `Use of "EDITOR" is not permitted without enabling
+// allowUnsafeEditor` — the factory call itself is silent, so the failure
+// surfaces inside a command's try/catch and empties the Review pane with no
+// toast and no log. Environment variables are how a Windows user configures
+// their editor/pager, so this is the common case, not an edge case.
+//
+// Every category is allowed because the env forwarded below is THIS process's
+// own environment, never renderer input — the same reasoning as the custom
+// binary hatch. It is a table rather than a key-by-key strip because the
+// user's environment decides which keys exist and simple-git adds categories
+// across versions; stripping would also silently drop the settings a user
+// relies on (a `GIT_SSH_COMMAND`, a credential helper).
+const UNSAFE_ENV_ALLOWANCES = {
+  allowUnsafeAskPass: true,
+  allowUnsafeConfigEnvCount: true,
+  allowUnsafeConfigPaths: true,
+  allowUnsafeDiffExternal: true,
+  allowUnsafeEditor: true,
+  allowUnsafeGitProxy: true,
+  allowUnsafePager: true,
+  allowUnsafeSshCommand: true,
+  allowUnsafeTemplateDir: true
+}
+
 function gitFor(cwd, gitBin) {
   // `gitBin` is resolved inside the Electron main process from known install
   // locations or PATH — never renderer/user input, and the Windows tuple below is
@@ -82,7 +109,7 @@ function gitFor(cwd, gitBin) {
       binary,
       maxConcurrentProcesses: 4,
       trimmed: false,
-      ...(unsafe ? { unsafe: { allowUnsafeCustomBinary: true } } : {})
+      ...(unsafe ? { unsafe: { allowUnsafeCustomBinary: true, ...UNSAFE_ENV_ALLOWANCES } } : {})
     })
 
   if (!unsafe) {

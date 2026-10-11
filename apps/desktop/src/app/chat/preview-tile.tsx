@@ -16,8 +16,8 @@ import { allPaneIds, findGroup } from '@/components/pane-shell/tree/model'
 import {
   $activeTreeGroup,
   $layoutTree,
-  EDITOR_PANE_ID,
   closeTabPane,
+  EDITOR_PANE_ID,
   revealTreePane,
   treePanesWithPrefix
 } from '@/components/pane-shell/tree/store'

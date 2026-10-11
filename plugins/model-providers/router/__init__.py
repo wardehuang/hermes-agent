@@ -34,6 +34,11 @@ _efforts_lock = threading.Lock()
 _warm_started = False
 _disk_checked = False
 
+#: Disk-mirror staleness bound. Vocabularies change rarely; a stale verdict beats no verdict, so a
+#: past-TTL mirror is still served while a background refresh runs (same policy as the OpenRouter
+#: caps mirror).
+_DISK_TTL_SECONDS = 24 * 60 * 60
+
 
 class _CacheState:
     """Efforts cache + once-only flags for one Hermes home (same names as the module slots)."""

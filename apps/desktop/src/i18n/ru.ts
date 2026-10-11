@@ -1584,7 +1584,10 @@ export const ruOverrides = {
           'Этот бэкенд ещё не настроен. Сеансы, запущенные после этого изменения, останутся без терминала и файловых инструментов, пока настройка не завершена.',
         needsSetupConfirmAction: 'Выбрать всё равно'
       }
-    }
+    },
+    editorFontPreview: 'Предпросмотр глифов',
+    editorFontReset: 'Использовать по умолчанию',
+    editorFontSizeLabel: 'Размер'
   },
   skillDeepLink: {
     installTitle: (name: string) => `Установить «${name}»?`,
@@ -3989,7 +3992,8 @@ export const ruOverrides = {
         web_extract: { done: 'Веб-страница прочитана', pending: 'Читаю веб-страницу', pendingAction: 'Читаю' },
         web_search: { done: 'Поиск в вебе выполнен', pending: 'Ищу в вебе', pendingAction: 'Ищу' },
         write_file: { done: 'Файл изменён', pending: 'Изменяю файл', pendingAction: 'Изменяю' }
-      }
+      },
+      video_generate: { pendingAction: 'Генерирую' }
     }
   },
   prompts: {
@@ -4128,7 +4132,10 @@ export const ruOverrides = {
       signIn: 'Войти',
       notNow: 'Не сейчас'
     }
-  }
+  },
+  files: 'Файлы',
+  openFailed: 'Не удалось открыть',
+  openFile: 'Открыть'
 } satisfies TranslationOverrides
 
 export const ru = defineLocale(ruOverrides)

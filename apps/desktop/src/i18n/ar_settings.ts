@@ -782,6 +782,10 @@ export const arSettings = {
           label: 'المراجعة',
           hint: 'وكيل المراجعة الفرعي /review'
         },
+        background_review: {
+          label: 'المراجعة الخلفية',
+          hint: 'الذاكرة والمهارات بعد الدور'
+        },
         voice_chat: { label: 'دردشة صوتية', hint: 'ردود الوضع الصوتي' },
         triage_specifier: {
           label: 'محدد الفرز',
@@ -886,7 +890,8 @@ export const arSettings = {
       postSetupErrorTitle: 'انتهى الإعداد بأخطاء',
       postSetupErrorMessage: step => `تحقق من سجل ${step}.`,
       postSetupFailed: step => `فشل تشغيل إعداد ${step}`
-    }
+    },
+    editorFontSizeLabel: 'الحجم'
   },
   modelAssignment: {
     saveFailed: 'لم يحفظ Hermes تغيير النموذج هذا.',

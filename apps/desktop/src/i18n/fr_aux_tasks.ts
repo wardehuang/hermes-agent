@@ -29,6 +29,10 @@ export const frAuxTasks: AuxTaskCopyMap = {
     label: 'Révision',
     hint: 'Sous-agent de révision /review'
   },
+  background_review: {
+    label: 'Revue en arrière-plan',
+    hint: 'Mémoire et skills après le tour'
+  },
   voice_chat: { label: 'Chat vocal', hint: 'Réponses parlées du mode vocal' },
   triage_specifier: {
     label: 'Précision du triage',

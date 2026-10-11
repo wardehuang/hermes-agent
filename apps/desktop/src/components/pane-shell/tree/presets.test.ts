@@ -46,7 +46,7 @@ describe('user layout presets', () => {
     const entry = registry.getArea(presets.LAYOUTS_AREA).find(c => c.id === id)
 
     expect(entry).toBeDefined()
-    presets.applyLayoutPreset(id, entry!.data as import('./model').LayoutNode)
+    presets.applyLayoutPreset(id, entry!.data as LayoutNode)
 
     expect(panes.getPaneStateSnapshot('files')?.widthOverride).toBe(420)
     expect(panes.getPaneStateSnapshot('sessions')?.widthOverride).toBe(280)
@@ -73,6 +73,9 @@ describe('user layout presets', () => {
     presets.applyLayoutPreset('coding', tree)
 
     expect(panes.getPaneStateSnapshot('files')?.widthOverride).toBeUndefined()
+  })
+})
+
 // #94260: a named layout preset is GEOMETRY. Saving cloned the live tree, so a
 // preset carried `session-tile:<storedSessionId>` (from ANY profile — the
 // layout tree and its presets are global) and `preview-tile:*` /

@@ -280,6 +280,9 @@ describe('contextPath', () => {
 
   it('is case-insensitive on a drive letter', () => {
     expect(contextPath(String.raw`e:\AI\hermes-agent\a.ts`, 'E:/AI/hermes-agent')).toBe('a.ts')
+  })
+})
+
 describe('personalityNamesFromConfig', () => {
   it('reads root-level personalities the runtime honours (#123297)', () => {
     expect(personalityNamesFromConfig({ personalities: { root_persona: '...' } })).toEqual(['root_persona'])

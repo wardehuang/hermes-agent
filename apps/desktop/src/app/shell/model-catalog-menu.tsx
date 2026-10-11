@@ -52,7 +52,8 @@ import {
   useLocalModelsStatus,
   useLocalRuntimeJobs
 } from '@/store/local-runtime-jobs'
-import { composerEffortForSelection } from '@/store/model-presets'
+import { $modelPresets, composerEffortForSelection, type ModelPreset } from '@/store/model-presets'
+import { $showModelPricing } from '@/store/model-pricing'
 import {
   $visibleModels,
   collapseModelFamilies,
@@ -64,7 +65,7 @@ import {
   setModelVisibilityOpen
 } from '@/store/model-visibility'
 import { $collapsedProviders, toggleCollapsedProvider } from '@/store/provider-collapse'
-import { $defaultReasoningEffort } from '@/store/session'
+import { $defaultReasoningEffort, $reasoningOverrides } from '@/store/session'
 import type { LocalModelLoadProgress, LocalRuntimeJob } from '@/types/hermes'
 
 import { type FastControl, ModelEditSubmenu, resolveFastControl } from './model-edit-submenu'
@@ -162,7 +163,7 @@ export interface ModelMenuController {
   select: (model: string, provider: string) => Promise<boolean | void> | void
   /** Edit ONE option on a row. `isActive` says whether it's the current model. */
   setOptions: (
-    patch: { effort?: string; fast?: boolean; serviceTier?: string },
+    patch: ModelPreset,
     row: { isActive: boolean; model: string; provider: string }
   ) => void
 }

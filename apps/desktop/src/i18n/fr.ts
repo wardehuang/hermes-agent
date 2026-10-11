@@ -2512,7 +2512,10 @@ export const frOverrides = {
           enable: 'Utiliser mon profil'
         }
       }
-    }
+    },
+    editorFontPreview: 'Aperçu des glyphes',
+    editorFontReset: 'Utiliser la valeur par défaut',
+    editorFontSizeLabel: 'Taille'
   },
   skills: {
     tabSkills: 'Skills',
@@ -5577,7 +5580,8 @@ export const frOverrides = {
           pending: 'Modification du fichier en cours',
           pendingAction: 'Modification en cours'
         }
-      }
+      },
+      video_generate: { pendingAction: 'Génération en cours' }
     }
   },
   prompts: {
@@ -5792,7 +5796,11 @@ export const frOverrides = {
       description: 'Affiche la barre latérale mobile.',
       toggle: open => `${open ? 'Afficher' : 'Masquer'} la barre latérale`
     }
-  }
+  },
+  files: 'Fichiers',
+  addToChat: 'Ajouter à la conversation',
+  openFailed: "Échec de l'ouverture",
+  openFile: 'Ouvrir'
 } satisfies TranslationOverrides
 
 export const fr = defineLocale(frOverrides)

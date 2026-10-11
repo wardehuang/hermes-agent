@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { $modelPresets, applyModelPreset, composerEffortForSelection, getModelPreset, modelPresetKey, setModelPreset } from './model-presets'
+import {
+  $modelPresets,
+  applyModelPreset,
+  composerEffortForSelection,
+  getModelPreset,
+  setModelPreset
+} from './model-presets'
 import {
   $currentFastMode,
   $currentReasoningEffort,

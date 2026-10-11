@@ -4017,7 +4017,10 @@ export const jaOverrides = {
       signIn: 'サインイン',
       notNow: '今はしない'
     }
-  }
+  },
+  files: 'ファイル',
+  openFailed: '開くことができませんでした',
+  openFile: '開く'
 } satisfies TranslationOverrides
 
 export const ja = defineLocale(jaOverrides)

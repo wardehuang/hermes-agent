@@ -442,6 +442,14 @@ export function useTerminalSession({
     onShellRef.current = onShell
   }, [onAddSelectionToChat, onShell])
 
+  // Live selection at call time. A redraw-heavy TUI (spinners, clocks) outruns
+  // onSelectionChange, so trust xterm directly — fall back to the native
+  // selection — rather than the cached ref / React state.
+  const readSelection = useCallback(
+    () => termRef.current?.getSelection() || window.getSelection()?.toString() || '',
+    []
+  )
+
   const addSelectionToChat = useCallback(() => {
     const termSelection = (termRef.current?.getSelection() || selectionRef.current).trim()
     const selectedText = termSelection || (codeSourceHasSelection() ? '' : window.getSelection()?.toString() || '')
