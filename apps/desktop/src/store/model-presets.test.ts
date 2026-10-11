@@ -4,8 +4,10 @@ import { $modelPresets, applyModelPreset, composerEffortForSelection, getModelPr
 import {
   $currentFastMode,
   $currentReasoningEffort,
+  $currentServiceTier,
   setCurrentFastMode,
   setCurrentReasoningEffort,
+  setCurrentServiceTier,
   setDefaultReasoningEffort,
   setReasoningOverrides
 } from './session'
@@ -17,17 +19,53 @@ describe('model presets', () => {
     setCurrentReasoningEffort('')
     setDefaultReasoningEffort('high')
     setReasoningOverrides({})
+    setCurrentServiceTier('')
   })
 
   it('round-trips a preset and merges patches without dropping prior fields', () => {
     setModelPreset('anthropic', 'claude-opus-4-8', { effort: 'high' })
     setModelPreset('anthropic', 'claude-opus-4-8', { fast: true })
 
-    expect(getModelPreset('anthropic', 'claude-opus-4-8')).toEqual({ effort: 'high', fast: true })
+    expect(getModelPreset('anthropic', 'claude-opus-4-8')).toEqual({
+      effort: 'high',
+      fast: true,
+      serviceTier: 'priority'
+    })
   })
 
   it('returns an empty preset for unknown models', () => {
     expect(getModelPreset('x', 'y')).toEqual({})
+  })
+
+  it('keeps Ultrafast distinct and a later legacy Fast edit selects priority', async () => {
+    const calls: unknown[] = []
+
+    const request = async <T>(method: string, params?: Record<string, unknown>) => {
+      calls.push({ method, params })
+
+      return {} as T
+    }
+
+    setModelPreset('openai-codex', 'gpt-6-astra', { serviceTier: 'ultrafast', effort: 'ultra' })
+    await applyModelPreset(getModelPreset('openai-codex', 'gpt-6-astra'), {
+      failMessage: 'failed',
+      request,
+      sessionId: 'session-a'
+    })
+    expect($currentServiceTier.get()).toBe('ultrafast')
+    expect(calls).toContainEqual({
+      method: 'config.set',
+      params: { key: 'fast', session_id: 'session-a', value: 'ultrafast' }
+    })
+    setModelPreset('openai-codex', 'gpt-6-astra', { fast: true })
+    expect(getModelPreset('openai-codex', 'gpt-6-astra')).toEqual({
+      effort: 'ultra',
+      fast: true,
+      serviceTier: 'priority'
+    })
+    await applyModelPreset({ serviceTier: 'normal' }, { failMessage: 'failed', request, sessionId: null })
+    expect($currentServiceTier.get()).toBe('normal')
+    expect($currentFastMode.get()).toBe(false)
   })
 
   it('pushes only the provided dimensions to the gateway', async () => {

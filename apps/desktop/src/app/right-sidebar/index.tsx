@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import type { ComponentProps } from 'react'
+import { type ComponentProps, useCallback, useEffect, useRef } from 'react'
 
 import { TreeSkeleton } from '@/components/chat/skeletons'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -10,10 +10,13 @@ import { useDelayedTrue } from '@/hooks/use-delayed-true'
 import { useI18n } from '@/i18n'
 import { normalizeOrLocalPreviewTarget, openLocalFileWithSystemApp } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
+import { refreshRepoStatus, registerRepoStatusCwd } from '@/store/coding-status'
 import { $panesFlipped } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { openPreview } from '@/store/preview'
-import { $currentCwd, $selectedStoredSessionId, $workspaceCwdOwner } from '@/store/session'
+import { openFolderAsProject } from '@/store/projects'
+import { $selectedStoredSessionId, $workspaceCwdOwner } from '@/store/session'
+import { $focusedWorkspaceCwd } from '@/store/session-states'
 
 import { SidebarPanelLabel } from '../shell/sidebar-label'
 
@@ -29,18 +32,22 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
   const { t } = useI18n()
   const r = t.rightSidebar
   const panesFlipped = useStore($panesFlipped)
-  const currentCwd = useStore($currentCwd).trim()
+  const targetCwd = useStore($focusedWorkspaceCwd)
   const selectedStoredSessionId = useStore($selectedStoredSessionId)
   const workspaceCwdOwner = useStore($workspaceCwdOwner)
+  const shownCwdRef = useRef(targetCwd)
 
-  // A conversation switch publishes the new stored id immediately, but the
-  // new workspace only arrives when resume settles. `$currentCwd` still names
-  // the PREVIOUS conversation's folder. Do not issue a filesystem read against
-  // that path (a gateway switch may point at a different machine) — but do
-  // NOT pass '' into the tree hook: that clears the cache and the Files pane
-  // blanks on every same-project session switch.
+  if (targetCwd) {
+    shownCwdRef.current = targetCwd
+  }
+
+  // Keep the last real cwd in the hook. Passing '' clears the cached
+  // tree and the Files pane blanks on a same-project session switch.
+  // allowRead stays false until this conversation owns the workspace,
+  // so a stale path is not read against a different machine.
+  const shownCwd = targetCwd || shownCwdRef.current
   const owned = (workspaceCwdOwner ?? null) === (selectedStoredSessionId ?? null)
-  const allowRead = Boolean(currentCwd) && owned
+  const allowRead = Boolean(targetCwd) && owned
 
   const {
     collapseAll,
@@ -56,9 +63,28 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
     setNodeOpen,
     setShowIgnored,
     showIgnored
-  } = useProjectTree(currentCwd, { allowRead })
+  } = useProjectTree(shownCwd, { allowRead })
 
-  const hasWorkspace = Boolean(currentCwd) && (owned || loaded)
+  const hasWorkspace = Boolean(shownCwd) && (owned || loaded)
+
+  useEffect(() => {
+    const activeCwd = effectiveCwd || shownCwd
+
+    if (!activeCwd) {
+      return
+    }
+
+    return registerRepoStatusCwd(activeCwd)
+  }, [effectiveCwd, shownCwd])
+
+  const handleRefresh = useCallback(() => {
+    void refreshRoot()
+    const activeCwd = effectiveCwd || shownCwd
+
+    if (activeCwd) {
+      void refreshRepoStatus(activeCwd)
+    }
+  }, [effectiveCwd, refreshRoot, shownCwd])
 
   const cwdName =
     effectiveCwd
@@ -115,7 +141,7 @@ export function RightSidebarPane({ onActivateFile, onActivateFolder }: RightSide
         onLoadChildren={loadChildren}
         onNodeOpenChange={setNodeOpen}
         onPreviewFile={previewFile}
-        onRefresh={() => void refreshRoot()}
+        onRefresh={handleRefresh}
         onToggleShowIgnored={() => setShowIgnored(!showIgnored)}
         openState={openState}
         showIgnored={showIgnored}
@@ -164,10 +190,22 @@ function FilesystemTab({
   const { t } = useI18n()
   const r = t.rightSidebar
 
-  // No working directory (a bare/detached chat) → no tree, just a terse hint.
-  // Switching workspace is a project/worktree action, never a raw folder picker.
+  // No working directory (a bare/detached chat) → no tree, but keep a way back
+  // into a folder (#53004): the projects paradigm removed the old folder picker,
+  // which stranded global sessions on a dead-end "No project open" pane. The
+  // affordance is the project-shaped one — ⌘O's open-folder-as-project flow,
+  // which upserts/enters the project and anchors a fresh session at the picked
+  // folder — entirely decoupled from $currentCwd.
   if (!hasWorkspace) {
-    return <PaneEmptyState label={r.noProjectOpen} />
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+        <SidebarPanelLabel className="pl-0 text-(--ui-text-quaternary)">{r.noProjectOpen}</SidebarPanelLabel>
+        <Button className="h-7 gap-1.5 text-xs" onClick={() => void openFolderAsProject()} size="sm" variant="outline">
+          <Codicon name="folder-opened" size="0.8125rem" />
+          {r.openFolder}
+        </Button>
+      </div>
+    )
   }
 
   return (

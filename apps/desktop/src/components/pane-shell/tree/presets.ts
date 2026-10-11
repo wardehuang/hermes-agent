@@ -18,6 +18,7 @@ import {
 } from '@/store/panes'
 
 import { allPaneIds, findGroupOfPane, isLayoutNode, type LayoutNode } from './model'
+import { stripPresetLivePanes, stripPresetResting } from './preset-tree'
 import { $dismissedPanes, $hiddenTreePanes, $layoutTree, applyTree, markActivePreset } from './store'
 
 export const LAYOUTS_AREA = 'layouts'
@@ -31,6 +32,8 @@ export const LAYOUTS_AREA = 'layouts'
  */
 export interface LayoutPresetSpec extends Tiered {
   id: string
+  /** `false` keeps a preset off every picker and out of `apply_layout`; only its owner applies it. */
+  listed?: false
   order: number
   resting?: readonly string[]
   title: string
@@ -45,7 +48,14 @@ export function registerBundledPresets(bundled: readonly LayoutPresetSpec[]) {
   }
 
   return registry.registerMany(
-    bundled.map(({ id, order, title, tree }) => ({ id, area: LAYOUTS_AREA, title, order, data: tree }))
+    bundled.map(({ id, listed, order, title, tree }) => ({
+      id,
+      area: LAYOUTS_AREA,
+      title,
+      order,
+      data: tree,
+      ...(listed === false && { enabled: false })
+    }))
   )
 }
 
@@ -113,17 +123,37 @@ const userDisposers = new Map<string, () => void>()
 function loadUserPresets(): Record<string, StoredPreset> {
   const parsed = readJson<Record<string, StoredPreset>>(USER_KEY) ?? {}
   const out: Record<string, StoredPreset> = {}
+  let healed = false
 
   for (const [id, preset] of Object.entries(parsed)) {
-    if (preset && typeof preset.name === 'string' && isLayoutNode(preset.tree)) {
-      out[id] = {
-        name: preset.name,
-        tree: preset.tree,
-        paneSizes: parsePaneSizes(preset.paneSizes),
-        resting: preset.resting
-      }
-      rememberSpec(id, out[id])
+    if (!preset || typeof preset.name !== 'string' || !isLayoutNode(preset.tree)) {
+      continue
     }
+
+    // Heal presets written by older builds, which cloned the live tree and so
+    // baked in `session-tile:` / `preview-tile:` / `route-tile:` pane ids
+    // (#94260). A preset that was ONLY such a snapshot has no geometry left
+    // and is dropped.
+    const tree = stripPresetLivePanes(preset.tree)
+
+    if (!tree) {
+      healed = true
+
+      continue
+    }
+
+    const resting = stripPresetResting(preset.resting, tree)
+
+    if (tree !== preset.tree || resting.length !== (preset.resting?.length ?? 0)) {
+      healed = true
+    }
+
+    out[id] = { name: preset.name, resting, tree, paneSizes: parsePaneSizes(preset.paneSizes) }
+    rememberSpec(id, out[id])
+  }
+
+  if (healed) {
+    persistUserPresets(out)
   }
 
   return out
@@ -150,7 +180,10 @@ for (const [id, preset] of Object.entries(userPresets)) {
 
 /** Save any tree as a named user preset (and make it active). A deck saved
  *  from the live layout remembers which of its panes were closed, so applying
- *  it later restores what was on screen, not just where things sat. */
+ *  it later restores what was on screen, not just where things sat —
+ *  but only for the panes a preset can carry: a live tile (session / preview /
+ *  route) is a snapshot of conversations open NOW, not layout, and restoring
+ *  one remounts a foreign-profile session (#94260). */
 export function saveLayoutPresetTree(
   name: string,
   tree: LayoutNode,
@@ -163,6 +196,15 @@ export function saveLayoutPresetTree(
     return null
   }
 
+  // Presets are GEOMETRY. Strip the live tiles before the tree is ever written
+  // to `hermes.desktop.layoutPresets.v2`; `applyTree` adopts the tiles that are
+  // actually open into this geometry, so no open tab is lost.
+  const geometry = stripPresetLivePanes(tree)
+
+  if (!geometry) {
+    return null
+  }
+
   const id = `user-${
     trimmed
       .toLowerCase()
@@ -171,7 +213,12 @@ export function saveLayoutPresetTree(
   }`
   const sizes = parsePaneSizes(paneSizes)
 
-  userPresets[id] = { name: trimmed, tree: structuredClone(tree), resting: [...resting], paneSizes: sizes }
+  userPresets[id] = {
+    name: trimmed,
+    tree: geometry,
+    resting: stripPresetResting(resting, geometry),
+    paneSizes: sizes
+  }
   persistUserPresets(userPresets)
   rememberSpec(id, userPresets[id])
   registerUserPreset(id, userPresets[id])
@@ -213,8 +260,19 @@ export const isUserPreset = (id: string) => id in userPresets
  *  opening what it places and resting what it says to. In Simple the mode
  *  already decides what rests, so the open/close side of a layout pick yields
  *  to it instead of surfacing shadowed panes for the session. User presets also
- *  restore their saved sash overrides after applyTree clears the live ones. */
+ *  restore their saved sash overrides after applyTree clears the live ones.
+ *
+ *  Strips live tiles on the way in as well: a preset registered by a plugin —
+ *  or handed straight to this function before a reload healed the store — must
+ *  not be able to remount a baked-in session (#94260). `applyTree` adopts the
+ *  tiles open right now, so the user's tabs stay where they are. */
 export function applyLayoutPreset(id: string, tree: LayoutNode) {
-  asLayoutIntent(() => applyTree(structuredClone(tree), id, specs.get(id)?.resting))
+  const geometry = stripPresetLivePanes(structuredClone(tree))
+
+  if (!geometry) {
+    return
+  }
+
+  asLayoutIntent(() => applyTree(geometry, id, specs.get(id)?.resting))
   restorePaneSizeOverrides(userPresets[id]?.paneSizes)
 }

@@ -4,7 +4,9 @@ import { setTerminalFontFamilyFromConfig } from '@/app/right-sidebar/terminal/te
 import { setEditorFontFamilyFromConfig, setEditorFontSizeFromConfig } from '@/components/chat/editor-font'
 import { getHermesConfig, getHermesConfigDefaults } from '@/hermes'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '@/lib/chat-runtime'
+import { composerServiceTier } from '@/lib/model-status-label'
 import { normalizeReasoningEffortValue } from '@/lib/reasoning-effort'
+import { normalize } from '@/lib/text'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
 import { composerEffortForSelection } from '@/store/model-presets'
 import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
@@ -22,20 +24,39 @@ import {
   setIntroPersonality,
   setReasoningOverrides
 } from '@/store/session'
+import { setShowToolActivityFromConfig } from '@/store/tool-activity'
 import { refreshVoiceLiveStatus } from '@/store/voice-live'
 import {
   applyAutoSpeakFromConfig,
+  applyBargeInEnabledFromConfig,
   applyBargeInThresholdFromConfig,
   applyThinkingSoundFromConfig,
+  applyVoiceSilenceMsFromConfig,
   applyVoiceStopPhraseFromConfig
 } from '@/store/voice-prefs'
 import { setChatFontFamilyFromConfig } from '@/themes/chat-font'
 
 const DEFAULT_VOICE_SECONDS = 120
-const FAST_TIERS = new Set(['fast', 'priority', 'on'])
 
 function recordingLimit(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_SECONDS
+}
+
+/** config.yaml hands back whatever the user wrote — `reasoning_effort: false`
+ *  (or `off`/`no`, which YAML also parses to boolean false) means thinking
+ *  disabled, and a bare boolean must not throw on `.trim()`. */
+function normalizeConfigEffort(value: unknown): string {
+  if (value === false) {
+    return 'none'
+  }
+
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  const effort = normalize(value)
+
+  return effort === 'false' || effort === 'disabled' ? 'none' : effort
 }
 
 function normalizeReasoningOverrides(raw: unknown): Record<string, string> {
@@ -103,9 +124,9 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           ])
         ])
 
-        const reasoning = normalizeReasoningEffortValue(config.agent?.reasoning_effort)
+        const reasoning = normalizeConfigEffort(config.agent?.reasoning_effort)
         const overrides = normalizeReasoningOverrides(config.agent?.reasoning_overrides)
-        const tier = (config.agent?.service_tier ?? '').trim()
+        const tier = composerServiceTier(config.agent?.service_tier)
 
         // Publish the profile default regardless of whether the composer is
         // reseeded below: picker rows and preset application resolve "the
@@ -143,14 +164,13 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
             return
           }
 
-          setCurrentFastMode(FAST_TIERS.has(tier.toLowerCase()))
+          setCurrentFastMode(tier === 'priority' || tier === 'ultrafast')
+          setCurrentServiceTier(tier)
         }
 
         if (!canPublish()) {
           return
         }
-
-        setCurrentServiceTier(prev => (activeSessionIdRef.current ? prev : tier))
 
         if (!canPublish()) {
           return
@@ -165,6 +185,7 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
         setDisplayTimestampsFromConfig(config.display?.timestamps)
         setShowReasoningFromConfig(config.display?.show_reasoning)
+        setShowToolActivityFromConfig(config.display?.tool_progress)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
         setEditorFontFamilyFromConfig(config.editor?.font_family)
         setEditorFontSizeFromConfig(config.editor?.font_size)
@@ -176,8 +197,10 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
         applyAutoSpeakFromConfig(config)
         applyVoiceStopPhraseFromConfig(config, defaults)
+        applyBargeInEnabledFromConfig(config)
         applyBargeInThresholdFromConfig(config)
         applyThinkingSoundFromConfig(config)
+        applyVoiceSilenceMsFromConfig(config, defaults)
         // Resolved server-side (mode + whether a key resolves); non-critical.
         void refreshVoiceLiveStatus().catch(() => undefined)
       } catch {

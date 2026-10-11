@@ -30,25 +30,29 @@ export function isFileEditTool(toolName: string): boolean {
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
 // what a run summarizes and what the live ticker cycles through.
-const CARD_TOOL_NAMES = new Set([
+const CARD_TOOL_NAMES = [
   'clarify',
   'delegate_task',
   'image_generate',
   'manage_catalog',
+  'manage_connections',
+  'setup_choose',
   'setup_mcp',
+  'start_chat',
   'video_generate'
-])
+] as const
+
+export type CardToolName = (typeof CARD_TOOL_NAMES)[number]
+
+export function isCardToolName(toolName: string): toolName is CardToolName {
+  return (CARD_TOOL_NAMES as readonly string[]).includes(toolName)
+}
 
 // Name the run splitter uses for a manage_connections part it has classified as a card.
 export const CONNECTION_CARD_KEY = 'manage_connections:card'
 
 export function isCardTool(toolName: string): boolean {
-  return (
-    CARD_TOOL_NAMES.has(toolName) ||
-    toolName === CONNECTION_CARD_KEY ||
-    isFileEditTool(toolName) ||
-    toolName === 'manage_connections'
-  )
+  return isCardToolName(toolName) || toolName === CONNECTION_CARD_KEY || isFileEditTool(toolName)
 }
 
 // Activity tools that render nothing at all: `todo` parts are hoisted to a

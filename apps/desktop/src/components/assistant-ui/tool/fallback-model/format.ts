@@ -1,3 +1,5 @@
+import { extractToolErrorMessage } from '@/lib/tool-result-summary'
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -123,6 +125,18 @@ function unwrapUntrustedToolResult(value: string): string {
   const payloadStart = wrapped.indexOf('\n\n')
 
   return (payloadStart === -1 ? wrapped : wrapped.slice(payloadStart + 2)).trim()
+}
+
+/** A call that reported failure, from the part's flag or its result body.
+ *  Explicit success beats stale envelope errors, as in individual rows. */
+export function toolCallFailed(part: { isError?: boolean; result?: unknown }): boolean {
+  const result = parseMaybeObject(part.result)
+
+  return (
+    result.success !== true &&
+    result.ok !== true &&
+    Boolean(part.isError || result.success === false || result.ok === false || extractToolErrorMessage(part.result))
+  )
 }
 
 export function unwrapToolPayload(value: unknown): unknown {
