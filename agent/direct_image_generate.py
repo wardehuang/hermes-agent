@@ -60,8 +60,11 @@ def maybe_run_direct_image_generate(
     if args is None:
         return None
 
-    valid = getattr(agent, "valid_tool_names", None) or set()
-    if "image_generate" not in valid:
+    valid = getattr(agent, "valid_tool_names", None)
+    if not isinstance(valid, set):
+        valid = set(valid or [])
+        agent.valid_tool_names = valid
+    if "image_generate" not in valid and not _admit_image_generate(agent):
         logger.warning("create-image direct send but image_generate is not enabled")
         return _DIRECT_DISABLED
 
@@ -107,6 +110,28 @@ def maybe_run_direct_image_generate(
         logger.debug("direct image_generate persist after tool failed", exc_info=True)
 
     return _closing_line(messages)
+
+
+def _admit_image_generate(agent) -> bool:
+    """Session tool list is fixed at start. Re-check after the user configures an endpoint."""
+    from hermes_cli.plugins import _ensure_plugins_discovered
+    from tools.image_generation_tool import check_image_generation_requirements
+    from tools.registry import invalidate_check_fn_cache
+
+    invalidate_check_fn_cache()
+    try:
+        _ensure_plugins_discovered(force=True)
+    except Exception:
+        logger.debug("image plugin rediscover failed", exc_info=True)
+    try:
+        ready = bool(check_image_generation_requirements())
+    except Exception:
+        logger.debug("image_generate live check failed", exc_info=True)
+        return False
+    if not ready:
+        return False
+    agent.valid_tool_names.add("image_generate")
+    return True
 
 
 def _args_from_force_tool_prompt(text: str) -> Optional[dict]:
