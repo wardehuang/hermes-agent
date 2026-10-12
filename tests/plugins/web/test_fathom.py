@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextvars
+
 from plugins.web.fathom import (
     SEARCH_DISPATCH_PROMPT,
     SEARCH_DISPATCH_SECTION_ID,
@@ -9,8 +11,36 @@ from plugins.web.fathom import (
     search_dispatch_section,
 )
 from plugins.web.fathom.chatgpt import rows_from_chatgpt
-from plugins.web.fathom.common import AdapterOutcome, merge_rows, normalize_url
+from plugins.web.fathom.common import (
+    AdapterOutcome,
+    dispatch_adapters,
+    merge_rows,
+    normalize_url,
+)
 from plugins.web.fathom.provider import FathomWebSearchProvider
+
+
+def test_dispatch_adapters_keeps_submitter_contextvars() -> None:
+    seen = contextvars.ContextVar("fathom_scope_probe", default="missing")
+    seen.set("bound")
+
+    def make_call(name: str):
+        def call() -> AdapterOutcome:
+            value = seen.get()
+            return AdapterOutcome(
+                name=name,
+                success=value == "bound",
+                error="" if value == "bound" else value,
+            )
+
+        return call
+
+    outcomes = dispatch_adapters(
+        [("grok", 5.0, make_call("grok")), ("chatgpt", 5.0, make_call("chatgpt"))]
+    )
+    assert len(outcomes) == 2
+    assert {item.name for item in outcomes} == {"grok", "chatgpt"}
+    assert all(item.success for item in outcomes)
 
 
 def test_merge_prefers_urls_seen_on_multiple_backends() -> None:

@@ -34,6 +34,7 @@ from overrides import (  # noqa: E402
     read_overrides,
     write_overrides,
 )
+import endpoints as endpoint_store  # noqa: E402
 
 _SIZE_RATIO_HINTS = {
     "1254x1254": "1:1",
@@ -166,125 +167,37 @@ def _catalog_item(
 
 
 def _catalog() -> List[Dict[str, Any]]:
-    """Provider+model pairs: bundled plugin caps, yaml overlay if present.
-
-    A backend is listed when it is the active ``image_gen.provider``, has a
-    ``providers.<name>`` block, or still has ``image_gen.<name>.models`` in yaml.
-    """
-    section = _load_image_gen()
-    named = _named_provider_keys()
-    active = str(section.get("provider") or "").strip()
-    by_id: Dict[str, Dict[str, Any]] = {}
-
-    def _want(provider_name: str) -> bool:
-        return (
-            provider_name == active
-            or provider_name in named
-            or (
-                isinstance(section.get(provider_name), dict)
-                and isinstance(section[provider_name].get("models"), dict)
-                and bool(section[provider_name]["models"])
-            )
-        )
-
-    try:
-        from hermes_cli.plugins import _ensure_plugins_discovered
-        from agent.image_gen_registry import list_providers
-
-        _ensure_plugins_discovered()
-        for provider in list_providers():
-            provider_name = str(getattr(provider, "name", "") or "").strip()
-            if not provider_name or not _want(provider_name):
-                continue
-            models = []
-            if hasattr(provider, "list_models"):
-                try:
-                    models = provider.list_models() or []
-                except Exception as exc:
-                    logger.debug("list_models(%s) failed: %s", provider_name, exc)
-            for raw in models:
-                if not isinstance(raw, dict):
-                    continue
-                model_id = str(raw.get("id") or "").strip()
-                if not model_id:
-                    continue
-                caps = raw
-                if hasattr(provider, "model_capabilities"):
-                    try:
-                        live = provider.model_capabilities(model_id)
-                        if isinstance(live, dict) and live:
-                            caps = {**raw, **live}
-                    except Exception:
-                        pass
-                item = _catalog_item(
-                    provider_name,
-                    model_id,
-                    display=str(caps.get("display") or model_id),
-                    prompt_constraints=bool(caps.get("prompt_constraints")),
-                    params=caps.get("params") if isinstance(caps.get("params"), dict) else {},
-                )
-                by_id[item["id"]] = item
-    except Exception as exc:
-        logger.debug("catalog providers failed: %s", exc)
-
-    for key, val in section.items():
-        if key in _META_KEYS or not isinstance(val, dict):
-            continue
-        models = val.get("models")
-        if not isinstance(models, dict) or not models:
-            continue
-        provider_name = str(key).strip()
-        if not provider_name:
-            continue
-        for mid, block in models.items():
-            model_id = str(mid).strip()
-            if not model_id:
-                continue
-            b = block if isinstance(block, dict) else {}
-            rid = f"{provider_name}::{model_id}"
-            prev = by_id.get(rid, {})
-            display = str(b.get("display") or prev.get("display") or model_id).strip() or model_id
-            params = b.get("params") if isinstance(b.get("params"), dict) else prev.get("params")
-            by_id[rid] = _catalog_item(
-                provider_name,
-                model_id,
-                display=display,
-                prompt_constraints=(
-                    bool(b.get("prompt_constraints"))
-                    if "prompt_constraints" in b
-                    else bool(prev.get("prompt_constraints"))
-                ),
-                params=params,
-            )
-
-    items = list(by_id.values())
-    items.sort(key=lambda x: (x["provider"], x["model"]))
-    return items
+    """Enabled models from the create-image endpoint store. No hardcoded backends."""
+    return endpoint_store.catalog_items()
 
 
 def _resolve_route(
     provider: Optional[str] = None,
     model: Optional[str] = None,
-) -> Tuple[str, str]:
-    """Priority: explicit args → panel overrides → config top-level."""
-    ov = read_overrides()
-    p = (provider or "").strip() or None
-    m = (model or "").strip() or None
-    if ov.get("active"):
-        if not p:
-            p = ov.get("provider") or None
-        if not m:
-            m = ov.get("model") or None
-    cfg_p, cfg_m = _config_default_route()
-    p = p or cfg_p
-    m = m or cfg_m
-    # If model missing, first model of provider in catalog.
-    if p and not m:
-        for it in _catalog():
-            if it["provider"] == p:
-                m = it["model"]
-                break
-    return p or "", m or ""
+    endpoint_id: Optional[str] = None,
+) -> Tuple[str, str, str]:
+    """Store catalog only. Empty when the user has not configured an endpoint."""
+    items = _catalog()
+    ep = (endpoint_id or "").strip()
+    p = (provider or "").strip()
+    m = (model or "").strip()
+    if ep and m:
+        for it in items:
+            if it.get("endpoint_id") == ep and it.get("model") == m:
+                return it["provider"], it["model"], ep
+    if p and m:
+        for it in items:
+            if it.get("provider") == p and it.get("model") == m:
+                return it["provider"], it["model"], str(it.get("endpoint_id") or "")
+    active = endpoint_store.resolve_active()
+    if active:
+        endpoint, model_row = active
+        return (
+            endpoint_store.PROVIDER_NAME,
+            str(model_row.get("id") or ""),
+            str(endpoint.get("id") or ""),
+        )
+    return "", "", ""
 
 
 def _get_provider(provider_name: str):
@@ -555,48 +468,46 @@ async def catalog():
 async def capabilities(
     provider: Optional[str] = Query(None),
     model: Optional[str] = Query(None),
+    endpoint_id: Optional[str] = Query(None),
 ):
-    provider_name, model_id = _resolve_route(provider, model)
-    plugin = _get_provider(provider_name)
-    caps = _caps(plugin, provider_name, model_id)
-    available = plugin is not None and bool(
-        getattr(plugin, "is_available", lambda: True)()
-    )
-    # Params from yaml still count as ready for UI.
-    params = caps.get("params") if isinstance(caps, dict) else {}
-    has_ui_params = isinstance(params, dict) and any(k != "prompt" for k in params)
-    ready = available or has_ui_params
+    provider_name, model_id, ep_id = _resolve_route(provider, model, endpoint_id)
+    caps = endpoint_store.caps_for(ep_id or None, model_id) if model_id else {
+        "id": "",
+        "provider": "",
+        "display": "",
+        "params": {"prompt": {"type": "text", "required": True}},
+        "prompt_constraints": False,
+        "source": "unconfigured",
+    }
+    available = bool(model_id) and endpoint_store.is_ready()
+    ready = available
 
     overrides = read_overrides()
-    cfg_pc = _model_prompt_constraints(provider_name, model_id)
     panel_pc = overrides.get("prompt_constraints")
-    # When user already selected this route, honor panel toggle; else config default.
     same_route = (
         overrides.get("active")
         and (overrides.get("provider") or provider_name) == provider_name
         and (overrides.get("model") or model_id) == model_id
     )
-    if same_route and isinstance(panel_pc, bool):
-        effective_pc = panel_pc
-    else:
-        effective_pc = cfg_pc
-
+    effective_pc = panel_pc if same_route and isinstance(panel_pc, bool) else False
     if isinstance(caps, dict):
         caps = {**caps, "prompt_constraints": effective_pc}
 
+    route_id = f"{ep_id}::{model_id}" if ep_id and model_id else ""
     return {
         "provider": provider_name,
         "model": model_id,
-        "id": f"{provider_name}::{model_id}" if provider_name and model_id else "",
+        "endpoint_id": ep_id,
+        "id": route_id,
         "available": available,
         "ready": ready,
         "capabilities": caps,
         "overrides": overrides,
         "prompt_constraints": effective_pc,
-        "prompt_constraints_default": cfg_pc,
+        "prompt_constraints_default": False,
         "catalog": _catalog(),
-        "default_provider": _config_default_route()[0],
-        "default_model": _config_default_route()[1],
+        "default_provider": provider_name,
+        "default_model": model_id,
     }
 
 
@@ -670,6 +581,110 @@ async def preview_prompt(body: PreviewBody):
     }
 
 
+class EndpointWriteBody(BaseModel):
+    id: Optional[str] = None
+    name: str = ""
+    base_url: str = ""
+    api_key: Optional[str] = None
+
+
+class ModelOptionBody(BaseModel):
+    id: str
+    enabled: bool = False
+    aspect_ratios: List[str] = Field(default_factory=list)
+    qualities: List[str] = Field(default_factory=list)
+    counts: List[str] = Field(default_factory=list)
+    transparent: bool = False
+
+
+class ModelsWriteBody(BaseModel):
+    models: List[ModelOptionBody] = Field(default_factory=list)
+
+
+class ActiveBody(BaseModel):
+    endpoint_id: str
+    model: str
+
+
+def _http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=502, detail=str(exc))
+
+
+def _activate(endpoint_id: str, model: str) -> Dict[str, Any]:
+    try:
+        active = endpoint_store.set_active(endpoint_id, model)
+    except ValueError as exc:
+        raise _http_error(exc) from exc
+    saved = _persist_image_gen_route(endpoint_store.PROVIDER_NAME, model)
+    return {**active, "config": saved}
+
+
+@router.get("/endpoints")
+async def get_endpoints():
+    return endpoint_store.list_public()
+
+
+@router.post("/endpoints")
+async def post_endpoint(body: EndpointWriteBody):
+    try:
+        saved = endpoint_store.upsert_endpoint(
+            name=body.name,
+            base_url=body.base_url,
+            api_key=body.api_key,
+            endpoint_id=body.id,
+        )
+    except ValueError as exc:
+        raise _http_error(exc) from exc
+    return saved
+
+
+@router.delete("/endpoints/{endpoint_id}")
+async def remove_endpoint(endpoint_id: str):
+    endpoint_store.delete_endpoint(endpoint_id)
+    return endpoint_store.list_public()
+
+
+@router.post("/endpoints/{endpoint_id}/models")
+async def fetch_endpoint_models(endpoint_id: str):
+    try:
+        models = endpoint_store.discover_models(endpoint_id)
+    except (ValueError, RuntimeError) as exc:
+        raise _http_error(exc) from exc
+    return {"models": models}
+
+
+@router.put("/endpoints/{endpoint_id}/models")
+async def put_endpoint_models(endpoint_id: str, body: ModelsWriteBody):
+    try:
+        saved = endpoint_store.save_models(
+            endpoint_id,
+            [item.model_dump() for item in body.models],
+        )
+    except ValueError as exc:
+        raise _http_error(exc) from exc
+    enabled = next((row for row in saved["models"] if row.get("enabled")), None)
+    current = endpoint_store.load_store().get("active") or {}
+    keep = None
+    if str(current.get("endpoint_id") or "") == endpoint_id:
+        keep = next(
+            (
+                row for row in saved["models"]
+                if row.get("id") == current.get("model") and row.get("enabled")
+            ),
+            None,
+        )
+    chosen = keep or enabled
+    active = _activate(endpoint_id, chosen["id"]) if chosen else None
+    return {"endpoint": saved, "active": active}
+
+
+@router.put("/active")
+async def put_active(body: ActiveBody):
+    return _activate(body.endpoint_id, body.model)
+
+
 class GenerateBody(BaseModel):
     prompt: str = Field(..., min_length=1)
     provider: Optional[str] = None
@@ -686,7 +701,7 @@ class GenerateBody(BaseModel):
 
 @router.post("/generate")
 async def generate(body: GenerateBody):
-    provider_name, model = _resolve_route(body.provider, body.model)
+    provider_name, model, _ep = _resolve_route(body.provider, body.model)
     provider = _get_provider(provider_name)
     if provider is None:
         raise HTTPException(

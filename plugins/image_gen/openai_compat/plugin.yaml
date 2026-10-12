@@ -1,0 +1,5 @@
+name: openai_compat
+version: 1.0.0
+description: "Image generation via user-configured OpenAI-compatible endpoints (create-image store)."
+author: warde
+kind: backend

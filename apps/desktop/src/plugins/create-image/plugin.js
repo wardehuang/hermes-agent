@@ -99,10 +99,29 @@ const LOCALES = {
     actions: {
       refresh: 'Refresh',
       close: 'Close',
+      settings: 'Settings',
+    },
+    settings: {
+      title: 'Endpoints',
+      name: 'Name',
+      baseUrl: 'Base URL',
+      key: 'API key',
+      keyKeep: 'Leave blank to keep the saved key',
+      saveEndpoint: 'Save endpoint',
+      fetch: 'Load models',
+      saveModels: 'Save models',
+      quality: 'Quality',
+      transparent: 'Transparent',
+      count: 'Count',
+      customRatio: 'Custom ratios',
+      customQuality: 'Custom quality',
+      customCount: 'Custom count',
+      empty: 'No endpoints yet',
+      delete: 'Delete',
     },
     errors: {
       emptyPrompt: 'Type a prompt in the chat box, then press Send',
-      noParams: 'No image params configured in config.yaml',
+      noParams: 'No endpoint yet. Open settings.',
     },
     notify: { errorTitle: 'Create Image' },
   },
@@ -152,10 +171,29 @@ const LOCALES = {
     actions: {
       refresh: '刷新',
       close: '关闭',
+      settings: '设置',
+    },
+    settings: {
+      title: '端点',
+      name: '名称',
+      baseUrl: 'Base URL',
+      key: 'API Key',
+      keyKeep: '留空则保留已保存的密钥',
+      saveEndpoint: '保存端点',
+      fetch: '读取模型',
+      saveModels: '保存模型',
+      quality: '质量',
+      transparent: '透明',
+      count: '张数',
+      customRatio: '自定义比例',
+      customQuality: '自定义质量',
+      customCount: '自定义张数',
+      empty: '还没有端点',
+      delete: '删除',
     },
     errors: {
       emptyPrompt: '在下方聊天输入框写提示词，再点发送',
-      noParams: 'config.yaml 未配置可用图片参数',
+      noParams: '还没有端点。打开设置添加。',
     },
     notify: { errorTitle: '创建图片' },
   },
@@ -205,10 +243,29 @@ const LOCALES = {
     actions: {
       refresh: '重新整理',
       close: '關閉',
+      settings: '設定',
+    },
+    settings: {
+      title: '端點',
+      name: '名稱',
+      baseUrl: 'Base URL',
+      key: 'API Key',
+      keyKeep: '留空則保留已儲存的金鑰',
+      saveEndpoint: '儲存端點',
+      fetch: '讀取模型',
+      saveModels: '儲存模型',
+      quality: '品質',
+      transparent: '透明',
+      count: '張數',
+      customRatio: '自訂比例',
+      customQuality: '自訂品質',
+      customCount: '自訂張數',
+      empty: '還沒有端點',
+      delete: '刪除',
     },
     errors: {
       emptyPrompt: '在下方聊天輸入框寫提示詞，再點傳送',
-      noParams: 'config.yaml 未設定可用圖片參數',
+      noParams: '還沒有端點。打開設定新增。',
     },
     notify: { errorTitle: '建立圖片' },
   },
@@ -257,10 +314,29 @@ const LOCALES = {
     actions: {
       refresh: '更新',
       close: '閉じる',
+      settings: '設定',
+    },
+    settings: {
+      title: 'エンドポイント',
+      name: '名前',
+      baseUrl: 'Base URL',
+      key: 'API Key',
+      keyKeep: '空欄なら保存済みのキーを維持',
+      saveEndpoint: 'エンドポイントを保存',
+      fetch: 'モデルを読む',
+      saveModels: 'モデルを保存',
+      quality: '品質',
+      transparent: '透明',
+      count: '枚数',
+      customRatio: 'カスタム比率',
+      customQuality: 'カスタム品質',
+      customCount: 'カスタム枚数',
+      empty: 'エンドポイントがありません',
+      delete: '削除',
     },
     errors: {
       emptyPrompt: '下の入力欄にプロンプトを書いて送信',
-      noParams: 'config.yaml に画像パラメータがありません',
+      noParams: 'エンドポイントがありません。設定から追加してください。',
     },
     notify: { errorTitle: '画像を作成' },
   },
@@ -309,10 +385,29 @@ const LOCALES = {
     actions: {
       refresh: 'تحديث',
       close: 'إغلاق',
+      settings: 'إعدادات',
+    },
+    settings: {
+      title: 'نقاط النهاية',
+      name: 'الاسم',
+      baseUrl: 'Base URL',
+      key: 'API Key',
+      keyKeep: 'اتركه فارغًا للإبقاء على المفتاح المحفوظ',
+      saveEndpoint: 'حفظ',
+      fetch: 'جلب النماذج',
+      saveModels: 'حفظ النماذج',
+      quality: 'الجودة',
+      transparent: 'شفاف',
+      count: 'العدد',
+      customRatio: 'نسب مخصصة',
+      customQuality: 'جودة مخصصة',
+      customCount: 'عدد مخصص',
+      empty: 'لا توجد نقاط نهاية',
+      delete: 'حذف',
     },
     errors: {
       emptyPrompt: 'اكتب المطالبة في مربع الدردشة ثم أرسل',
-      noParams: 'لا توجد معاملات صورة في config.yaml',
+      noParams: 'لا توجد نقطة نهاية. أضفها من الإعدادات.',
     },
     notify: { errorTitle: 'إنشاء صورة' },
   },
@@ -933,6 +1028,400 @@ function buildImageGenerateArgs(rawText, draft) {
   return args
 }
 
+const endpointInputClass =
+  'h-7 min-w-0 flex-1 rounded-md border border-(--ui-border) bg-(--ui-bg-primary)/40 px-2 text-[11px] text-(--ui-text-primary)'
+
+function ratioOk(value) {
+  return /^\d{1,4}:\d{1,4}$/.test(String(value || '').trim())
+}
+
+function blankModel(id) {
+  return {
+    id,
+    enabled: false,
+    aspect_ratios: [],
+    qualities: [],
+    counts: [],
+    transparent: false,
+  }
+}
+
+function storedList(value) {
+  return Array.isArray(value) ? value.map(String) : []
+}
+
+function mergeTokens(list, text, ok) {
+  const next = storedList(list)
+  for (const part of String(text || '').split(/[\s,]+/).map(s => s.trim()).filter(ok)) {
+    if (!next.includes(part)) next.push(part)
+  }
+  return next
+}
+
+function choiceRow(label, presets, selected, onToggle, customValue, onCustom, customPlaceholder) {
+  const picked = storedList(selected)
+  return jsxs('div', {
+    className: 'mt-1 flex flex-wrap items-center gap-x-3 gap-y-1',
+    children: [
+      jsx('span', {
+        className: 'shrink-0 text-[10px] text-(--ui-text-tertiary)',
+        children: label,
+      }),
+      presets.map(value =>
+        jsxs(
+          'label',
+          {
+            className: 'flex items-center gap-1 text-[10px]',
+            children: [
+              jsx('input', {
+                type: 'checkbox',
+                checked: picked.includes(value),
+                onChange: e => onToggle(value, e.target.checked),
+              }),
+              value,
+            ],
+          },
+          value,
+        ),
+      ),
+      jsx('input', {
+        className: endpointInputClass,
+        placeholder: customPlaceholder,
+        value: customValue,
+        onChange: e => onCustom(e.target.value),
+      }),
+    ],
+  })
+}
+
+function EndpointSettings({ t, onChanged, onClose }) {
+  const [rows, setRows] = useState([])
+  const [presets, setPresets] = useState(['1:1', '16:9', '9:16', '3:4', '4:3', '2:3', '3:2'])
+  const [qualityPresets, setQualityPresets] = useState(['low', 'medium', 'high'])
+  const [countPresets, setCountPresets] = useState(['1', '2', '4', '8'])
+  const [draft, setDraft] = useState({ id: '', name: '', base_url: '', api_key: '' })
+  const [boards, setBoards] = useState({})
+  const [custom, setCustom] = useState({})
+  const [localError, setLocalError] = useState('')
+  const [busy, setBusy] = useState('')
+
+  const reload = useCallback(async () => {
+    const data = await restClient('/endpoints', { method: 'GET' })
+    const list = Array.isArray(data?.endpoints) ? data.endpoints : []
+    setRows(list)
+    if (Array.isArray(data?.aspect_presets) && data.aspect_presets.length) {
+      setPresets(data.aspect_presets.map(String))
+    }
+    if (Array.isArray(data?.quality_presets) && data.quality_presets.length) {
+      setQualityPresets(data.quality_presets.map(String))
+    }
+    if (Array.isArray(data?.count_presets) && data.count_presets.length) {
+      setCountPresets(data.count_presets.map(String))
+    }
+    setBoards(() => {
+      const next = {}
+      for (const row of list) {
+        next[row.id] = (Array.isArray(row.models) ? row.models : []).map(m => ({
+          id: String(m.id),
+          enabled: Boolean(m.enabled),
+          aspect_ratios: storedList(m.aspect_ratios),
+          qualities: storedList(m.qualities),
+          counts: storedList(m.counts),
+          transparent: Boolean(m.transparent),
+        }))
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    void reload().catch(err => setLocalError(err?.message || String(err)))
+  }, [reload])
+
+  const saveEndpoint = async () => {
+    setBusy('save')
+    setLocalError('')
+    try {
+      await restClient('/endpoints', {
+        method: 'POST',
+        body: {
+          id: draft.id || undefined,
+          name: draft.name,
+          base_url: draft.base_url,
+          api_key: draft.api_key || undefined,
+        },
+      })
+      setDraft({ id: '', name: '', base_url: '', api_key: '' })
+      await reload()
+    } catch (err) {
+      setLocalError(err?.message || String(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const removeEndpoint = async id => {
+    setBusy(id)
+    setLocalError('')
+    try {
+      await restClient(`/endpoints/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      await reload()
+      onChanged?.()
+    } catch (err) {
+      setLocalError(err?.message || String(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const fetchModels = async id => {
+    setBusy(`fetch:${id}`)
+    setLocalError('')
+    try {
+      const data = await restClient(`/endpoints/${encodeURIComponent(id)}/models`, { method: 'POST' })
+      const ids = Array.isArray(data?.models) ? data.models.map(String) : []
+      setBoards(prev => {
+        const cur = prev[id] || []
+        const byId = new Map(cur.map(m => [m.id, m]))
+        for (const modelId of ids) {
+          if (!byId.has(modelId)) {
+            byId.set(modelId, blankModel(modelId))
+          }
+        }
+        return { ...prev, [id]: [...byId.values()] }
+      })
+    } catch (err) {
+      setLocalError(err?.message || String(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const patchModel = (endpointId, modelId, partial) => {
+    setBoards(prev => ({
+      ...prev,
+      [endpointId]: (prev[endpointId] || []).map(m => (m.id === modelId ? { ...m, ...partial } : m)),
+    }))
+  }
+
+  const saveModels = async id => {
+    setBusy(`save:${id}`)
+    setLocalError('')
+    try {
+      const models = (boards[id] || []).map(m => {
+        const key = `${id}::${m.id}`
+        return {
+          id: m.id,
+          enabled: Boolean(m.enabled),
+          aspect_ratios: mergeTokens(m.aspect_ratios, custom[`${key}:ratio`], ratioOk),
+          qualities: mergeTokens(m.qualities, custom[`${key}:quality`], value => /^[\w.+-]{1,32}$/.test(value)),
+          counts: mergeTokens(m.counts, custom[`${key}:count`], value => /^[1-9]\d{0,2}$/.test(value)),
+          transparent: Boolean(m.transparent),
+        }
+      })
+      await restClient(`/endpoints/${encodeURIComponent(id)}/models`, {
+        method: 'PUT',
+        body: { models },
+      })
+      setCustom({})
+      await reload()
+      onChanged?.()
+      onClose?.()
+    } catch (err) {
+      setLocalError(err?.message || String(err))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return jsxs('div', {
+    className: 'mt-2.5 flex flex-col gap-2',
+    children: [
+      jsxs('div', {
+        className: 'flex items-center justify-between gap-2',
+        children: [
+          jsx('div', { className: 'text-[11px] font-medium text-(--ui-text-primary)', children: t('settings.title') }),
+          jsx('button', {
+            type: 'button',
+            className: 'text-[11px] text-(--ui-text-secondary)',
+            onClick: () => onClose?.(),
+            children: t('actions.close'),
+          }),
+        ],
+      }),
+      jsxs('div', {
+        className: 'flex flex-wrap items-center gap-2',
+        children: [
+          jsx('input', {
+            className: endpointInputClass,
+            placeholder: t('settings.name'),
+            value: draft.name,
+            onChange: e => setDraft({ ...draft, name: e.target.value }),
+          }),
+          jsx('input', {
+            className: endpointInputClass,
+            placeholder: t('settings.baseUrl'),
+            value: draft.base_url,
+            onChange: e => setDraft({ ...draft, base_url: e.target.value }),
+          }),
+          jsx('input', {
+            className: endpointInputClass,
+            type: 'password',
+            autoComplete: 'off',
+            placeholder: draft.id ? t('settings.keyKeep') : t('settings.key'),
+            value: draft.api_key,
+            onChange: e => setDraft({ ...draft, api_key: e.target.value }),
+          }),
+          jsx('button', {
+            type: 'button',
+            className: 'h-7 shrink-0 rounded-md bg-emerald-500/20 px-2 text-[11px] text-emerald-200',
+            disabled: busy === 'save',
+            onClick: () => void saveEndpoint(),
+            children: t('settings.saveEndpoint'),
+          }),
+        ],
+      }),
+      rows.length
+        ? rows.map(row =>
+            jsxs(
+              'div',
+              {
+                className: 'rounded-lg border border-(--ui-border) px-2 py-2',
+                children: [
+                  jsxs('div', {
+                    className: 'flex flex-wrap items-center gap-2',
+                    children: [
+                      jsx('button', {
+                        type: 'button',
+                        className: 'min-w-0 flex-1 truncate text-left text-[11px] text-(--ui-text-primary)',
+                        onClick: () =>
+                          setDraft({ id: row.id, name: row.name || '', base_url: row.base_url || '', api_key: '' }),
+                        children: `${row.name} · ${row.base_url}`,
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'text-[11px]',
+                        disabled: Boolean(busy),
+                        onClick: () => void fetchModels(row.id),
+                        children: t('settings.fetch'),
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'text-[11px]',
+                        disabled: Boolean(busy),
+                        onClick: () => void saveModels(row.id),
+                        children: t('settings.saveModels'),
+                      }),
+                      jsx('button', {
+                        type: 'button',
+                        className: 'text-[11px] text-red-400',
+                        disabled: Boolean(busy),
+                        onClick: () => void removeEndpoint(row.id),
+                        children: t('settings.delete'),
+                      }),
+                    ],
+                  }),
+                  jsx('div', {
+                    className: 'max-h-64 overflow-y-auto',
+                    children: (boards[row.id] || []).map(model =>
+                    jsxs(
+                      'div',
+                      {
+                        className: 'mt-2 border-t border-(--ui-border) pt-2',
+                        children: [
+                          jsxs('label', {
+                            className: 'flex items-center gap-2 text-[11px]',
+                            children: [
+                              jsx('input', {
+                                type: 'checkbox',
+                                checked: Boolean(model.enabled),
+                                onChange: e => patchModel(row.id, model.id, { enabled: e.target.checked }),
+                              }),
+                              model.id,
+                            ],
+                          }),
+                          model.enabled
+                            ? jsxs('div', {
+                                children: [
+                                  choiceRow(
+                                    t('labels.aspect_ratio'),
+                                    presets,
+                                    model.aspect_ratios,
+                                    (value, on) =>
+                                      patchModel(row.id, model.id, {
+                                        aspect_ratios: on
+                                          ? [...storedList(model.aspect_ratios), value]
+                                          : storedList(model.aspect_ratios).filter(item => item !== value),
+                                      }),
+                                    custom[`${row.id}::${model.id}:ratio`] || '',
+                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:ratio`]: value }),
+                                    t('settings.customRatio'),
+                                  ),
+                                  choiceRow(
+                                    t('settings.quality'),
+                                    qualityPresets,
+                                    model.qualities,
+                                    (value, on) =>
+                                      patchModel(row.id, model.id, {
+                                        qualities: on
+                                          ? [...storedList(model.qualities), value]
+                                          : storedList(model.qualities).filter(item => item !== value),
+                                      }),
+                                    custom[`${row.id}::${model.id}:quality`] || '',
+                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:quality`]: value }),
+                                    t('settings.customQuality'),
+                                  ),
+                                  choiceRow(
+                                    t('settings.count'),
+                                    countPresets,
+                                    model.counts,
+                                    (value, on) =>
+                                      patchModel(row.id, model.id, {
+                                        counts: on
+                                          ? [...storedList(model.counts), value]
+                                          : storedList(model.counts).filter(item => item !== value),
+                                      }),
+                                    custom[`${row.id}::${model.id}:count`] || '',
+                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:count`]: value }),
+                                    t('settings.customCount'),
+                                  ),
+                                  jsxs('label', {
+                                    className: 'mt-1 flex items-center gap-1 text-[10px]',
+                                    children: [
+                                      jsx('input', {
+                                        type: 'checkbox',
+                                        checked: Boolean(model.transparent),
+                                        onChange: e =>
+                                          patchModel(row.id, model.id, { transparent: e.target.checked }),
+                                      }),
+                                      t('settings.transparent'),
+                                    ],
+                                  }),
+                                ],
+                              })
+                            : null,
+                        ],
+                      },
+                      model.id,
+                    ),
+                  ),
+                  }),
+                ],
+              },
+              row.id,
+            ),
+          )
+        : jsx('div', {
+            className: 'text-[11px] text-(--ui-text-tertiary)',
+            children: t('settings.empty'),
+          }),
+      localError
+        ? jsx('div', { className: 'break-all text-[11px] text-red-500', children: localError })
+        : null,
+    ],
+  })
+}
+
 function CreateImageBar() {
   const t = usePluginI18n(ID)
   const panel = useValue($panel)
@@ -948,6 +1437,7 @@ function CreateImageBar() {
   const [composerText, setComposerText] = useState('')
   const [routeId, setRouteId] = useState('')
   const [catalog, setCatalog] = useState([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const injectTouched = useRef(false)
 
   const applyCapsData = useCallback(
@@ -1014,6 +1504,7 @@ function CreateImageBar() {
             provider: sel.provider,
             model: sel.model,
           })
+          if (sel.endpointId) q.set('endpoint_id', sel.endpointId)
           path = `/capabilities?${q.toString()}`
         }
         const data = await restClient(path, { method: 'GET' })
@@ -1082,7 +1573,7 @@ function CreateImageBar() {
         const id = String(it?.id || `${provider}::${model}`)
         const display = String(it?.display || '').trim()
         const label = display || model
-        return { value: id, label, provider, model }
+        return { value: id, label, provider, model, endpointId: String(it?.endpoint_id || '') }
       })
       .filter(Boolean)
   }, [catalog, capsPayload])
@@ -1118,7 +1609,13 @@ if (!open) return null
     setRouteId(id)
     lastRoute = { provider: hit.provider, model: hit.model, id }
     injectTouched.current = false
-    void loadCaps({ provider: hit.provider, model: hit.model })
+    if (hit.endpointId) {
+      void restClient('/active', {
+        method: 'PUT',
+        body: { endpoint_id: hit.endpointId, model: hit.model },
+      }).catch(() => {})
+    }
+    void loadCaps({ provider: hit.provider, model: hit.model, endpointId: hit.endpointId })
   }
 
   const statusLine = [
@@ -1178,13 +1675,23 @@ if (!open) return null
               })
             : null,
           jsx(IconBtn, {
+            title: t('actions.settings'),
+            name: 'settings-gear',
+            disabled: busy,
+            onClick: () => setSettingsOpen(openNow => !openNow),
+          }),
+          jsx(IconBtn, {
             title: t('actions.refresh'),
             name: 'refresh',
             spinning: loadingCaps,
             disabled: loadingCaps || busy,
             onClick: () => {
               const hit = routeOptions.find(o => o.value === routeId)
-              void loadCaps(hit ? { provider: hit.provider, model: hit.model } : null)
+              void loadCaps(
+                hit
+                  ? { provider: hit.provider, model: hit.model, endpointId: hit.endpointId }
+                  : null,
+              )
             },
           }),
           jsx(IconBtn, {
@@ -1200,8 +1707,16 @@ if (!open) return null
         ],
       }),
 
-      // Row 2: params
-      fields.length
+      // Row 2: settings or params
+      settingsOpen
+        ? jsx(EndpointSettings, {
+            t,
+            onClose: () => setSettingsOpen(false),
+            onChanged: () => {
+              void loadCaps(null)
+            },
+          })
+        : fields.length
         ? jsx('div', {
             className:
               'mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2',

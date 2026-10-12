@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
@@ -192,6 +193,11 @@ def dispatch_adapters(
 
     The callable must already bound HTTP I/O to *timeout*. This wall is a
     second cut: a hung job is marked timed-out and its rows are dropped.
+
+    Each job runs in its own copy of the submitter's contextvars. Python 3.14's
+    ThreadPoolExecutor does not propagate them, so a multiplexed host would
+    fail-close credential reads (the secret-scope ContextVar is empty on the
+    worker while the process-global multiplex flag stays set).
     """
     if not jobs:
         return []
@@ -200,10 +206,13 @@ def dispatch_adapters(
     wall = max(timeout for _name, timeout, _call in jobs) + 2.0
     pool = ThreadPoolExecutor(max_workers=len(jobs))
     try:
-        future_map = {
-            pool.submit(_invoke_job, name, timeout, call): (name, timeout)
-            for name, timeout, call in jobs
-        }
+        future_map = {}
+        for name, timeout, call in jobs:
+            ctx = contextvars.copy_context()
+            future_map[pool.submit(ctx.run, _invoke_job, name, timeout, call)] = (
+                name,
+                timeout,
+            )
         done, pending = wait(future_map, timeout=wall)
         for future in done:
             name, timeout = future_map[future]
