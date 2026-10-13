@@ -1068,8 +1068,9 @@ def _n_bounds_for_route(
 
     allowed: list[int] = []
     for x in nspec.get("enum") or []:
+        raw = x.get("value") if isinstance(x, dict) else x
         try:
-            allowed.append(int(x))
+            allowed.append(int(raw))
         except (TypeError, ValueError):
             continue
     allowed = sorted(set(v for v in allowed if v >= 1))
