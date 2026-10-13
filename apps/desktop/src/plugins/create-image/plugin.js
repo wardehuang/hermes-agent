@@ -1634,18 +1634,18 @@ function EndpointSettings({ t, onChanged, onClose }) {
                             ],
                           }),
                           model.enabled
-                            ? jsxs('label', {
+                            ? jsxs('div', {
                                 className: 'mt-2 flex items-center gap-2 text-[10px] text-(--ui-text-tertiary)',
                                 children: [
                                   jsx('span', { className: 'shrink-0', children: t('settings.editBody') }),
-                                  jsx('select', {
-                                    className: endpointInputClass,
+                                  jsx(EnumSelect, {
                                     value: model.edit_body === 'json' ? 'json' : 'multipart',
-                                    onChange: e => patchModel(row.id, model.id, { edit_body: e.target.value }),
-                                    children: [
-                                      jsx('option', { value: 'multipart', children: 'multipart' }, 'multipart'),
-                                      jsx('option', { value: 'json', children: 'json' }, 'json'),
+                                    options: [
+                                      { value: 'multipart', label: 'multipart' },
+                                      { value: 'json', label: 'json' },
                                     ],
+                                    onChange: value => patchModel(row.id, model.id, { edit_body: value }),
+                                    minWidthCh: 10,
                                   }),
                                 ],
                               })
