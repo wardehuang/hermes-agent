@@ -282,3 +282,89 @@ def test_register_adds_search_dispatch_prompt_section() -> None:
     assert recorded[1][2] is search_dispatch_section
     assert recorded[1][3]["position"] == "after_memory"
     assert recorded[1][3]["max_chars"] == 800
+
+
+def test_chatgpt_search_sends_default_effort(monkeypatch) -> None:
+    from plugins.web.fathom.chatgpt import ChatGPTAdapter
+
+    monkeypatch.setattr(
+        "plugins.web.fathom.chatgpt.get_provider_env",
+        lambda name: "test-key" if name == "CHATGPT_SEARCH_API_KEY" else "",
+    )
+    monkeypatch.setattr("plugins.web.fathom.chatgpt.load_config_section", lambda _path: {})
+    captured: dict = {}
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"sources": [], "answer": ""}
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Response()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    outcome = ChatGPTAdapter().search("query", 3)
+    assert outcome.success is True
+    assert captured["json"] == {
+        "prompt": "query",
+        "model": "gpt-5-6-thinking",
+        "reasoning_effort": "extended",
+        "thinking_effort": "extended",
+    }
+
+
+def test_chatgpt_effort_env_beats_config(monkeypatch) -> None:
+    from plugins.web.fathom.chatgpt import ChatGPTAdapter
+
+    def env(name: str) -> str:
+        if name == "CHATGPT_SEARCH_EFFORT":
+            return "standard"
+        return ""
+
+    monkeypatch.setattr("plugins.web.fathom.chatgpt.get_provider_env", env)
+    monkeypatch.setattr(
+        "plugins.web.fathom.chatgpt.load_config_section",
+        lambda path: {"chatgpt": {"effort": "max"}} if path == ("web", "fathom") else {},
+    )
+    assert ChatGPTAdapter().load_settings()["effort"] == "standard"
+
+
+def test_chatgpt_effort_from_config(monkeypatch) -> None:
+    from plugins.web.fathom.chatgpt import ChatGPTAdapter
+
+    monkeypatch.setattr("plugins.web.fathom.chatgpt.get_provider_env", lambda _name: "")
+    monkeypatch.setattr(
+        "plugins.web.fathom.chatgpt.load_config_section",
+        lambda path: {"chatgpt": {"effort": "max"}} if path == ("web", "fathom") else {},
+    )
+    assert ChatGPTAdapter().load_settings()["effort"] == "max"
+
+
+def test_chatgpt_invalid_effort_is_error(monkeypatch) -> None:
+    from plugins.web.fathom.chatgpt import ChatGPTAdapter
+
+    monkeypatch.setattr(
+        "plugins.web.fathom.chatgpt.get_provider_env",
+        lambda name: {
+            "CHATGPT_SEARCH_EFFORT": "nope",
+            "CHATGPT_SEARCH_API_KEY": "test-key",
+        }.get(name, ""),
+    )
+    monkeypatch.setattr("plugins.web.fathom.chatgpt.load_config_section", lambda _path: {})
+    outcome = ChatGPTAdapter().search("query", 3)
+    assert outcome.success is False
+    assert "effort" in outcome.error
+
+
+def test_setup_schema_exposes_chatgpt_effort() -> None:
+    schema = FathomWebSearchProvider().get_setup_schema()
+    effort = next(item for item in schema["env_vars"] if item["key"] == "CHATGPT_SEARCH_EFFORT")
+    assert effort["default"] == "extended"
+    assert "standard|max|extended" in effort["prompt"]

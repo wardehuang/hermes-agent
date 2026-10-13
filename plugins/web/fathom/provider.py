@@ -21,6 +21,7 @@ Config::
         chatgpt:
           base_url: "http://wcpa.edmundvps.site:3000/v1"
           model: "gpt-5-6-thinking"
+          effort: "extended"
           timeout: 120
           key_env: "CHATGPT2API_API_KEY"
 
@@ -34,6 +35,7 @@ Env overrides (Desktop Tools panel can write these):
     CHATGPT_SEARCH_API_KEY
     CHATGPT_SEARCH_BASE_URL
     CHATGPT_SEARCH_MODEL
+    CHATGPT_SEARCH_EFFORT
     CHATGPT_SEARCH_TIMEOUT
     FATHOM_TIMEOUT
 
@@ -44,11 +46,12 @@ If adapter base_url / API key are unset, Fathom reuses
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from agent.web_search_provider import WebSearchProvider
 
 from plugins.web.fathom.chatgpt import ChatGPTAdapter, DEFAULT_BASE_URL as CHATGPT_DEFAULT_BASE_URL
+from plugins.web.fathom.chatgpt import DEFAULT_EFFORT as CHATGPT_DEFAULT_EFFORT
 from plugins.web.fathom.chatgpt import DEFAULT_MODEL as CHATGPT_DEFAULT_MODEL
 from plugins.web.fathom.common import (
     AdapterOutcome,
@@ -88,7 +91,7 @@ class FathomWebSearchProvider(WebSearchProvider):
     def supports_extract(self) -> bool:
         return False
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return {
             "name": PROVIDER_LABEL,
             "badge": "ensemble",
@@ -133,10 +136,18 @@ class FathomWebSearchProvider(WebSearchProvider):
                     "prompt": "ChatGPT search model",
                     "default": CHATGPT_DEFAULT_MODEL,
                 },
+                {
+                    "key": "CHATGPT_SEARCH_EFFORT",
+                    "prompt": (
+                        "ChatGPT reasoning_effort and thinking_effort: "
+                        "standard|max|extended"
+                    ),
+                    "default": CHATGPT_DEFAULT_EFFORT,
+                },
             ],
         }
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
         try:
             from tools.interrupt import is_interrupted
 
@@ -200,11 +211,11 @@ class FathomWebSearchProvider(WebSearchProvider):
         return jobs
 
     @staticmethod
-    def _assemble(outcomes: List[AdapterOutcome], limit: int) -> Dict[str, Any]:
-        used: List[str] = []
-        timed_out: List[str] = []
-        failed: List[Dict[str, str]] = []
-        answers: Dict[str, str] = {}
+    def _assemble(outcomes: list[AdapterOutcome], limit: int) -> dict[str, Any]:
+        used: list[str] = []
+        timed_out: list[str] = []
+        failed: list[dict[str, str]] = []
+        answers: dict[str, str] = {}
 
         for outcome in outcomes:
             if outcome.timed_out:
@@ -219,7 +230,7 @@ class FathomWebSearchProvider(WebSearchProvider):
                 answers[outcome.name] = answer
 
         rows = merge_rows(outcomes, limit)
-        fathom_meta: Dict[str, Any] = {
+        fathom_meta: dict[str, Any] = {
             "used": used,
             "timed_out": timed_out,
             "failed": failed,

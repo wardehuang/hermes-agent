@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from agent.web_search_provider import get_provider_env
 
@@ -21,13 +21,15 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "http://wcpa.edmundvps.site:3000/v1"
 DEFAULT_MODEL = "gpt-5-6-thinking"
+DEFAULT_EFFORT = "extended"
+_VALID_EFFORT = {"standard", "max", "extended"}
 
 
-def rows_from_chatgpt(data: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
+def rows_from_chatgpt(data: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     sources = data.get("sources")
     if not isinstance(sources, list):
         sources = []
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for item in sources:
         if not isinstance(item, dict):
             continue
@@ -78,7 +80,7 @@ class ChatGPTAdapter:
             return get_provider_env(provider_key_env)
         return ""
 
-    def load_settings(self) -> Dict[str, Any]:
+    def load_settings(self) -> dict[str, Any]:
         fathom = load_config_section(("web", "fathom"))
         chatgpt = nested_section(fathom, "chatgpt")
         chatgpt2api = load_config_section(("providers", "chatgpt2api"))
@@ -100,10 +102,20 @@ class ChatGPTAdapter:
             chatgpt.get("timeout"),
             default=shared_timeout(fathom),
         )
+        effort_raw = (
+            get_provider_env("CHATGPT_SEARCH_EFFORT")
+            or str(chatgpt.get("effort") or DEFAULT_EFFORT)
+        ).strip().lower()
+        if effort_raw not in _VALID_EFFORT:
+            raise ValueError(
+                f"Invalid web.fathom.chatgpt.effort {effort_raw!r}. "
+                f"Use one of: {sorted(_VALID_EFFORT)}"
+            )
         return {
             "base_url": base_url,
             "model": model,
             "timeout": timeout,
+            "effort": effort_raw,
         }
 
     def search(self, query: str, limit: int) -> AdapterOutcome:
@@ -124,7 +136,13 @@ class ChatGPTAdapter:
             return AdapterOutcome(name=self.name, success=False, error=str(exc))
 
         timeout = float(settings["timeout"])
-        payload = {"prompt": query, "model": settings["model"]}
+        effort = settings["effort"]
+        payload = {
+            "prompt": query,
+            "model": settings["model"],
+            "reasoning_effort": effort,
+            "thinking_effort": effort,
+        }
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -136,9 +154,10 @@ class ChatGPTAdapter:
             return AdapterOutcome(name=self.name, success=False, error="httpx is not installed")
 
         logger.info(
-            "Fathom chatgpt via %s model=%s timeout=%.0fs query=%r",
+            "Fathom chatgpt via %s model=%s effort=%s timeout=%.0fs query=%r",
             settings["base_url"],
             settings["model"],
+            effort,
             timeout,
             query,
         )
@@ -209,7 +228,7 @@ class ChatGPTAdapter:
 
         rows = rows_from_chatgpt(data, limit)
         answer = str(data.get("answer") or "").strip()
-        extra: Dict[str, Any] = {}
+        extra: dict[str, Any] = {}
         if answer:
             extra["answer"] = answer
         return AdapterOutcome(name=self.name, success=True, rows=rows, extra=extra)
