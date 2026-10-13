@@ -568,9 +568,22 @@ async def preview_prompt(body: PreviewBody):
     clean = {k: v for k, v in params.items() if v is not None and v != ""}
     base = (body.prompt or "").strip() or "(your prompt)"
     if body.prompt_constraints:
-        final = augment_prompt_with_output_constraints(
-            base, clean, is_edit=bool(body.is_edit)
-        )
+        active = endpoint_store.resolve_active()
+        custom = endpoint_store.constraint_lines(active[1], clean) if active else None
+        if custom is not None:
+            if body.is_edit:
+                custom.append(
+                    "This is an edit of the provided source image(s). Preserve identity, "
+                    "composition, and details that are not explicitly changed by the user request."
+                )
+            final = base if not custom else (
+                base if "[Output constraints]" in base else
+                base + "\n\n[Output constraints]\n" + "\n".join(f"- {line}" for line in custom)
+            )
+        else:
+            final = augment_prompt_with_output_constraints(
+                base, clean, is_edit=bool(body.is_edit)
+            )
     else:
         final = base
     return {
@@ -588,17 +601,8 @@ class EndpointWriteBody(BaseModel):
     api_key: Optional[str] = None
 
 
-class ModelOptionBody(BaseModel):
-    id: str
-    enabled: bool = False
-    aspect_ratios: List[str] = Field(default_factory=list)
-    qualities: List[str] = Field(default_factory=list)
-    counts: List[str] = Field(default_factory=list)
-    transparent: bool = False
-
-
 class ModelsWriteBody(BaseModel):
-    models: List[ModelOptionBody] = Field(default_factory=list)
+    models: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ActiveBody(BaseModel):
@@ -658,10 +662,7 @@ async def fetch_endpoint_models(endpoint_id: str):
 @router.put("/endpoints/{endpoint_id}/models")
 async def put_endpoint_models(endpoint_id: str, body: ModelsWriteBody):
     try:
-        saved = endpoint_store.save_models(
-            endpoint_id,
-            [item.model_dump() for item in body.models],
-        )
+        saved = endpoint_store.save_models(endpoint_id, list(body.models))
     except ValueError as exc:
         raise _http_error(exc) from exc
     enabled = next((row for row in saved["models"] if row.get("enabled")), None)

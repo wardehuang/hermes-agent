@@ -9,6 +9,7 @@ keys. Clarity upscaling is strictly per-call opt-in: default-on degraded text/CJ
 import json
 import logging
 import os
+import sys
 import datetime
 import threading
 import uuid
@@ -1164,6 +1165,40 @@ _SIZE_RATIO_HINTS = {
 }
 
 
+def _append_constraint_lines(prompt: str, lines: List[str]) -> str:
+    text = (prompt or "").strip()
+    kept = [line for line in lines if str(line or "").strip()]
+    if not text or not kept:
+        return text
+    marker = "[Output constraints]"
+    if marker in text:
+        return text
+    block = marker + "\n" + "\n".join(f"- {line}" for line in kept)
+    return f"{text}\n\n{block}"
+
+
+def _endpoint_constraint_lines(extra_params: Dict[str, Any], model_hint: Optional[str]) -> Optional[List[str]]:
+    """Endpoint-model inject templates. None when this request is not that model."""
+    try:
+        root = Path(__file__).resolve().parents[1] / "plugins" / "create-image"
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        import endpoints as endpoint_store
+
+        active = endpoint_store.resolve_active()
+        if not active:
+            return None
+        _endpoint, model = active
+        model_id = str(model.get("id") or "")
+        if model_hint and model_id and model_hint != model_id:
+            return None
+        if not isinstance(model.get("fields"), dict):
+            return None
+        return endpoint_store.constraint_lines(model, extra_params)
+    except Exception:
+        return None
+
+
 def _augment_prompt_with_output_constraints(
     prompt: str,
     extra_params: Optional[Dict[str, Any]] = None,
@@ -1373,9 +1408,18 @@ def _handle_image_generate(args, **kw):
     if _prompt_constraints_enabled(
         model_hint, panel_override=panel_pc, provider=panel_provider
     ):
-        prompt = _augment_prompt_with_output_constraints(
-            prompt, extra_params, is_edit=has_source
-        )
+        custom_lines = _endpoint_constraint_lines(extra_params, model_hint)
+        if custom_lines is not None:
+            if has_source:
+                custom_lines.append(
+                    "This is an edit of the provided source image(s). Preserve identity, "
+                    "composition, and details that are not explicitly changed by the user request."
+                )
+            prompt = _append_constraint_lines(prompt, custom_lines)
+        else:
+            prompt = _augment_prompt_with_output_constraints(
+                prompt, extra_params, is_edit=has_source
+            )
 
     image_url, reference_image_urls, confine_error = _confine_source_images(
         image_url, reference_image_urls, task_id)
@@ -1517,8 +1561,44 @@ def _build_dynamic_image_schema() -> Dict[str, Any]:
     max_refs = int(info.get("max_reference_images") or 0)
     can_edit = "image" in set(info.get("modalities") or ["text"])
     static_props = IMAGE_GENERATE_SCHEMA["parameters"]["properties"]
-    properties: Dict[str, Any] = {
-        "prompt": static_props["prompt"], "aspect_ratio": static_props["aspect_ratio"]}
+    properties: Dict[str, Any] = {"prompt": static_props["prompt"]}
+    model_params = info.get("model_params") if isinstance(info.get("model_params"), dict) else None
+    if not model_params:
+        raw_caps = info.get("model_capabilities") if isinstance(info.get("model_capabilities"), dict) else {}
+        model_params = raw_caps.get("params") if isinstance(raw_caps.get("params"), dict) else None
+    if model_params:
+        for key, spec in model_params.items():
+            if key == "prompt" or not isinstance(spec, dict):
+                continue
+            values = []
+            for item in spec.get("enum") or []:
+                raw = item.get("value") if isinstance(item, dict) else item
+                text = str(raw or "").strip()
+                if text and text not in values:
+                    values.append(text)
+            if not values:
+                continue
+            if key == "n":
+                numbers = []
+                for text in values:
+                    try:
+                        numbers.append(int(text))
+                    except ValueError:
+                        continue
+                if numbers:
+                    properties[key] = {
+                        "type": "integer",
+                        "enum": numbers,
+                        "description": f"Image count. One of: {', '.join(str(n) for n in numbers)}.",
+                    }
+                continue
+            properties[key] = {
+                "type": "string",
+                "enum": values,
+                "description": f"{key}. One of: {', '.join(values)}.",
+            }
+    else:
+        properties["aspect_ratio"] = static_props["aspect_ratio"]
     if can_edit:
         edit_clause = ", or edit / transform an existing image by passing image_url"
         properties["image_url"] = _IMAGE_URL_PARAM

@@ -30,22 +30,28 @@ PROVIDER_NAME = endpoint_store.PROVIDER_NAME
 def _allowed_payload(model: Dict[str, Any], aspect_ratio: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     params = endpoint_store.params_for(model)
     payload: Dict[str, Any] = {}
-    ratios = (params.get("aspect_ratio") or {}).get("enum") or []
-    chosen = str(kwargs.get("aspect_ratio") or aspect_ratio or "").strip()
-    if chosen in ratios:
-        payload["aspect_ratio"] = chosen
-    if "quality" in params:
-        quality = str(kwargs.get("quality") or "").strip()
-        allowed = {str(item) for item in (params.get("quality") or {}).get("enum") or []}
-        if quality in allowed:
-            payload["quality"] = quality
-    counts = {str(item) for item in (params.get("n") or {}).get("enum") or []}
-    if counts and str(kwargs.get("n") or "").strip() in counts:
-        payload["n"] = int(str(kwargs.get("n")).strip())
-    if "background" in params:
-        background = str(kwargs.get("background") or "").strip().lower()
-        if background in {"opaque", "transparent"}:
-            payload["background"] = background
+    for key, spec in params.items():
+        if key == "prompt" or not isinstance(spec, dict):
+            continue
+        allowed: Dict[str, Any] = {}
+        for item in spec.get("enum") or []:
+            if isinstance(item, dict):
+                value = item.get("value")
+            else:
+                value = item
+            if value is None or str(value).strip() == "":
+                continue
+            allowed[str(value)] = value
+        raw = kwargs.get(key)
+        if (raw is None or str(raw).strip() == "") and key == "aspect_ratio":
+            raw = aspect_ratio
+        text = str(raw).strip() if raw is not None else ""
+        if text not in allowed:
+            continue
+        if spec.get("type") == "integer" or key == "n":
+            payload[key] = int(text)
+        else:
+            payload[key] = allowed[text]
     return payload
 
 

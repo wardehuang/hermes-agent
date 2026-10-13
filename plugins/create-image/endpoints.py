@@ -103,18 +103,100 @@ def _clean_ratios(raw: Any) -> List[str]:
     return _token_list(raw, _RATIO_RE)
 
 
-def _public_model(raw: Dict[str, Any]) -> Dict[str, Any]:
-    qualities = _clean_qualities(raw.get("qualities"))
-    if "qualities" not in raw and raw.get("quality") is True:
-        qualities = list(QUALITY_PRESETS)
+_DEFAULT_INJECT = {
+    "aspect_ratio": "Aspect ratio must be {label}.",
+    "size": "Target resolution approximately {value} pixels (width x height).",
+    "quality": "Image quality: {value}.",
+    "n": "Generate exactly {value} image(s).",
+    "background": "Background must be {value}.",
+}
+_SLOTS = ("aspect_ratio", "size", "quality", "n", "background")
+_DEFAULT_KEYS = {
+    "aspect_ratio": "aspect_ratio",
+    "size": "size",
+    "quality": "quality",
+    "n": "n",
+    "background": "background",
+}
+
+
+def _as_option(raw: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return None
+        return {"label": text, "value": text, "enabled": True}
+    if not isinstance(raw, dict):
+        return None
+    value = str(raw.get("value") if raw.get("value") is not None else raw.get("label") or "").strip()
+    label = str(raw.get("label") if raw.get("label") is not None else value).strip() or value
+    if not value:
+        return None
+    return {"label": label, "value": value, "enabled": bool(raw.get("enabled", True))}
+
+
+def _field_from(slot: str, raw: Any) -> Dict[str, Any]:
+    key = _DEFAULT_KEYS[slot]
+    options: List[Dict[str, Any]] = []
+    if isinstance(raw, dict):
+        custom = str(raw.get("key") or "").strip()
+        if custom:
+            key = custom
+        for item in raw.get("options") or []:
+            opt = _as_option(item)
+            if opt:
+                options.append(opt)
+    if isinstance(raw, dict) and "inject" in raw:
+        inject = str(raw.get("inject") if raw.get("inject") is not None else "")
+    else:
+        inject = _DEFAULT_INJECT[slot]
+    return {"key": key, "options": options, "inject": inject}
+
+
+def _legacy_options(values: List[str]) -> List[Dict[str, Any]]:
+    return [{"label": value, "value": value, "enabled": True} for value in values]
+
+
+def normalize_model(raw: Dict[str, Any]) -> Dict[str, Any]:
+    incoming = raw.get("fields") if isinstance(raw.get("fields"), dict) else {}
+    fields = {slot: _field_from(slot, incoming.get(slot)) for slot in _SLOTS}
+    if not any(fields[slot]["options"] for slot in _SLOTS):
+        ratios = _clean_ratios(raw.get("aspect_ratios"))
+        qualities = _clean_qualities(raw.get("qualities"))
+        if "qualities" not in raw and raw.get("quality") is True:
+            qualities = list(QUALITY_PRESETS)
+        counts = _clean_counts(raw.get("counts"))
+        if ratios:
+            fields["aspect_ratio"]["options"] = _legacy_options(ratios)
+        if qualities:
+            fields["quality"]["options"] = _legacy_options(qualities)
+        if counts:
+            fields["n"]["options"] = _legacy_options(counts)
+        if raw.get("transparent"):
+            fields["background"]["options"] = _legacy_options(["opaque", "transparent"])
     return {
         "id": str(raw.get("id") or "").strip(),
         "enabled": bool(raw.get("enabled")),
-        "aspect_ratios": _clean_ratios(raw.get("aspect_ratios")),
-        "qualities": qualities,
-        "counts": _clean_counts(raw.get("counts")),
-        "transparent": bool(raw.get("transparent")),
+        "ratio_controls_size": bool(raw.get("ratio_controls_size")),
+        "fields": fields,
     }
+
+
+def _enabled_options(field: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [opt for opt in field.get("options") or [] if opt.get("enabled") and str(opt.get("value") or "").strip()]
+
+
+def assert_model(model: Dict[str, Any]) -> None:
+    if not model.get("ratio_controls_size"):
+        return
+    ratios = _enabled_options(model["fields"]["aspect_ratio"])
+    sizes = _enabled_options(model["fields"]["size"])
+    if len(ratios) != len(sizes):
+        raise ValueError("aspect_ratio and size enabled option counts must match")
+
+
+def _public_model(raw: Dict[str, Any]) -> Dict[str, Any]:
+    return normalize_model(raw)
 
 
 def _models_of(endpoint: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -272,7 +354,9 @@ def save_models(endpoint_id: str, models: List[Dict[str, Any]]) -> Dict[str, Any
         if not model_id or model_id in seen:
             continue
         seen.add(model_id)
-        cleaned.append(_public_model({**raw, "id": model_id, "enabled": bool(raw.get("enabled"))}))
+        model = normalize_model({**raw, "id": model_id, "enabled": bool(raw.get("enabled"))})
+        assert_model(model)
+        cleaned.append(model)
     endpoint["models"] = cleaned
     save_store(data)
     return public_endpoint(endpoint)
@@ -326,41 +410,124 @@ def is_ready() -> bool:
     return resolve_active() is not None
 
 
+def _enum_param(options: List[Dict[str, Any]], *, display: Optional[str] = None) -> Dict[str, Any]:
+    enum = [{"value": opt["value"], "label": opt["label"]} for opt in options]
+    spec: Dict[str, Any] = {
+        "type": "enum",
+        "enum": enum,
+        "default": enum[0]["value"],
+        "ui": "select",
+    }
+    if display:
+        spec["display"] = display
+    return spec
+
+
+def _with_inject(spec: Dict[str, Any], *templates: Any) -> Dict[str, Any]:
+    spec["inject_mode"] = "template"
+    spec["injects"] = [str(item) for item in templates if str(item or "").strip()]
+    return spec
+
+
 def params_for(model: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = model if isinstance(model.get("fields"), dict) else normalize_model(model)
+    fields = normalized["fields"]
     params: Dict[str, Any] = {"prompt": {"type": "text", "required": True}}
-    ratios = _clean_ratios(model.get("aspect_ratios"))
-    if ratios:
-        default = "1:1" if "1:1" in ratios else ratios[0]
-        params["aspect_ratio"] = {
-            "type": "enum",
-            "enum": ratios,
-            "default": default,
-            "ui": "select",
-        }
-    qualities = _clean_qualities(model.get("qualities"))
-    if qualities:
-        params["quality"] = {
-            "type": "enum",
-            "enum": qualities,
-            "default": "medium" if "medium" in qualities else qualities[0],
-            "ui": "select",
-        }
-    counts = _clean_counts(model.get("counts"))
-    if counts:
-        params["n"] = {
-            "type": "enum",
-            "enum": counts,
-            "default": "1" if "1" in counts else counts[0],
-            "ui": "select",
-        }
-    if model.get("transparent"):
-        params["background"] = {
-            "type": "enum",
-            "enum": ["opaque", "transparent"],
-            "default": "opaque",
-            "ui": "select",
-        }
+    linked = bool(normalized.get("ratio_controls_size"))
+    if linked:
+        ratios = _enabled_options(fields["aspect_ratio"])
+        sizes = _enabled_options(fields["size"])
+        count = min(len(ratios), len(sizes))
+        if count:
+            wire = str(fields["size"].get("key") or "size")
+            paired = [
+                {"value": sizes[i]["value"], "label": ratios[i]["label"]}
+                for i in range(count)
+            ]
+            params[wire] = _with_inject(
+                _enum_param(paired, display="aspect_ratio"),
+                fields["aspect_ratio"].get("inject") if fields["aspect_ratio"].get("inject") is not None else _DEFAULT_INJECT["aspect_ratio"],
+                fields["size"].get("inject") if fields["size"].get("inject") is not None else _DEFAULT_INJECT["size"],
+            )
+    else:
+        for slot in ("aspect_ratio", "size"):
+            options = _enabled_options(fields[slot])
+            if options:
+                wire = str(fields[slot].get("key") or _DEFAULT_KEYS[slot])
+                params[wire] = _with_inject(
+                    _enum_param(options),
+                    fields[slot].get("inject") if fields[slot].get("inject") is not None else _DEFAULT_INJECT[slot],
+                )
+    for slot in ("quality", "n", "background"):
+        options = _enabled_options(fields[slot])
+        if not options:
+            continue
+        spec = _enum_param(options)
+        if slot == "n":
+            spec["type"] = "integer"
+        params[str(fields[slot].get("key") or _DEFAULT_KEYS[slot])] = _with_inject(
+            spec,
+            fields[slot].get("inject") if fields[slot].get("inject") is not None else _DEFAULT_INJECT[slot],
+        )
     return params
+
+
+def render_inject(template: Any, label: str, value: str) -> str:
+    return str(template or "").replace("{label}", label).replace("{value}", value).strip()
+
+
+def _option_for_value(field: Dict[str, Any], sent: str) -> Dict[str, str]:
+    for opt in _enabled_options(field):
+        if str(opt.get("value") or "") == sent:
+            return {"label": str(opt.get("label") or sent), "value": sent}
+    return {"label": sent, "value": sent}
+
+
+def constraint_lines(model: Dict[str, Any], params: Dict[str, Any]) -> Optional[List[str]]:
+    """Rendered inject lines for an endpoint model. None when the model has no fields."""
+    if not isinstance(model, dict):
+        return None
+    normalized = model if isinstance(model.get("fields"), dict) else normalize_model(model)
+    fields = normalized["fields"]
+    lines: List[str] = []
+    used = set()
+
+    def template_for(slot: str) -> str:
+        raw = fields[slot].get("inject")
+        if raw is None:
+            return _DEFAULT_INJECT[slot]
+        return str(raw)
+
+    if normalized.get("ratio_controls_size"):
+        size_field = fields["size"]
+        size_key = str(size_field.get("key") or "size")
+        sent = str(params.get(size_key) or "").strip()
+        if sent:
+            sizes = _enabled_options(size_field)
+            ratios = _enabled_options(fields["aspect_ratio"])
+            index = next((i for i, opt in enumerate(sizes) if str(opt.get("value") or "") == sent), 0)
+            size_opt = sizes[index] if index < len(sizes) else {"label": sent, "value": sent}
+            ratio_opt = ratios[index] if index < len(ratios) else {"label": sent, "value": sent}
+            label = str(ratio_opt.get("label") or "")
+            value = str(size_opt.get("value") or sent)
+            for slot in ("aspect_ratio", "size"):
+                line = render_inject(template_for(slot), label, value)
+                if line:
+                    lines.append(line)
+            used.update(("aspect_ratio", "size"))
+    for slot in _SLOTS:
+        if slot in used:
+            continue
+        field = fields[slot]
+        key = str(field.get("key") or _DEFAULT_KEYS[slot])
+        sent = str(params.get(key) or "").strip()
+        if not sent:
+            continue
+        opt = _option_for_value(field, sent)
+        line = render_inject(template_for(slot), opt["label"], opt["value"])
+        if line:
+            lines.append(line)
+    return lines
 
 
 def catalog_items() -> List[Dict[str, Any]]:

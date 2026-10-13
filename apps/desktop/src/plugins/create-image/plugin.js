@@ -35,13 +35,13 @@ const $form = atom({})
 
 /** Preferred field order in the bar. */
 const FIELD_ORDER = [
-  'size',
   'aspect_ratio',
+  'size',
   'background',
-  'output_format',
-  'moderation',
   'quality',
   'n',
+  'output_format',
+  'moderation',
 ]
 
 /** @type {(path: string, opts?: object) => Promise<any>} */
@@ -109,6 +109,15 @@ const LOCALES = {
       keyKeep: 'Leave blank to keep the saved key',
       saveEndpoint: 'Save endpoint',
       fetch: 'Load models',
+      editModels: 'Edit models',
+      paramKey: 'Key',
+      label: 'Label',
+      value: 'Value',
+      ratioControlsSize: 'Ratio controls size',
+      ratioSizeMismatch: 'Enabled ratio and size options must match one to one',
+      addOption: 'Add',
+      injectHint: '{label} and {value}',
+      injectEmpty: 'No injection line',
       saveModels: 'Save models',
       quality: 'Quality',
       transparent: 'Transparent',
@@ -181,6 +190,15 @@ const LOCALES = {
       keyKeep: '留空则保留已保存的密钥',
       saveEndpoint: '保存端点',
       fetch: '读取模型',
+      editModels: '修改模型',
+      paramKey: 'Key',
+      label: 'Label',
+      value: 'Value',
+      ratioControlsSize: '比例控制尺寸',
+      ratioSizeMismatch: '已勾选的比例和尺寸必须数量一致、一一对应',
+      addOption: '添加',
+      injectHint: '可用 {label} 和 {value}',
+      injectEmpty: '这段不注入',
       saveModels: '保存模型',
       quality: '质量',
       transparent: '透明',
@@ -253,6 +271,15 @@ const LOCALES = {
       keyKeep: '留空則保留已儲存的金鑰',
       saveEndpoint: '儲存端點',
       fetch: '讀取模型',
+      editModels: '修改模型',
+      paramKey: 'Key',
+      label: 'Label',
+      value: 'Value',
+      ratioControlsSize: '比例控制尺寸',
+      ratioSizeMismatch: '已勾選的比例和尺寸必須數量一致、一一對應',
+      addOption: '添加',
+      injectHint: '可用 {label} 和 {value}',
+      injectEmpty: '這段不注入',
       saveModels: '儲存模型',
       quality: '品質',
       transparent: '透明',
@@ -324,6 +351,15 @@ const LOCALES = {
       keyKeep: '空欄なら保存済みのキーを維持',
       saveEndpoint: 'エンドポイントを保存',
       fetch: 'モデルを読む',
+      editModels: 'モデルを編集',
+      paramKey: 'Key',
+      label: 'Label',
+      value: 'Value',
+      ratioControlsSize: '比率がサイズを決める',
+      ratioSizeMismatch: '有効な比率とサイズの件数は一致が必要',
+      addOption: '追加',
+      injectHint: '{label} と {value}',
+      injectEmpty: '注入なし',
       saveModels: 'モデルを保存',
       quality: '品質',
       transparent: '透明',
@@ -395,6 +431,15 @@ const LOCALES = {
       keyKeep: 'اتركه فارغًا للإبقاء على المفتاح المحفوظ',
       saveEndpoint: 'حفظ',
       fetch: 'جلب النماذج',
+      editModels: 'تعديل النماذج',
+      paramKey: 'Key',
+      label: 'Label',
+      value: 'Value',
+      ratioControlsSize: 'النسبة تتحكم بالحجم',
+      ratioSizeMismatch: 'عدد خيارات النسبة والحجم يجب أن يتطابق',
+      addOption: 'إضافة',
+      injectHint: '{label} و {value}',
+      injectEmpty: 'بدون حقن',
       saveModels: 'حفظ النماذج',
       quality: 'الجودة',
       transparent: 'شفاف',
@@ -586,8 +631,9 @@ function IconBtn({ title, name, onClick, disabled, spinning }) {
 
 function optionLabel(raw, t) {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const v = raw.value != null ? raw.value : raw.label != null ? raw.label : ''
-    return optionLabel(v, t)
+    const label = raw.label != null ? String(raw.label).trim() : ''
+    if (label) return label
+    return optionLabel(raw.value != null ? raw.value : '', t)
   }
   const v = String(raw ?? '')
   const lower = v.toLowerCase()
@@ -715,7 +761,7 @@ function buildUiFields(params, t) {
 
     /** @type {Array<{value:string,label:string}>} */
     let options = []
-    if (name === 'size' || spec.type === 'size') {
+    if ((name === 'size' || spec.type === 'size') && Array.isArray(spec.presets) && spec.presets.length && !Array.isArray(spec.enum)) {
       const presets = Array.isArray(spec.presets) ? spec.presets : []
       const meta = spec.preset_meta && typeof spec.preset_meta === 'object' ? spec.preset_meta : {}
       for (const p of presets) {
@@ -752,9 +798,11 @@ function buildUiFields(params, t) {
     ) || options[0].value
     fields.push({
       name,
-      label: fieldLabel(name, t),
+      label: spec.display ? fieldLabel(spec.display, t) : fieldLabel(name, t),
       options,
       defaultValue,
+      injects: Array.isArray(spec.injects) ? spec.injects.map(item => String(item)) : [],
+      injectMode: spec.inject_mode === 'template' ? 'template' : '',
     })
   }
   return fields
@@ -799,7 +847,23 @@ function gcd(a, b) {
   return x || 1
 }
 
-/** Mirror server-side _augment_prompt_with_output_constraints for live preview. */
+function constraintLinesFromFields(uiFields, form) {
+  const templated = (uiFields || []).filter(field => field.injectMode === 'template')
+  if (!templated.length) return null
+  const lines = []
+  for (const field of templated) {
+    const selected = form ? form[field.name] : ''
+    if (selected == null || selected === '') continue
+    const opt = (field.options || []).find(item => String(item.value) === String(selected))
+    const label = opt ? String(opt.label || selected) : String(selected)
+    const value = String(selected)
+    for (const template of field.injects || []) {
+      const line = fillInject(template, label, value)
+      if (line) lines.push(line)
+    }
+  }
+  return lines
+}
 function augmentPromptWithConstraints(prompt, params, isEdit) {
   const text = String(prompt || '').trim()
   if (!text) return text
@@ -1031,77 +1095,101 @@ function buildImageGenerateArgs(rawText, draft) {
 const endpointInputClass =
   'h-7 min-w-0 flex-1 rounded-md border border-(--ui-border) bg-(--ui-bg-primary)/40 px-2 text-[11px] text-(--ui-text-primary)'
 
-function ratioOk(value) {
-  return /^\d{1,4}:\d{1,4}$/.test(String(value || '').trim())
+const SLOT_ORDER = ['aspect_ratio', 'size', 'quality', 'n', 'background']
+const SLOT_PRESETS = {
+  aspect_ratio: ['1:1', '16:9', '9:16', '3:4', '4:3', '2:3', '3:2'],
+  size: [],
+  quality: ['low', 'medium', 'high'],
+  n: ['1', '2', '4', '8'],
+  background: ['opaque', 'transparent'],
+}
+const DEFAULT_INJECT = {
+  aspect_ratio: 'Aspect ratio must be {label}.',
+  size: 'Target resolution approximately {value} pixels (width x height).',
+  quality: 'Image quality: {value}.',
+  n: 'Generate exactly {value} image(s).',
+  background: 'Background must be {value}.',
 }
 
-function blankModel(id) {
-  return {
-    id,
-    enabled: false,
-    aspect_ratios: [],
-    qualities: [],
-    counts: [],
-    transparent: false,
-  }
+function fillInject(template, label, value) {
+  return String(template || '').replaceAll('{label}', label).replaceAll('{value}', value).trim()
+}
+
+const DEFAULT_KEYS = {
+  aspect_ratio: 'aspect_ratio',
+  size: 'size',
+  quality: 'quality',
+  n: 'n',
+  background: 'background',
 }
 
 function storedList(value) {
   return Array.isArray(value) ? value.map(String) : []
 }
 
-function mergeTokens(list, text, ok) {
-  const next = storedList(list)
-  for (const part of String(text || '').split(/[\s,]+/).map(s => s.trim()).filter(ok)) {
-    if (!next.includes(part)) next.push(part)
+function rowsForSlot(slot, saved) {
+  const list = Array.isArray(saved) ? saved : []
+  const seen = new Set()
+  const rows = []
+  for (const preset of SLOT_PRESETS[slot]) {
+    const hit = list.find(item => String(item && item.value != null ? item.value : item) === preset)
+    rows.push({
+      label: hit && hit.label != null ? String(hit.label) : preset,
+      value: preset,
+      enabled: Boolean(hit) && hit.enabled !== false,
+    })
+    seen.add(preset)
   }
-  return next
+  for (const item of list) {
+    const value = String(item && item.value != null ? item.value : item || '').trim()
+    if (!value || seen.has(value)) continue
+    rows.push({
+      label: String((item && item.label) || value),
+      value,
+      enabled: !item || item.enabled !== false,
+    })
+  }
+  return rows
 }
 
-function choiceRow(label, presets, selected, onToggle, customValue, onCustom, customPlaceholder) {
-  const picked = storedList(selected)
-  return jsxs('div', {
-    className: 'mt-1 flex flex-wrap items-center gap-x-3 gap-y-1',
-    children: [
-      jsx('span', {
-        className: 'shrink-0 text-[10px] text-(--ui-text-tertiary)',
-        children: label,
-      }),
-      presets.map(value =>
-        jsxs(
-          'label',
-          {
-            className: 'flex items-center gap-1 text-[10px]',
-            children: [
-              jsx('input', {
-                type: 'checkbox',
-                checked: picked.includes(value),
-                onChange: e => onToggle(value, e.target.checked),
-              }),
-              value,
-            ],
-          },
-          value,
-        ),
-      ),
-      jsx('input', {
-        className: endpointInputClass,
-        placeholder: customPlaceholder,
-        value: customValue,
-        onChange: e => onCustom(e.target.value),
-      }),
-    ],
-  })
+function modelFromApi(raw) {
+  const fieldsIn = raw.fields && typeof raw.fields === 'object' ? raw.fields : null
+  const fields = {}
+  for (const slot of SLOT_ORDER) {
+    let saved = fieldsIn && Array.isArray(fieldsIn[slot]?.options) ? fieldsIn[slot].options : null
+    if (!fieldsIn) {
+      if (slot === 'aspect_ratio') saved = storedList(raw.aspect_ratios).map(v => ({ label: v, value: v, enabled: true }))
+      else if (slot === 'quality') saved = storedList(raw.qualities).map(v => ({ label: v, value: v, enabled: true }))
+      else if (slot === 'n') saved = storedList(raw.counts).map(v => ({ label: v, value: v, enabled: true }))
+      else if (slot === 'background' && raw.transparent) {
+        saved = ['opaque', 'transparent'].map(v => ({ label: v, value: v, enabled: true }))
+      } else saved = []
+    }
+    fields[slot] = {
+      key: String((fieldsIn && fieldsIn[slot] && fieldsIn[slot].key) || DEFAULT_KEYS[slot]),
+      inject: fieldsIn && fieldsIn[slot] && fieldsIn[slot].inject != null
+        ? String(fieldsIn[slot].inject)
+        : DEFAULT_INJECT[slot],
+      options: rowsForSlot(slot, saved || []),
+    }
+  }
+  return {
+    id: String(raw.id || ''),
+    enabled: Boolean(raw.enabled),
+    ratio_controls_size: Boolean(raw.ratio_controls_size),
+    fields,
+  }
+}
+
+function blankModel(id) {
+  return modelFromApi({ id, enabled: false, fields: {} })
 }
 
 function EndpointSettings({ t, onChanged, onClose }) {
   const [rows, setRows] = useState([])
-  const [presets, setPresets] = useState(['1:1', '16:9', '9:16', '3:4', '4:3', '2:3', '3:2'])
-  const [qualityPresets, setQualityPresets] = useState(['low', 'medium', 'high'])
-  const [countPresets, setCountPresets] = useState(['1', '2', '4', '8'])
   const [draft, setDraft] = useState({ id: '', name: '', base_url: '', api_key: '' })
   const [boards, setBoards] = useState({})
-  const [custom, setCustom] = useState({})
+  const [openModels, setOpenModels] = useState({})
   const [localError, setLocalError] = useState('')
   const [busy, setBusy] = useState('')
 
@@ -1109,26 +1197,10 @@ function EndpointSettings({ t, onChanged, onClose }) {
     const data = await restClient('/endpoints', { method: 'GET' })
     const list = Array.isArray(data?.endpoints) ? data.endpoints : []
     setRows(list)
-    if (Array.isArray(data?.aspect_presets) && data.aspect_presets.length) {
-      setPresets(data.aspect_presets.map(String))
-    }
-    if (Array.isArray(data?.quality_presets) && data.quality_presets.length) {
-      setQualityPresets(data.quality_presets.map(String))
-    }
-    if (Array.isArray(data?.count_presets) && data.count_presets.length) {
-      setCountPresets(data.count_presets.map(String))
-    }
     setBoards(() => {
       const next = {}
       for (const row of list) {
-        next[row.id] = (Array.isArray(row.models) ? row.models : []).map(m => ({
-          id: String(m.id),
-          enabled: Boolean(m.enabled),
-          aspect_ratios: storedList(m.aspect_ratios),
-          qualities: storedList(m.qualities),
-          counts: storedList(m.counts),
-          transparent: Boolean(m.transparent),
-        }))
+        next[row.id] = (Array.isArray(row.models) ? row.models : []).map(modelFromApi)
       }
       return next
     })
@@ -1184,9 +1256,7 @@ function EndpointSettings({ t, onChanged, onClose }) {
         const cur = prev[id] || []
         const byId = new Map(cur.map(m => [m.id, m]))
         for (const modelId of ids) {
-          if (!byId.has(modelId)) {
-            byId.set(modelId, blankModel(modelId))
-          }
+          if (!byId.has(modelId)) byId.set(modelId, blankModel(modelId))
         }
         return { ...prev, [id]: [...byId.values()] }
       })
@@ -1197,6 +1267,12 @@ function EndpointSettings({ t, onChanged, onClose }) {
     }
   }
 
+  const editModels = async id => {
+    setOpenModels(prev => ({ ...prev, [id]: true }))
+    const row = rows.find(item => item.id === id)
+    if (!row || !(row.models || []).length) await fetchModels(id)
+  }
+
   const patchModel = (endpointId, modelId, partial) => {
     setBoards(prev => ({
       ...prev,
@@ -1204,34 +1280,167 @@ function EndpointSettings({ t, onChanged, onClose }) {
     }))
   }
 
+  const patchField = (endpointId, modelId, slot, partial) => {
+    setBoards(prev => ({
+      ...prev,
+      [endpointId]: (prev[endpointId] || []).map(m => {
+        if (m.id !== modelId) return m
+        return { ...m, fields: { ...m.fields, [slot]: { ...m.fields[slot], ...partial } } }
+      }),
+    }))
+  }
+
+  const patchOption = (endpointId, modelId, slot, index, partial) => {
+    setBoards(prev => ({
+      ...prev,
+      [endpointId]: (prev[endpointId] || []).map(m => {
+        if (m.id !== modelId) return m
+        const field = m.fields[slot]
+        const options = field.options.map((opt, i) => (i === index ? { ...opt, ...partial } : opt))
+        return { ...m, fields: { ...m.fields, [slot]: { ...field, options } } }
+      }),
+    }))
+  }
+
+  const addOption = (endpointId, modelId, slot) => {
+    setBoards(prev => ({
+      ...prev,
+      [endpointId]: (prev[endpointId] || []).map(m => {
+        if (m.id !== modelId) return m
+        const field = m.fields[slot]
+        return {
+          ...m,
+          fields: {
+            ...m.fields,
+            [slot]: { ...field, options: [...field.options, { label: '', value: '', enabled: true }] },
+          },
+        }
+      }),
+    }))
+  }
+
   const saveModels = async id => {
     setBusy(`save:${id}`)
     setLocalError('')
     try {
-      const models = (boards[id] || []).map(m => {
-        const key = `${id}::${m.id}`
-        return {
-          id: m.id,
-          enabled: Boolean(m.enabled),
-          aspect_ratios: mergeTokens(m.aspect_ratios, custom[`${key}:ratio`], ratioOk),
-          qualities: mergeTokens(m.qualities, custom[`${key}:quality`], value => /^[\w.+-]{1,32}$/.test(value)),
-          counts: mergeTokens(m.counts, custom[`${key}:count`], value => /^[1-9]\d{0,2}$/.test(value)),
-          transparent: Boolean(m.transparent),
+      const models = (boards[id] || []).map(m => ({
+        id: m.id,
+        enabled: Boolean(m.enabled),
+        ratio_controls_size: Boolean(m.ratio_controls_size),
+        fields: Object.fromEntries(SLOT_ORDER.map(slot => [slot, {
+          key: String(m.fields[slot].key || DEFAULT_KEYS[slot]).trim() || DEFAULT_KEYS[slot],
+          inject: String(m.fields[slot].inject ?? DEFAULT_INJECT[slot]),
+          options: m.fields[slot].options
+            .map(opt => ({
+              label: String(opt.label || opt.value || '').trim(),
+              value: String(opt.value || '').trim(),
+              enabled: Boolean(opt.enabled),
+            }))
+            .filter(opt => opt.value),
+        }])),
+      }))
+      for (const model of models) {
+        if (!model.ratio_controls_size) continue
+        const ratios = model.fields.aspect_ratio.options.filter(opt => opt.enabled)
+        const sizes = model.fields.size.options.filter(opt => opt.enabled)
+        if (ratios.length !== sizes.length) {
+          setLocalError(t('settings.ratioSizeMismatch'))
+          return
         }
-      })
+      }
       await restClient(`/endpoints/${encodeURIComponent(id)}/models`, {
         method: 'PUT',
         body: { models },
       })
-      setCustom({})
       await reload()
       onChanged?.()
-      onClose?.()
+      setOpenModels(prev => ({ ...prev, [id]: false }))
     } catch (err) {
       setLocalError(err?.message || String(err))
     } finally {
       setBusy('')
     }
+  }
+
+  const fieldEditor = (rowId, model, slot) => {
+    const field = model.fields[slot]
+    return jsxs('div', {
+      className: 'mt-2',
+      children: [
+        jsxs('div', {
+          className: 'flex items-center gap-2',
+          children: [
+            jsx('span', {
+              className: 'w-14 shrink-0 text-[10px] text-(--ui-text-tertiary)',
+              children: t(`labels.${slot}`),
+            }),
+            jsx('input', {
+              className: endpointInputClass,
+              value: field.key,
+              'aria-label': t('settings.paramKey'),
+              onChange: e => patchField(rowId, model.id, slot, { key: e.target.value }),
+            }),
+          ],
+        }),
+        field.options.map((opt, index) =>
+          jsxs('div', {
+            className: 'mt-1 flex items-center gap-1',
+            children: [
+              jsx('input', {
+                type: 'checkbox',
+                checked: Boolean(opt.enabled),
+                onChange: e => patchOption(rowId, model.id, slot, index, { enabled: e.target.checked }),
+              }),
+              jsx('input', {
+                className: endpointInputClass,
+                value: opt.label,
+                placeholder: t('settings.label'),
+                onChange: e => patchOption(rowId, model.id, slot, index, { label: e.target.value }),
+              }),
+              jsx('input', {
+                className: endpointInputClass,
+                value: opt.value,
+                placeholder: t('settings.value'),
+                onChange: e => patchOption(rowId, model.id, slot, index, { value: e.target.value }),
+              }),
+            ],
+          }, `${slot}-${index}`),
+        ),
+        jsx('button', {
+          type: 'button',
+          className: 'mt-1 text-[10px] text-(--ui-text-secondary)',
+          onClick: () => addOption(rowId, model.id, slot),
+          children: t('settings.addOption'),
+        }),
+        jsx('textarea', {
+          className: 'mt-1 min-h-14 w-full rounded-md border border-(--ui-border) bg-(--ui-bg-primary)/40 px-2 py-1 text-[10px] text-(--ui-text-primary)',
+          value: field.inject || '',
+          placeholder: t('settings.injectHint'),
+          onChange: e => patchField(rowId, model.id, slot, { inject: e.target.value }),
+        }),
+        jsx('div', {
+          className: 'mt-1 whitespace-pre-wrap text-[10px] text-(--ui-text-tertiary)',
+          children: (() => {
+            const sample = field.options.find(opt => opt.enabled && opt.value) || field.options.find(opt => opt.value)
+            if (!field.inject || !sample) return t('settings.injectEmpty')
+            return fillInject(field.inject, sample.label || sample.value, sample.value)
+          })(),
+        }),
+        slot === 'size'
+          ? jsxs('label', {
+              className: 'mt-1 flex items-center gap-1 text-[10px]',
+              children: [
+                jsx('input', {
+                  type: 'checkbox',
+                  checked: Boolean(model.ratio_controls_size),
+                  onChange: e => patchModel(rowId, model.id, { ratio_controls_size: e.target.checked }),
+                }),
+                t('settings.ratioControlsSize'),
+              ],
+            })
+          : null,
+      ],
+    }, slot)
   }
 
   return jsxs('div', {
@@ -1302,8 +1511,8 @@ function EndpointSettings({ t, onChanged, onClose }) {
                         type: 'button',
                         className: 'text-[11px]',
                         disabled: Boolean(busy),
-                        onClick: () => void fetchModels(row.id),
-                        children: t('settings.fetch'),
+                        onClick: () => void editModels(row.id),
+                        children: t('settings.editModels'),
                       }),
                       jsx('button', {
                         type: 'button',
@@ -1321,8 +1530,9 @@ function EndpointSettings({ t, onChanged, onClose }) {
                       }),
                     ],
                   }),
-                  jsx('div', {
-                    className: 'max-h-64 overflow-y-auto',
+                  openModels[row.id]
+                    ? jsx('div', {
+                    className: 'max-h-80 overflow-y-auto',
                     children: (boards[row.id] || []).map(model =>
                     jsxs(
                       'div',
@@ -1342,62 +1552,7 @@ function EndpointSettings({ t, onChanged, onClose }) {
                           }),
                           model.enabled
                             ? jsxs('div', {
-                                children: [
-                                  choiceRow(
-                                    t('labels.aspect_ratio'),
-                                    presets,
-                                    model.aspect_ratios,
-                                    (value, on) =>
-                                      patchModel(row.id, model.id, {
-                                        aspect_ratios: on
-                                          ? [...storedList(model.aspect_ratios), value]
-                                          : storedList(model.aspect_ratios).filter(item => item !== value),
-                                      }),
-                                    custom[`${row.id}::${model.id}:ratio`] || '',
-                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:ratio`]: value }),
-                                    t('settings.customRatio'),
-                                  ),
-                                  choiceRow(
-                                    t('settings.quality'),
-                                    qualityPresets,
-                                    model.qualities,
-                                    (value, on) =>
-                                      patchModel(row.id, model.id, {
-                                        qualities: on
-                                          ? [...storedList(model.qualities), value]
-                                          : storedList(model.qualities).filter(item => item !== value),
-                                      }),
-                                    custom[`${row.id}::${model.id}:quality`] || '',
-                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:quality`]: value }),
-                                    t('settings.customQuality'),
-                                  ),
-                                  choiceRow(
-                                    t('settings.count'),
-                                    countPresets,
-                                    model.counts,
-                                    (value, on) =>
-                                      patchModel(row.id, model.id, {
-                                        counts: on
-                                          ? [...storedList(model.counts), value]
-                                          : storedList(model.counts).filter(item => item !== value),
-                                      }),
-                                    custom[`${row.id}::${model.id}:count`] || '',
-                                    value => setCustom({ ...custom, [`${row.id}::${model.id}:count`]: value }),
-                                    t('settings.customCount'),
-                                  ),
-                                  jsxs('label', {
-                                    className: 'mt-1 flex items-center gap-1 text-[10px]',
-                                    children: [
-                                      jsx('input', {
-                                        type: 'checkbox',
-                                        checked: Boolean(model.transparent),
-                                        onChange: e =>
-                                          patchModel(row.id, model.id, { transparent: e.target.checked }),
-                                      }),
-                                      t('settings.transparent'),
-                                    ],
-                                  }),
-                                ],
+                                children: SLOT_ORDER.map(slot => fieldEditor(row.id, model, slot)),
                               })
                             : null,
                         ],
@@ -1405,7 +1560,8 @@ function EndpointSettings({ t, onChanged, onClose }) {
                       model.id,
                     ),
                   ),
-                  }),
+                  })
+                    : null,
                 ],
               },
               row.id,
@@ -1585,6 +1741,15 @@ function CreateImageBar() {
     // Only show the constraint block that will be appended — not the full chat prompt.
     const marker = '[Output constraints]'
     const dummy = '__PROMPT__'
+    const custom = constraintLinesFromFields(fields, form || {})
+    if (custom) {
+      if (!custom.length) return { show: true, text: '', note: t('inject.empty') }
+      return {
+        show: true,
+        text: `[Output constraints]\n${custom.map(line => `- ${line}`).join('\n')}`,
+        note: t('inject.onlyBlock'),
+      }
+    }
     const final = augmentPromptWithConstraints(dummy, form || {}, false)
     if (!final.includes(marker)) {
       return { show: true, text: '', note: t('inject.empty') }
@@ -1592,7 +1757,7 @@ function CreateImageBar() {
     const idx = final.indexOf(marker)
     const block = final.slice(idx).trim()
     return { show: true, text: block, note: t('inject.onlyBlock') }
-  }, [form, injectEnabled, t])
+  }, [form, fields, injectEnabled, t])
 
 if (!open) return null
 
