@@ -2,6 +2,8 @@
 
 import { type FC, useState } from 'react'
 
+import { useElapsedSeconds } from '@/components/chat/activity-timer'
+import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { DiffusionCanvas } from '@/components/chat/image-generation-placeholder'
 import { ImageActionButton, ImageLightbox } from '@/components/chat/zoomable-image'
 import { useImageDownload } from '@/hooks/use-image-download'
@@ -15,17 +17,49 @@ import { cn } from '@/lib/utils'
 const ASPECT_HINTS: Record<string, number> = {
   landscape: 16 / 9,
   square: 1,
-  portrait: 9 / 16
+  portrait: 9 / 16,
+  '1:1': 1,
+  '16:9': 16 / 9,
+  '9:16': 9 / 16,
+  '4:3': 4 / 3,
+  '3:4': 3 / 4,
+  '3:2': 3 / 2,
+  '2:3': 2 / 3
 }
 
 function hintedRatio(aspectRatio?: string): number {
-  return (
-    ASPECT_HINTS[
-      String(aspectRatio ?? '')
-        .toLowerCase()
-        .trim()
-    ] ?? ASPECT_HINTS.landscape
-  )
+  const raw = String(aspectRatio ?? '')
+    .toLowerCase()
+    .trim()
+  const named = ASPECT_HINTS[raw]
+
+  if (named) {
+    return named
+  }
+
+  const ratio = raw.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/)
+
+  if (ratio) {
+    const width = Number(ratio[1])
+    const height = Number(ratio[2])
+
+    if (width > 0 && height > 0) {
+      return width / height
+    }
+  }
+
+  const pixels = raw.match(/^(\d+)\s*[x×]\s*(\d+)$/i)
+
+  if (pixels) {
+    const width = Number(pixels[1])
+    const height = Number(pixels[2])
+
+    if (width > 0 && height > 0) {
+      return width / height
+    }
+  }
+
+  return ASPECT_HINTS.landscape
 }
 
 const GeneratedImageCard: FC<{
@@ -33,9 +67,11 @@ const GeneratedImageCard: FC<{
   dimensions?: ReturnType<typeof generatedImageDimensionsFromResult>
   image: null | string
   pending: boolean
-}> = ({ aspectRatio, dimensions, image, pending }) => {
+  startedAt?: number
+}> = ({ aspectRatio, dimensions, image, pending, startedAt }) => {
   const { t } = useI18n()
   const copy = t.desktop
+  const elapsed = useElapsedSeconds(pending, undefined, startedAt)
 
   const media = useMediaImage(image ?? '', hintedRatio(aspectRatio), dimensions, {
     preservePendingFrame: true
@@ -76,7 +112,10 @@ const GeneratedImageCard: FC<{
         className="group/image relative block max-w-full overflow-hidden rounded-2xl"
         data-slot="aui_generated-image"
         role={pending ? 'status' : undefined}
-        style={media.frameStyle}
+        style={{
+          ...media.frameStyle,
+          ...(pending ? { minHeight: '12rem' } : {})
+        }}
       >
         {canvasGone !== media.key && (
           <div
@@ -109,6 +148,11 @@ const GeneratedImageCard: FC<{
         {loaded && src && (
           <ImageActionButton className="group-hover/image:opacity-100" copy={copy} onClick={download} saving={saving} />
         )}
+        {pending && (
+          <span className="pointer-events-none absolute bottom-2 left-2 z-10">
+            <ActivityTimerText seconds={elapsed} />
+          </span>
+        )}
       </span>
       {src && (
         <ImageLightbox
@@ -125,7 +169,11 @@ const GeneratedImageCard: FC<{
   )
 }
 
-export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({ aspectRatio, result }) => {
+export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown; startedAt?: number }> = ({
+  aspectRatio,
+  result,
+  startedAt
+}) => {
   const pending = result === undefined
   const images = pending ? [null] : generatedImagesFromResult(result)
   const dimensions = generatedImageDimensionsFromResult(result)
@@ -141,6 +189,7 @@ export const GeneratedImage: FC<{ aspectRatio?: string; result?: unknown }> = ({
       image={image}
       key={image ?? `pending-${index}`}
       pending={pending}
+      startedAt={startedAt}
     />
   ))
 
