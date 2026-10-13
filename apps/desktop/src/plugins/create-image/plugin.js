@@ -788,7 +788,11 @@ function buildUiFields(params, t) {
         .map(v => {
           const value = coerceOptionValue(v)
           if (!value) return null
-          return { value, label: optionLabel(v, t) }
+          const opt = { value, label: optionLabel(v, t) }
+          if (v && typeof v === 'object' && v.inject_label != null && String(v.inject_label).trim()) {
+            opt.injectLabel = String(v.inject_label)
+          }
+          return opt
         })
         .filter(Boolean)
     }
@@ -855,7 +859,11 @@ function constraintLinesFromFields(uiFields, form) {
     const selected = form ? form[field.name] : ''
     if (selected == null || selected === '') continue
     const opt = (field.options || []).find(item => String(item.value) === String(selected))
-    const label = opt ? String(opt.label || selected) : String(selected)
+    const label = opt && opt.injectLabel
+      ? String(opt.injectLabel)
+      : opt
+        ? String(opt.label || selected)
+        : String(selected)
     const value = String(selected)
     for (const template of field.injects || []) {
       const line = fillInject(template, label, value)
@@ -1152,6 +1160,16 @@ function rowsForSlot(slot, saved) {
   return rows
 }
 
+function savedOptions(saved) {
+  return (Array.isArray(saved) ? saved : [])
+    .map(item => ({
+      label: String(item && item.label != null ? item.label : item && item.value != null ? item.value : ''),
+      value: String(item && item.value != null ? item.value : '').trim(),
+      enabled: !item || item.enabled !== false,
+    }))
+    .filter(opt => opt.value)
+}
+
 function modelFromApi(raw) {
   const fieldsIn = raw.fields && typeof raw.fields === 'object' ? raw.fields : null
   const fields = {}
@@ -1170,7 +1188,9 @@ function modelFromApi(raw) {
       inject: fieldsIn && fieldsIn[slot] && fieldsIn[slot].inject != null
         ? String(fieldsIn[slot].inject)
         : DEFAULT_INJECT[slot],
-      options: rowsForSlot(slot, saved || []),
+      options: fieldsIn && fieldsIn[slot]
+        ? savedOptions(saved)
+        : rowsForSlot(slot, saved || []),
     }
   }
   return {
@@ -1302,19 +1322,42 @@ function EndpointSettings({ t, onChanged, onClose }) {
     }))
   }
 
+  const blankOption = () => ({ label: '', value: '', enabled: true })
+
+  const alignSize = (ratioOptions, sizeOptions) => {
+    const next = sizeOptions.map(opt => ({ ...opt }))
+    while (next.length < ratioOptions.length) next.push(blankOption())
+    return next.slice(0, ratioOptions.length)
+  }
+
+  const removeOption = (endpointId, modelId, slot, index) => {
+    setBoards(prev => ({
+      ...prev,
+      [endpointId]: (prev[endpointId] || []).map(m => {
+        if (m.id !== modelId) return m
+        const drop = list => list.filter((_, i) => i !== index)
+        const fields = { ...m.fields, [slot]: { ...m.fields[slot], options: drop(m.fields[slot].options) } }
+        if (m.ratio_controls_size && slot === 'aspect_ratio') {
+          fields.size = { ...m.fields.size, options: drop(m.fields.size.options) }
+        }
+        return { ...m, fields }
+      }),
+    }))
+  }
+
   const addOption = (endpointId, modelId, slot) => {
     setBoards(prev => ({
       ...prev,
       [endpointId]: (prev[endpointId] || []).map(m => {
         if (m.id !== modelId) return m
-        const field = m.fields[slot]
-        return {
-          ...m,
-          fields: {
-            ...m.fields,
-            [slot]: { ...field, options: [...field.options, { label: '', value: '', enabled: true }] },
-          },
+        const fields = {
+          ...m.fields,
+          [slot]: { ...m.fields[slot], options: [...m.fields[slot].options, blankOption()] },
         }
+        if (m.ratio_controls_size && slot === 'aspect_ratio') {
+          fields.size = { ...m.fields.size, options: [...m.fields.size.options, blankOption()] }
+        }
+        return { ...m, fields }
       }),
     }))
   }
@@ -1403,6 +1446,14 @@ function EndpointSettings({ t, onChanged, onClose }) {
                 placeholder: t('settings.value'),
                 onChange: e => patchOption(rowId, model.id, slot, index, { value: e.target.value }),
               }),
+              slot === 'size' && model.ratio_controls_size
+                ? null
+                : jsx('button', {
+                    type: 'button',
+                    className: 'shrink-0 text-[10px] text-red-400',
+                    onClick: () => removeOption(rowId, model.id, slot, index),
+                    children: t('settings.delete'),
+                  }),
             ],
           }, `${slot}-${index}`),
         ),
@@ -1411,14 +1462,19 @@ function EndpointSettings({ t, onChanged, onClose }) {
           className: 'mt-1 text-[10px] text-(--ui-text-secondary)',
           onClick: () => addOption(rowId, model.id, slot),
           children: t('settings.addOption'),
+          style: slot === 'size' && model.ratio_controls_size ? { display: 'none' } : undefined,
         }),
-        jsx('textarea', {
+        slot === 'aspect_ratio' && model.ratio_controls_size
+          ? null
+          : jsx('textarea', {
           className: 'mt-1 min-h-14 w-full rounded-md border border-(--ui-border) bg-(--ui-bg-primary)/40 px-2 py-1 text-[10px] text-(--ui-text-primary)',
           value: field.inject || '',
           placeholder: t('settings.injectHint'),
           onChange: e => patchField(rowId, model.id, slot, { inject: e.target.value }),
         }),
-        jsx('div', {
+        slot === 'aspect_ratio' && model.ratio_controls_size
+          ? null
+          : jsx('div', {
           className: 'mt-1 whitespace-pre-wrap text-[10px] text-(--ui-text-tertiary)',
           children: (() => {
             const sample = field.options.find(opt => opt.enabled && opt.value) || field.options.find(opt => opt.value)
@@ -1433,7 +1489,27 @@ function EndpointSettings({ t, onChanged, onClose }) {
                 jsx('input', {
                   type: 'checkbox',
                   checked: Boolean(model.ratio_controls_size),
-                  onChange: e => patchModel(rowId, model.id, { ratio_controls_size: e.target.checked }),
+                  onChange: e => {
+                    const on = e.target.checked
+                    setBoards(prev => ({
+                      ...prev,
+                      [rowId]: (prev[rowId] || []).map(item => {
+                        if (item.id !== model.id) return item
+                        if (!on) return { ...item, ratio_controls_size: false }
+                        return {
+                          ...item,
+                          ratio_controls_size: true,
+                          fields: {
+                            ...item.fields,
+                            size: {
+                              ...item.fields.size,
+                              options: alignSize(item.fields.aspect_ratio.options, item.fields.size.options),
+                            },
+                          },
+                        }
+                      }),
+                    }))
+                  },
                 }),
                 t('settings.ratioControlsSize'),
               ],

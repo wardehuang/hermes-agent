@@ -411,7 +411,12 @@ def is_ready() -> bool:
 
 
 def _enum_param(options: List[Dict[str, Any]], *, display: Optional[str] = None) -> Dict[str, Any]:
-    enum = [{"value": opt["value"], "label": opt["label"]} for opt in options]
+    enum = []
+    for opt in options:
+        item = {"value": opt["value"], "label": opt["label"]}
+        if opt.get("inject_label"):
+            item["inject_label"] = opt["inject_label"]
+        enum.append(item)
     spec: Dict[str, Any] = {
         "type": "enum",
         "enum": enum,
@@ -440,13 +445,15 @@ def params_for(model: Dict[str, Any]) -> Dict[str, Any]:
         count = min(len(ratios), len(sizes))
         if count:
             wire = str(fields["size"].get("key") or "size")
-            paired = [
-                {"value": sizes[i]["value"], "label": ratios[i]["label"]}
-                for i in range(count)
-            ]
             params[wire] = _with_inject(
-                _enum_param(paired, display="aspect_ratio"),
-                fields["aspect_ratio"].get("inject") if fields["aspect_ratio"].get("inject") is not None else _DEFAULT_INJECT["aspect_ratio"],
+                _enum_param([
+                    {
+                        "value": sizes[i]["value"],
+                        "label": ratios[i]["label"],
+                        "inject_label": sizes[i]["label"],
+                    }
+                    for i in range(count)
+                ], display="aspect_ratio"),
                 fields["size"].get("inject") if fields["size"].get("inject") is not None else _DEFAULT_INJECT["size"],
             )
     else:
@@ -504,16 +511,13 @@ def constraint_lines(model: Dict[str, Any], params: Dict[str, Any]) -> Optional[
         sent = str(params.get(size_key) or "").strip()
         if sent:
             sizes = _enabled_options(size_field)
-            ratios = _enabled_options(fields["aspect_ratio"])
             index = next((i for i, opt in enumerate(sizes) if str(opt.get("value") or "") == sent), 0)
             size_opt = sizes[index] if index < len(sizes) else {"label": sent, "value": sent}
-            ratio_opt = ratios[index] if index < len(ratios) else {"label": sent, "value": sent}
-            label = str(ratio_opt.get("label") or "")
+            label = str(size_opt.get("label") or "")
             value = str(size_opt.get("value") or sent)
-            for slot in ("aspect_ratio", "size"):
-                line = render_inject(template_for(slot), label, value)
-                if line:
-                    lines.append(line)
+            line = render_inject(template_for("size"), label, value)
+            if line:
+                lines.append(line)
             used.update(("aspect_ratio", "size"))
     for slot in _SLOTS:
         if slot in used:
