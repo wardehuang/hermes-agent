@@ -4884,6 +4884,7 @@ export const zhOverrides = {
     openImage: '打开图片',
     openVideo: '打开视频',
     downloadImage: '下载图片',
+    addImageToChat: '添加到聊天',
     savingImage: '正在保存图片',
     zoomIn: '放大',
     zoomOut: '缩小',

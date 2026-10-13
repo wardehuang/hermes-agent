@@ -484,6 +484,7 @@ export const zhHantChat = {
     imageDownloadFailed: '圖片下載失敗',
     openImage: '開啟圖片',
     downloadImage: '下載圖片',
+    addImageToChat: '加到聊天',
     savingImage: '正在儲存圖片',
     zoomIn: '放大',
     zoomOut: '縮小',

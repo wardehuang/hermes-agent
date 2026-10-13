@@ -1,14 +1,17 @@
 'use client'
 
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, useEffect } from 'react'
+import { type ComponentProps, useEffect, useState } from 'react'
 
+import { requestComposerAttachImages, requestComposerFocus } from '@/app/chat/composer/focus'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useZoomPan } from '@/components/ui/use-zoom-pan'
 import { useImageDownload } from '@/hooks/use-image-download'
 import { useI18n } from '@/i18n'
-import { Download, ZoomIn, ZoomOut } from '@/lib/icons'
+import { dataUrlToBlob } from '@/lib/embedded-images'
+import { Download, MessageCircle, ZoomIn, ZoomOut } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { notify, notifyError } from '@/store/notifications'
 import { $transcriptLightbox, closeTranscriptLightbox, openTranscriptLightbox } from '@/store/transcript-lightbox'
 
 export interface ZoomableImageProps extends ComponentProps<'img'> {
@@ -23,6 +26,8 @@ export interface ZoomableImageProps extends ComponentProps<'img'> {
 
 export interface ImageActionCopy {
   downloadImage: string
+  addImageToChat: string
+  imageAttachFailed: string
   savingImage: string
   zoomIn: string
   zoomOut: string
@@ -128,6 +133,34 @@ export function ImageLightbox({
   }
 
   const cursor = scale > 1 ? (panning ? 'grabbing' : 'grab') : 'zoom-out'
+  const [adding, setAdding] = useState(false)
+
+  const addToChat = async () => {
+    if (adding || !src) {
+      return
+    }
+
+    setAdding(true)
+
+    try {
+      const blob = await imageSourceToBlob(src)
+
+      if (!blob || blob.size === 0) {
+        notify({ kind: 'error', title: copy.addImageToChat, message: copy.imageAttachFailed })
+
+        return
+      }
+
+      requestComposerAttachImages([blob])
+      requestComposerFocus()
+      window.dispatchEvent(new CustomEvent('hermes:create-image', { detail: { seed: '' } }))
+      onOpenChange(false)
+    } catch (error) {
+      notifyError(error, copy.imageAttachFailed)
+    } finally {
+      setAdding(false)
+    }
+  }
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -140,6 +173,17 @@ export function ImageLightbox({
               onClick={event => event.stopPropagation()}
               onPointerDown={event => event.stopPropagation()}
             >
+              <button
+                aria-label={copy.addImageToChat}
+                className="flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                disabled={adding}
+                onClick={() => void addToChat()}
+                type="button"
+              >
+                <MessageCircle className={cn('size-4', adding && 'animate-pulse')} />
+                <span>{copy.addImageToChat}</span>
+              </button>
+              <span aria-hidden className="mx-0.5 h-4 w-px bg-border/80" />
               <button
                 aria-label={copy.zoomOut}
                 className="grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -236,4 +280,53 @@ export function ImageActionButton({
       <Download className={cn('size-4', saving && 'animate-pulse')} />
     </button>
   )
+}
+
+async function imageSourceToBlob(src: string): Promise<Blob | null> {
+  const fromData = dataUrlToBlob(src)
+
+  if (fromData && fromData.size > 0) {
+    return fromData
+  }
+
+  if (/^blob:/i.test(src)) {
+    const blob = await (await fetch(src)).blob()
+
+    return blob.size > 0 ? blob : null
+  }
+
+  if (/^(?:https?|file):/i.test(src)) {
+    const viaMain = window.hermesDesktop?.imageBytesFromUrl
+
+    if (viaMain) {
+      const { data, mimeType } = await viaMain(src)
+
+      if (!data?.byteLength) {
+        return null
+      }
+
+      const raw = String(mimeType || '')
+        .split(';')[0]
+        .trim()
+        .toLowerCase()
+      const type = raw.startsWith('image/') ? raw : 'image/png'
+      const copy = new ArrayBuffer(data.byteLength)
+
+      new Uint8Array(copy).set(data)
+
+      return new Blob([copy], { type })
+    }
+
+    const response = await fetch(src)
+
+    if (!response.ok) {
+      return null
+    }
+
+    const blob = await response.blob()
+
+    return blob.size > 0 ? blob : null
+  }
+
+  return null
 }

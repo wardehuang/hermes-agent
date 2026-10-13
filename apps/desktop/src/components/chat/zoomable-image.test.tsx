@@ -69,6 +69,44 @@ describe('ZoomableImage lightbox', () => {
     expect(lightboxImg()).toBeTruthy()
   })
 
+  it('adds the open image to the composer and opens create-image', async () => {
+    const pixel =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const seen: string[] = []
+    const onCreate = () => seen.push('create-image')
+    const onAttach = (event: Event) => {
+      const blobs = (event as CustomEvent<{ blobs?: Blob[] }>).detail?.blobs
+
+      seen.push(`attach:${blobs?.length ?? 0}`)
+    }
+
+    window.addEventListener('hermes:create-image', onCreate)
+    window.addEventListener('hermes:composer-attach-images', onAttach)
+
+    try {
+      await act(async () => {
+        render(
+          <I18nProvider configClient={{ getConfig: async () => ({}), saveConfig: async () => ({ ok: true }) }}>
+            <ZoomableImage alt={ALT} src={pixel} />
+          </I18nProvider>
+        )
+      })
+      await openLightbox()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Add to chat' }))
+      })
+
+      await waitFor(() => {
+        expect(seen).toContain('create-image')
+        expect(seen).toContain('attach:1')
+      })
+      expect(screen.queryByRole('dialog')).toBeNull()
+    } finally {
+      window.removeEventListener('hermes:create-image', onCreate)
+      window.removeEventListener('hermes:composer-attach-images', onAttach)
+    }
+  })
+
   // The lightbox shell must be an invisible frame. styles.css paints every
   // [data-slot='dialog-content'] with the themed elevated background, and that
   // paint shows as a stray box whenever a zoomed/panned image no longer covers

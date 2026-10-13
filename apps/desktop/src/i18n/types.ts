@@ -4381,6 +4381,7 @@ export interface Translations extends NoticeTranslations {
     openImage: string
     openVideo: string
     downloadImage: string
+    addImageToChat: string
     savingImage: string
     zoomIn: string
     zoomOut: string

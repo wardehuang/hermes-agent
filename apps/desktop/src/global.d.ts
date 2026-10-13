@@ -339,6 +339,8 @@ declare global {
         saved: boolean
       }>
       saveImageFromUrl: (url: string) => Promise<boolean>
+      /** Fetch image bytes in the main process (renderer CORS cannot). */
+      imageBytesFromUrl?: (url: string) => Promise<{ data: Uint8Array; mimeType: string }>
       /** Edit verb against the window's focused element (the custom context
        *  menu's Cut/Copy/Paste/Select all). */
       contextMenuEdit?: (command: 'copy' | 'cut' | 'paste' | 'selectAll') => Promise<void>

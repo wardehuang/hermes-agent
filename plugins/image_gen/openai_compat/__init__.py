@@ -213,28 +213,34 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
                 prompt=prompt,
                 aspect_ratio=native_aspect,
             )
-        first = data[0]
-        b64 = first.get("b64_json")
-        url = first.get("url")
         prefix = f"openai_compat_{model_id.replace('/', '_')}"
-        if b64:
-            try:
-                image_ref = str(save_b64_image(b64, prefix=prefix))
-            except Exception as exc:
-                return error_response(
-                    error=f"Could not save image: {exc}",
-                    error_type="io_error",
-                    provider=PROVIDER_NAME,
-                    model=model_id,
-                    prompt=prompt,
-                    aspect_ratio=native_aspect,
-                )
-        elif url:
-            try:
-                image_ref = str(save_url_image(url, prefix=prefix))
-            except Exception:
-                image_ref = str(url)
-        else:
+        paths: List[str] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            b64 = item.get("b64_json")
+            url = item.get("url")
+            if b64:
+                try:
+                    paths.append(str(save_b64_image(b64, prefix=prefix)))
+                except Exception as exc:
+                    if paths:
+                        logger.debug("openai_compat skipped a later image", exc_info=True)
+                        break
+                    return error_response(
+                        error=f"Could not save image: {exc}",
+                        error_type="io_error",
+                        provider=PROVIDER_NAME,
+                        model=model_id,
+                        prompt=prompt,
+                        aspect_ratio=native_aspect,
+                    )
+            elif url:
+                try:
+                    paths.append(str(save_url_image(url, prefix=prefix)))
+                except Exception:
+                    paths.append(str(url))
+        if not paths:
             return error_response(
                 error="image API response lacked b64_json and url",
                 error_type="empty_response",
@@ -243,14 +249,17 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
                 prompt=prompt,
                 aspect_ratio=native_aspect,
             )
+        result_extra: Dict[str, Any] = {"params": extra}
+        if len(paths) > 1:
+            result_extra["images"] = paths
         return success_response(
-            image=image_ref,
+            image=paths[0],
             model=model_id,
             prompt=prompt,
             aspect_ratio=native_aspect,
             provider=PROVIDER_NAME,
             modality="image" if is_edit else "text",
-            extra={"params": extra},
+            extra=result_extra,
         )
 
 

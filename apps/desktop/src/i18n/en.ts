@@ -5150,6 +5150,7 @@ export const en: Translations = {
     openImage: 'Open image',
     openVideo: 'Open video',
     downloadImage: 'Download image',
+    addImageToChat: 'Add to chat',
     savingImage: 'Saving image',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',

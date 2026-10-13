@@ -17930,6 +17930,14 @@ ipcMain.handle('hermes:saveGatewayFile', (_event, payload) => saveGatewayFile(pa
 
 ipcMain.handle('hermes:saveImageFromUrl', (_event, url) => saveImageFromUrl(String(url || '')))
 
+// Renderer fetch of a chat image is CORS-blocked (webSecurity). Main already
+// fetches the same URLs for Save; return the bytes so the lightbox can attach.
+ipcMain.handle('hermes:imageBytesFromUrl', async (_event, url) => {
+  const { buffer, mimeType } = await resourceBufferFromUrl(String(url || ''))
+
+  return { data: buffer, mimeType: String(mimeType || '') }
+})
+
 // The custom context menu's edit verbs. They act on the SENDER's focused
 // element, so the renderer restores focus to the editable before invoking.
 ipcMain.handle('hermes:context-menu:edit', (event, command) => {
