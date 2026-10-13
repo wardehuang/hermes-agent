@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import logging
+import mimetypes
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from agent.image_gen_provider import (
     ImageGenProvider,
@@ -22,18 +24,26 @@ _ROOT = Path(__file__).resolve().parents[2] / "create-image"
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-import endpoints as endpoint_store  # noqa: E402
+import endpoints as endpoint_store
 
 PROVIDER_NAME = endpoint_store.PROVIDER_NAME
 
 
-def _allowed_payload(model: Dict[str, Any], aspect_ratio: str, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def _data_url(data: bytes, name: str) -> str:
+    mime = mimetypes.guess_type(name)[0] or "image/png"
+    if not str(mime).startswith("image/"):
+        mime = "image/png"
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _allowed_payload(model: dict[str, Any], aspect_ratio: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     params = endpoint_store.params_for(model)
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
     for key, spec in params.items():
         if key == "prompt" or not isinstance(spec, dict):
             continue
-        allowed: Dict[str, Any] = {}
+        allowed: dict[str, Any] = {}
         for item in spec.get("enum") or []:
             if isinstance(item, dict):
                 value = item.get("value")
@@ -70,7 +80,7 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
         except Exception:
             return False
 
-    def list_models(self) -> List[Dict[str, Any]]:
+    def list_models(self) -> list[dict[str, Any]]:
         out = []
         for item in endpoint_store.catalog_items():
             out.append(
@@ -90,7 +100,7 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
             return None
         return str(active[1].get("id") or "") or None
 
-    def capabilities(self) -> Dict[str, Any]:
+    def capabilities(self) -> dict[str, Any]:
         model_id = self.default_model() or ""
         caps = self.model_capabilities(model_id) if model_id else {}
         return {
@@ -101,10 +111,10 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
             "model_capabilities": caps,
         }
 
-    def model_capabilities(self, model_id: Optional[str] = None) -> Dict[str, Any]:
+    def model_capabilities(self, model_id: Optional[str] = None) -> dict[str, Any]:
         return endpoint_store.caps_for(None, model_id or self.default_model() or "")
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return {
             "name": "OpenAI-compatible",
             "badge": "custom",
@@ -118,9 +128,9 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
         aspect_ratio: str = "1:1",
         *,
         image_url: Optional[str] = None,
-        reference_image_urls: Optional[List[str]] = None,
+        reference_image_urls: Optional[list[str]] = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         prompt = (prompt or "").strip()
         if not prompt:
             return error_response(
@@ -145,7 +155,7 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
         model_id = str(model.get("id") or model_id)
         extra = _allowed_payload(model, aspect_ratio, kwargs)
         native_aspect = str(extra.get("aspect_ratio") or "1:1")
-        sources: List[str] = []
+        sources: list[str] = []
         if isinstance(image_url, str) and image_url.strip():
             sources.append(image_url.strip())
         sources.extend(normalize_reference_images(reference_image_urls) or [])
@@ -153,7 +163,23 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
         headers = {"Authorization": f"Bearer {api_key}"}
         try:
             session = endpoint_store._http_session(base_url)
-            if is_edit:
+            if is_edit and str(model.get("edit_body") or "") == "json":
+                from plugins.image_gen.grok2api import _load_image_bytes
+
+                images = []
+                for ref in sources[:8]:
+                    data, fname = _load_image_bytes(ref)
+                    images.append({"url": _data_url(data, fname)})
+                payload = {"model": model_id, "prompt": prompt, "image": images[0], **extra}
+                if len(images) > 1:
+                    payload["images"] = images[1:]
+                response = session.post(
+                    f"{base_url}/images/edits",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=300,
+                )
+            elif is_edit:
                 from plugins.image_gen.grok2api import _load_image_bytes
 
                 files = []
@@ -214,7 +240,7 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
                 aspect_ratio=native_aspect,
             )
         prefix = f"openai_compat_{model_id.replace('/', '_')}"
-        paths: List[str] = []
+        paths: list[str] = []
         for item in data:
             if not isinstance(item, dict):
                 continue
@@ -249,7 +275,7 @@ class OpenAICompatImageGenProvider(ImageGenProvider):
                 prompt=prompt,
                 aspect_ratio=native_aspect,
             )
-        result_extra: Dict[str, Any] = {"params": extra}
+        result_extra: dict[str, Any] = {"params": extra}
         if len(paths) > 1:
             result_extra["images"] = paths
         return success_response(

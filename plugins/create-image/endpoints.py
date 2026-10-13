@@ -11,7 +11,7 @@ import os
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -36,11 +36,11 @@ def store_path() -> Path:
     return home / _FILENAME
 
 
-def _empty() -> Dict[str, Any]:
+def _empty() -> dict[str, Any]:
     return {"endpoints": [], "active": {"endpoint_id": "", "model": ""}}
 
 
-def load_store() -> Dict[str, Any]:
+def load_store() -> dict[str, Any]:
     path = store_path()
     try:
         if not path.is_file():
@@ -59,7 +59,7 @@ def load_store() -> Dict[str, Any]:
     }
 
 
-def save_store(data: Dict[str, Any]) -> None:
+def save_store(data: dict[str, Any]) -> None:
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=False, indent=2)
@@ -76,14 +76,14 @@ def _clean_base(url: str) -> str:
     return text
 
 
-def _token_list(raw: Any, pattern: re.Pattern) -> List[str]:
+def _token_list(raw: Any, pattern: re.Pattern) -> list[str]:
     if isinstance(raw, str):
         parts = re.split(r"[\s,]+", raw.strip())
     elif isinstance(raw, list):
         parts = [str(item).strip() for item in raw]
     else:
         parts = []
-    out: List[str] = []
+    out: list[str] = []
     for part in parts:
         if not part or not pattern.match(part) or part in out:
             continue
@@ -91,15 +91,15 @@ def _token_list(raw: Any, pattern: re.Pattern) -> List[str]:
     return out
 
 
-def _clean_qualities(raw: Any) -> List[str]:
+def _clean_qualities(raw: Any) -> list[str]:
     return _token_list(raw, _QUALITY_RE)
 
 
-def _clean_counts(raw: Any) -> List[str]:
+def _clean_counts(raw: Any) -> list[str]:
     return _token_list(raw, _COUNT_RE)
 
 
-def _clean_ratios(raw: Any) -> List[str]:
+def _clean_ratios(raw: Any) -> list[str]:
     return _token_list(raw, _RATIO_RE)
 
 
@@ -120,7 +120,7 @@ _DEFAULT_KEYS = {
 }
 
 
-def _as_option(raw: Any) -> Optional[Dict[str, Any]]:
+def _as_option(raw: Any) -> Optional[dict[str, Any]]:
     if isinstance(raw, str):
         text = raw.strip()
         if not text:
@@ -135,9 +135,9 @@ def _as_option(raw: Any) -> Optional[Dict[str, Any]]:
     return {"label": label, "value": value, "enabled": bool(raw.get("enabled", True))}
 
 
-def _field_from(slot: str, raw: Any) -> Dict[str, Any]:
+def _field_from(slot: str, raw: Any) -> dict[str, Any]:
     key = _DEFAULT_KEYS[slot]
-    options: List[Dict[str, Any]] = []
+    options: list[dict[str, Any]] = []
     if isinstance(raw, dict):
         custom = str(raw.get("key") or "").strip()
         if custom:
@@ -153,11 +153,11 @@ def _field_from(slot: str, raw: Any) -> Dict[str, Any]:
     return {"key": key, "options": options, "inject": inject}
 
 
-def _legacy_options(values: List[str]) -> List[Dict[str, Any]]:
+def _legacy_options(values: list[str]) -> list[dict[str, Any]]:
     return [{"label": value, "value": value, "enabled": True} for value in values]
 
 
-def normalize_model(raw: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_model(raw: dict[str, Any]) -> dict[str, Any]:
     incoming = raw.get("fields") if isinstance(raw.get("fields"), dict) else {}
     fields = {slot: _field_from(slot, incoming.get(slot)) for slot in _SLOTS}
     if not any(fields[slot]["options"] for slot in _SLOTS):
@@ -178,15 +178,16 @@ def normalize_model(raw: Dict[str, Any]) -> Dict[str, Any]:
         "id": str(raw.get("id") or "").strip(),
         "enabled": bool(raw.get("enabled")),
         "ratio_controls_size": bool(raw.get("ratio_controls_size")),
+        "edit_body": "json" if str(raw.get("edit_body") or "").strip().lower() == "json" else "multipart",
         "fields": fields,
     }
 
 
-def _enabled_options(field: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _enabled_options(field: dict[str, Any]) -> list[dict[str, Any]]:
     return [opt for opt in field.get("options") or [] if opt.get("enabled") and str(opt.get("value") or "").strip()]
 
 
-def assert_model(model: Dict[str, Any]) -> None:
+def assert_model(model: dict[str, Any]) -> None:
     if not model.get("ratio_controls_size"):
         return
     ratios = _enabled_options(model["fields"]["aspect_ratio"])
@@ -195,23 +196,23 @@ def assert_model(model: Dict[str, Any]) -> None:
         raise ValueError("aspect_ratio and size enabled option counts must match")
 
 
-def _public_model(raw: Dict[str, Any]) -> Dict[str, Any]:
+def _public_model(raw: dict[str, Any]) -> dict[str, Any]:
     return normalize_model(raw)
 
 
-def _models_of(endpoint: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _models_of(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
     models = endpoint.get("models")
     return models if isinstance(models, list) else []
 
 
-def _find(data: Dict[str, Any], endpoint_id: str) -> Optional[Dict[str, Any]]:
+def _find(data: dict[str, Any], endpoint_id: str) -> Optional[dict[str, Any]]:
     for item in data["endpoints"]:
         if isinstance(item, dict) and str(item.get("id") or "") == endpoint_id:
             return item
     return None
 
 
-def public_endpoint(endpoint: Dict[str, Any]) -> Dict[str, Any]:
+def public_endpoint(endpoint: dict[str, Any]) -> dict[str, Any]:
     models = []
     for raw in _models_of(endpoint):
         if not isinstance(raw, dict):
@@ -232,7 +233,7 @@ def public_endpoint(endpoint: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def list_public() -> Dict[str, Any]:
+def list_public() -> dict[str, Any]:
     data = load_store()
     active = data.get("active") if isinstance(data.get("active"), dict) else {}
     return {
@@ -247,7 +248,7 @@ def list_public() -> Dict[str, Any]:
     }
 
 
-def upsert_endpoint(*, name: str, base_url: str, api_key: Optional[str], endpoint_id: Optional[str] = None) -> Dict[str, Any]:
+def upsert_endpoint(*, name: str, base_url: str, api_key: Optional[str], endpoint_id: Optional[str] = None) -> dict[str, Any]:
     label = (name or "").strip()
     if not label:
         raise ValueError("name is required")
@@ -300,7 +301,7 @@ def _http_session(base_url: str):
     return session
 
 
-def discover_models(endpoint_id: str) -> List[str]:
+def discover_models(endpoint_id: str) -> list[str]:
     data = load_store()
     endpoint = _find(data, endpoint_id)
     if endpoint is None:
@@ -325,7 +326,7 @@ def discover_models(endpoint_id: str) -> List[str]:
         body = response.json()
     except Exception as exc:
         raise RuntimeError("GET /models returned non-JSON") from exc
-    ids: List[str] = []
+    ids: list[str] = []
     rows = body.get("data") if isinstance(body, dict) else body
     if isinstance(rows, list):
         for row in rows:
@@ -340,12 +341,12 @@ def discover_models(endpoint_id: str) -> List[str]:
     return ids
 
 
-def save_models(endpoint_id: str, models: List[Dict[str, Any]]) -> Dict[str, Any]:
+def save_models(endpoint_id: str, models: list[dict[str, Any]]) -> dict[str, Any]:
     data = load_store()
     endpoint = _find(data, endpoint_id)
     if endpoint is None:
         raise ValueError("endpoint not found")
-    cleaned: List[Dict[str, Any]] = []
+    cleaned: list[dict[str, Any]] = []
     seen = set()
     for raw in models:
         if not isinstance(raw, dict):
@@ -362,7 +363,7 @@ def save_models(endpoint_id: str, models: List[Dict[str, Any]]) -> Dict[str, Any
     return public_endpoint(endpoint)
 
 
-def _enabled_pairs(data: Dict[str, Any]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+def _enabled_pairs(data: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     pairs = []
     for endpoint in data["endpoints"]:
         if not isinstance(endpoint, dict):
@@ -375,7 +376,7 @@ def _enabled_pairs(data: Dict[str, Any]) -> List[Tuple[Dict[str, Any], Dict[str,
     return pairs
 
 
-def resolve_active(data: Optional[Dict[str, Any]] = None) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
+def resolve_active(data: Optional[dict[str, Any]] = None) -> Optional[tuple[dict[str, Any], dict[str, Any]]]:
     data = data if data is not None else load_store()
     pairs = _enabled_pairs(data)
     if not pairs:
@@ -389,7 +390,7 @@ def resolve_active(data: Optional[Dict[str, Any]] = None) -> Optional[Tuple[Dict
     return pairs[0]
 
 
-def set_active(endpoint_id: str, model: str) -> Dict[str, str]:
+def set_active(endpoint_id: str, model: str) -> dict[str, str]:
     data = load_store()
     endpoint = _find(data, endpoint_id)
     if endpoint is None:
@@ -410,14 +411,14 @@ def is_ready() -> bool:
     return resolve_active() is not None
 
 
-def _enum_param(options: List[Dict[str, Any]], *, display: Optional[str] = None) -> Dict[str, Any]:
+def _enum_param(options: list[dict[str, Any]], *, display: Optional[str] = None) -> dict[str, Any]:
     enum = []
     for opt in options:
         item = {"value": opt["value"], "label": opt["label"]}
         if opt.get("inject_label"):
             item["inject_label"] = opt["inject_label"]
         enum.append(item)
-    spec: Dict[str, Any] = {
+    spec: dict[str, Any] = {
         "type": "enum",
         "enum": enum,
         "default": enum[0]["value"],
@@ -428,16 +429,16 @@ def _enum_param(options: List[Dict[str, Any]], *, display: Optional[str] = None)
     return spec
 
 
-def _with_inject(spec: Dict[str, Any], *templates: Any) -> Dict[str, Any]:
+def _with_inject(spec: dict[str, Any], *templates: Any) -> dict[str, Any]:
     spec["inject_mode"] = "template"
     spec["injects"] = [str(item) for item in templates if str(item or "").strip()]
     return spec
 
 
-def params_for(model: Dict[str, Any]) -> Dict[str, Any]:
+def params_for(model: dict[str, Any]) -> dict[str, Any]:
     normalized = model if isinstance(model.get("fields"), dict) else normalize_model(model)
     fields = normalized["fields"]
-    params: Dict[str, Any] = {"prompt": {"type": "text", "required": True}}
+    params: dict[str, Any] = {"prompt": {"type": "text", "required": True}}
     linked = bool(normalized.get("ratio_controls_size"))
     if linked:
         ratios = _enabled_options(fields["aspect_ratio"])
@@ -483,20 +484,20 @@ def render_inject(template: Any, label: str, value: str) -> str:
     return str(template or "").replace("{label}", label).replace("{value}", value).strip()
 
 
-def _option_for_value(field: Dict[str, Any], sent: str) -> Dict[str, str]:
+def _option_for_value(field: dict[str, Any], sent: str) -> dict[str, str]:
     for opt in _enabled_options(field):
         if str(opt.get("value") or "") == sent:
             return {"label": str(opt.get("label") or sent), "value": sent}
     return {"label": sent, "value": sent}
 
 
-def constraint_lines(model: Dict[str, Any], params: Dict[str, Any]) -> Optional[List[str]]:
+def constraint_lines(model: dict[str, Any], params: dict[str, Any]) -> Optional[list[str]]:
     """Rendered inject lines for an endpoint model. None when the model has no fields."""
     if not isinstance(model, dict):
         return None
     normalized = model if isinstance(model.get("fields"), dict) else normalize_model(model)
     fields = normalized["fields"]
-    lines: List[str] = []
+    lines: list[str] = []
     used = set()
 
     def template_for(slot: str) -> str:
@@ -534,7 +535,7 @@ def constraint_lines(model: Dict[str, Any], params: Dict[str, Any]) -> Optional[
     return lines
 
 
-def catalog_items() -> List[Dict[str, Any]]:
+def catalog_items() -> list[dict[str, Any]]:
     data = load_store()
     items = []
     for endpoint, model in _enabled_pairs(data):
@@ -558,7 +559,7 @@ def catalog_items() -> List[Dict[str, Any]]:
     return items
 
 
-def caps_for(endpoint_id: Optional[str], model_id: str) -> Dict[str, Any]:
+def caps_for(endpoint_id: Optional[str], model_id: str) -> dict[str, Any]:
     data = load_store()
     chosen = None
     for endpoint, model in _enabled_pairs(data):
@@ -595,7 +596,7 @@ def caps_for(endpoint_id: Optional[str], model_id: str) -> Dict[str, Any]:
     }
 
 
-def credentials_for(model_id: str, endpoint_id: Optional[str] = None) -> Tuple[str, str, Dict[str, Any]]:
+def credentials_for(model_id: str, endpoint_id: Optional[str] = None) -> tuple[str, str, dict[str, Any]]:
     data = load_store()
     active = resolve_active(data)
     chosen = None

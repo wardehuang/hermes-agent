@@ -118,6 +118,7 @@ const LOCALES = {
       addOption: 'Add',
       injectHint: '{label} and {value}',
       injectEmpty: 'No injection line',
+      editBody: 'Edit request',
       saveModels: 'Save models',
       quality: 'Quality',
       transparent: 'Transparent',
@@ -199,6 +200,7 @@ const LOCALES = {
       addOption: '添加',
       injectHint: '可用 {label} 和 {value}',
       injectEmpty: '这段不注入',
+      editBody: '图生图',
       saveModels: '保存模型',
       quality: '质量',
       transparent: '透明',
@@ -280,6 +282,7 @@ const LOCALES = {
       addOption: '添加',
       injectHint: '可用 {label} 和 {value}',
       injectEmpty: '這段不注入',
+      editBody: '圖生圖',
       saveModels: '儲存模型',
       quality: '品質',
       transparent: '透明',
@@ -360,6 +363,7 @@ const LOCALES = {
       addOption: '追加',
       injectHint: '{label} と {value}',
       injectEmpty: '注入なし',
+      editBody: '画像編集',
       saveModels: 'モデルを保存',
       quality: '品質',
       transparent: '透明',
@@ -440,6 +444,7 @@ const LOCALES = {
       addOption: 'إضافة',
       injectHint: '{label} و {value}',
       injectEmpty: 'بدون حقن',
+      editBody: 'تحرير الصورة',
       saveModels: 'حفظ النماذج',
       quality: 'الجودة',
       transparent: 'شفاف',
@@ -1197,6 +1202,7 @@ function modelFromApi(raw) {
     id: String(raw.id || ''),
     enabled: Boolean(raw.enabled),
     ratio_controls_size: Boolean(raw.ratio_controls_size),
+    edit_body: raw.edit_body === 'json' ? 'json' : 'multipart',
     fields,
   }
 }
@@ -1370,6 +1376,7 @@ function EndpointSettings({ t, onChanged, onClose }) {
         id: m.id,
         enabled: Boolean(m.enabled),
         ratio_controls_size: Boolean(m.ratio_controls_size),
+        edit_body: m.edit_body === 'json' ? 'json' : 'multipart',
         fields: Object.fromEntries(SLOT_ORDER.map(slot => [slot, {
           key: String(m.fields[slot].key || DEFAULT_KEYS[slot]).trim() || DEFAULT_KEYS[slot],
           inject: String(m.fields[slot].inject ?? DEFAULT_INJECT[slot]),
@@ -1626,6 +1633,23 @@ function EndpointSettings({ t, onChanged, onClose }) {
                               model.id,
                             ],
                           }),
+                          model.enabled
+                            ? jsxs('label', {
+                                className: 'mt-2 flex items-center gap-2 text-[10px] text-(--ui-text-tertiary)',
+                                children: [
+                                  jsx('span', { className: 'shrink-0', children: t('settings.editBody') }),
+                                  jsx('select', {
+                                    className: endpointInputClass,
+                                    value: model.edit_body === 'json' ? 'json' : 'multipart',
+                                    onChange: e => patchModel(row.id, model.id, { edit_body: e.target.value }),
+                                    children: [
+                                      jsx('option', { value: 'multipart', children: 'multipart' }, 'multipart'),
+                                      jsx('option', { value: 'json', children: 'json' }, 'json'),
+                                    ],
+                                  }),
+                                ],
+                              })
+                            : null,
                           model.enabled
                             ? jsxs('div', {
                                 children: SLOT_ORDER.map(slot => fieldEditor(row.id, model, slot)),
