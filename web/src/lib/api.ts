@@ -2483,6 +2483,15 @@ export interface ToolsetProviderEnvVar {
   url: string | null;
   default: string | null;
   is_set: boolean;
+  group?: string;
+}
+
+export interface ToolsetProviderToggle {
+  key: string;
+  prompt: string;
+  checked: boolean;
+  group?: string;
+  controls_group?: string;
 }
 
 export interface ToolsetProvider {
@@ -2490,6 +2499,7 @@ export interface ToolsetProvider {
   badge: string;
   tag: string;
   env_vars: ToolsetProviderEnvVar[];
+  toggles?: ToolsetProviderToggle[];
   post_setup: string | null;
   requires_nous_auth: boolean;
   is_active: boolean;

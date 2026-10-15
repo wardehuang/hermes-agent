@@ -1236,6 +1236,17 @@ export interface ToolEnvVar {
   default: string | null
   fallback_key?: string | null
   is_set: boolean
+  /** Set when this secret belongs to a toggle group (e.g. "grok"). */
+  group?: string
+}
+
+/** Boolean control for a tool provider. ``controls_group`` reveals that group's fields. */
+export interface ToolEnvToggle {
+  key: string
+  prompt: string
+  checked: boolean
+  group?: string
+  controls_group?: string
 }
 
 /** Server-computed readiness for a provider picker row. Absent on older
@@ -1247,6 +1258,8 @@ export interface ToolProvider {
   badge: string
   tag: string
   env_vars: ToolEnvVar[]
+  /** Checkboxes that show or hide grouped ``env_vars``. Absent on older backends. */
+  toggles?: ToolEnvToggle[]
   post_setup: string | null
   requires_nous_auth: boolean
   /** True when this is the provider currently written to config (mirrors the

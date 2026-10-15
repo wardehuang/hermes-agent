@@ -953,6 +953,8 @@ def _prompt_env_vars(env_vars: list, *, reconfigure: bool) -> bool:
     keys without asking and reports False on any skipped key."""
     all_configured = True
     for var in env_vars:
+        if var.get("type") == "bool":
+            continue
         if not reconfigure and get_env_value(var["key"]):
             _print_success(f"  {var['key']}: already configured")
             continue

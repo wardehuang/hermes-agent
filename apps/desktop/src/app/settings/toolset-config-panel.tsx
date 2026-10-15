@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 
 import { SETTINGS_ROUTE } from '@/app/routes'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   deleteEnvVar,
@@ -26,6 +27,7 @@ import { confirm } from '@/store/confirm'
 import { notify, notifyError } from '@/store/notifications'
 import type {
   ActionStatusResponse,
+  ToolEnvToggle,
   ToolEnvVar,
   ToolProvider,
   ToolProviderStatus,
@@ -268,6 +270,110 @@ function EnvVarField({ envVar, isSet, onSaved, onCleared, profile }: EnvVarField
         )}
       </div>
     </EnvVarContextMenu>
+  )
+}
+
+function groupOpen(toggles: ToolEnvToggle[], state: Record<string, boolean>, group: string): boolean {
+  const gate = toggles.find(toggle => toggle.controls_group === group)
+
+  if (!gate) {
+    return true
+  }
+
+  return Boolean(state[gate.key])
+}
+
+function BoolToggle({
+  checked,
+  disabled,
+  label,
+  onChange
+}: {
+  checked: boolean
+  disabled: boolean
+  label: string
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-lg bg-background/55 px-2.5 py-2 text-sm">
+      <Checkbox checked={checked} disabled={disabled} onCheckedChange={value => onChange(value === true)} />
+      <span>{label}</span>
+    </label>
+  )
+}
+
+function ProviderEnvFields({
+  busyKey,
+  envState,
+  onCleared,
+  onSaved,
+  onToggle,
+  profile,
+  provider,
+  toggleState
+}: {
+  busyKey: string | null
+  envState: Record<string, boolean>
+  onCleared: (key: string) => void
+  onSaved: (key: string) => void
+  onToggle: (key: string, next: boolean) => void
+  profile?: ProfileScope
+  provider: ToolProvider
+  toggleState: Record<string, boolean>
+}) {
+  const toggles = provider.toggles ?? []
+  const gates = toggles.filter(toggle => toggle.controls_group)
+
+  const secretField = (envVar: ToolEnvVar) => (
+    <EnvVarField
+      envVar={envVar}
+      isSet={Boolean(envState[envVar.key])}
+      key={envVar.key}
+      onCleared={onCleared}
+      onSaved={onSaved}
+      profile={profile}
+    />
+  )
+
+  if (gates.length === 0) {
+    return <>{provider.env_vars.map(secretField)}</>
+  }
+
+  return (
+    <div className="grid gap-2">
+      {gates.map(gate => {
+        const group = gate.controls_group ?? ''
+        const open = groupOpen(toggles, toggleState, group)
+
+        return (
+          <div className="grid gap-2" key={gate.key}>
+            <BoolToggle
+              checked={Boolean(toggleState[gate.key])}
+              disabled={busyKey !== null}
+              label={gate.prompt || gate.key}
+              onChange={next => onToggle(gate.key, next)}
+            />
+            {open && (
+              <div className="grid gap-2 border-l border-border pl-3">
+                {provider.env_vars.filter(envVar => envVar.group === group).map(secretField)}
+                {toggles
+                  .filter(toggle => toggle.group === group)
+                  .map(toggle => (
+                    <BoolToggle
+                      checked={Boolean(toggleState[toggle.key])}
+                      disabled={busyKey !== null}
+                      key={toggle.key}
+                      label={toggle.prompt || toggle.key}
+                      onChange={next => onToggle(toggle.key, next)}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {provider.env_vars.filter(envVar => !envVar.group).map(secretField)}
+    </div>
   )
 }
 
@@ -564,6 +670,8 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
   // Live per-key set/unset state, seeded from the endpoint then patched locally.
   const [envState, setEnvState] = useState<Record<string, boolean>>({})
+  const [toggleState, setToggleState] = useState<Record<string, boolean>>({})
+  const [toggleBusy, setToggleBusy] = useState<string | null>(null)
   // Default-provider selection and a user click race just after config arrives:
   // a stale initialization effect must never replace an explicit choice.
   const providerChoiceClaimedRef = useRef(false)
@@ -586,14 +694,20 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
       const next = await getToolsetConfig(toolset, profile)
       setCfg(next)
       const seeded: Record<string, boolean> = {}
+      const seededToggles: Record<string, boolean> = {}
 
       for (const provider of next.providers) {
         for (const ev of provider.env_vars) {
           seeded[ev.key] = ev.is_set
         }
+
+        for (const toggle of provider.toggles ?? []) {
+          seededToggles[toggle.key] = toggle.checked
+        }
       }
 
       setEnvState(seeded)
+      setToggleState(seededToggles)
     } catch (err) {
       notifyError(err, copy.failedLoad)
     } finally {
@@ -749,6 +863,22 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
   function patchEnv(key: string, isSet: boolean) {
     setEnvState(c => ({ ...c, [key]: isSet }))
     onConfiguredChange?.()
+  }
+
+  async function handleToggle(key: string, next: boolean) {
+    const previous = Boolean(toggleState[key])
+    setToggleBusy(key)
+    setToggleState(current => ({ ...current, [key]: next }))
+
+    try {
+      await setEnvVar(key, next ? 'true' : 'false', profile)
+      onConfiguredChange?.()
+    } catch (err) {
+      setToggleState(current => ({ ...current, [key]: previous }))
+      notifyError(err, copy.failedSave(key))
+    } finally {
+      setToggleBusy(null)
+    }
   }
 
   async function handleSelectCapability(provider: ToolProvider, capability: 'search' | 'extract') {
@@ -931,19 +1061,19 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
                 {provider.requires_nous_auth && status === 'needs_auth' && (
                   <p className="text-[0.72rem] text-muted-foreground">{copy.nousIncluded}</p>
                 )}
-                {provider.env_vars.length === 0 ? (
+                {(provider.env_vars.length === 0 && (provider.toggles ?? []).length === 0) ? (
                   <p className="text-[0.72rem] text-muted-foreground">{copy.noApiKeyRequired}</p>
                 ) : (
-                  provider.env_vars.map(ev => (
-                    <EnvVarField
-                      envVar={ev}
-                      isSet={Boolean(envState[ev.key])}
-                      key={ev.key}
-                      onCleared={key => patchEnv(key, false)}
-                      onSaved={key => patchEnv(key, true)}
-                      profile={profile}
-                    />
-                  ))
+                  <ProviderEnvFields
+                    busyKey={toggleBusy}
+                    envState={envState}
+                    onCleared={key => patchEnv(key, false)}
+                    onSaved={key => patchEnv(key, true)}
+                    onToggle={(key, next) => void handleToggle(key, next)}
+                    profile={profile}
+                    provider={provider}
+                    toggleState={toggleState}
+                  />
                 )}
                 {provider.post_setup && (
                   <PostSetupRunner

@@ -763,8 +763,15 @@ def _save_platform_tools(config: dict, platform: str, enabled_toolset_keys: set[
 
 
 def _provider_env_ready(provider: dict) -> bool:
-    """True when every env var a provider row declares is set (trivially true for no-key rows)."""
-    return all(get_env_value(e["key"]) for e in provider.get("env_vars", []))
+    """True when every secret env var a provider row declares is set.
+
+    Boolean toggles (``type: bool``) are not credentials and do not gate readiness.
+    """
+    return all(
+        get_env_value(e["key"])
+        for e in provider.get("env_vars", [])
+        if e.get("type") != "bool"
+    )
 
 
 def _toolset_has_keys(

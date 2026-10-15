@@ -16,9 +16,11 @@ Config::
         model: "grok-4.20-multi-agent-0309"
         effort: "high"
         enable_web_search: true
-        enable_x_search: true
+        enable_x_search: false
+        grok_enabled: true
         key_env: "GROK2API_API_KEY"
         chatgpt:
+          enabled: true
           base_url: "http://wcpa.edmundvps.site:3000/v1"
           model: "gpt-5-6-thinking"
           effort: "extended"
@@ -32,11 +34,14 @@ Env overrides (Desktop Tools panel can write these):
     GROK_SEARCH_MODEL
     GROK_SEARCH_EFFORT
     GROK_SEARCH_TIMEOUT
+    GROK_SEARCH_ENABLED
+    GROK_SEARCH_ENABLE_X_SEARCH
     CHATGPT_SEARCH_API_KEY
     CHATGPT_SEARCH_BASE_URL
     CHATGPT_SEARCH_MODEL
     CHATGPT_SEARCH_EFFORT
     CHATGPT_SEARCH_TIMEOUT
+    CHATGPT_SEARCH_ENABLED
     FATHOM_TIMEOUT
 
 If adapter base_url / API key are unset, Fathom reuses
@@ -102,39 +107,67 @@ class FathomWebSearchProvider(WebSearchProvider):
             ),
             "env_vars": [
                 {
+                    "key": "GROK_SEARCH_ENABLED",
+                    "prompt": "Grok",
+                    "type": "bool",
+                    "default": True,
+                    "controls_group": "grok",
+                },
+                {
                     "key": "GROK_SEARCH_API_KEY",
                     "prompt": "Grok API key. Unset uses GROK2API_API_KEY.",
                     "fallback_key": "GROK2API_API_KEY",
+                    "group": "grok",
                 },
                 {
                     "key": "GROK_SEARCH_BASE_URL",
                     "prompt": "Grok Responses API base URL",
                     "default": GROK_DEFAULT_BASE_URL,
+                    "group": "grok",
                 },
                 {
                     "key": "GROK_SEARCH_MODEL",
                     "prompt": "Grok model id",
                     "default": GROK_DEFAULT_MODEL,
+                    "group": "grok",
                 },
                 {
                     "key": "GROK_SEARCH_EFFORT",
                     "prompt": "Grok reasoning.effort: low|medium|high|xhigh (high = 16 agents)",
                     "default": DEFAULT_EFFORT,
+                    "group": "grok",
+                },
+                {
+                    "key": "GROK_SEARCH_ENABLE_X_SEARCH",
+                    "prompt": "X search",
+                    "type": "bool",
+                    "default": False,
+                    "group": "grok",
+                },
+                {
+                    "key": "CHATGPT_SEARCH_ENABLED",
+                    "prompt": "ChatGPT",
+                    "type": "bool",
+                    "default": True,
+                    "controls_group": "chatgpt",
                 },
                 {
                     "key": "CHATGPT_SEARCH_API_KEY",
                     "prompt": "ChatGPT search API key. Unset uses CHATGPT2API_API_KEY.",
                     "fallback_key": "CHATGPT2API_API_KEY",
+                    "group": "chatgpt",
                 },
                 {
                     "key": "CHATGPT_SEARCH_BASE_URL",
                     "prompt": "ChatGPT /v1/search base URL",
                     "default": CHATGPT_DEFAULT_BASE_URL,
+                    "group": "chatgpt",
                 },
                 {
                     "key": "CHATGPT_SEARCH_MODEL",
                     "prompt": "ChatGPT search model",
                     "default": CHATGPT_DEFAULT_MODEL,
+                    "group": "chatgpt",
                 },
                 {
                     "key": "CHATGPT_SEARCH_EFFORT",
@@ -143,6 +176,7 @@ class FathomWebSearchProvider(WebSearchProvider):
                         "standard|max|extended"
                     ),
                     "default": CHATGPT_DEFAULT_EFFORT,
+                    "group": "chatgpt",
                 },
             ],
         }
@@ -164,6 +198,12 @@ class FathomWebSearchProvider(WebSearchProvider):
 
         jobs = self._jobs(query, limit)
         if not jobs:
+            enabled = [adapter for adapter in (self._grok, self._chatgpt) if adapter.enabled()]
+            if not enabled:
+                return {
+                    "success": False,
+                    "error": "No Fathom providers enabled. Turn on Grok and/or ChatGPT.",
+                }
             return {
                 "success": False,
                 "error": (

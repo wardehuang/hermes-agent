@@ -6,7 +6,7 @@ import contextvars
 import logging
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 from agent.web_search_provider import get_provider_env
@@ -23,11 +23,11 @@ class AdapterOutcome:
     success: bool
     timed_out: bool = False
     error: str = ""
-    rows: List[Dict[str, Any]] = field(default_factory=list)
-    extra: Dict[str, Any] = field(default_factory=dict)
+    rows: list[dict[str, Any]] = field(default_factory=list)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
-def load_config_section(path: tuple[str, ...]) -> Dict[str, Any]:
+def load_config_section(path: tuple[str, ...]) -> dict[str, Any]:
     try:
         from hermes_cli.config import load_config
 
@@ -42,7 +42,7 @@ def load_config_section(path: tuple[str, ...]) -> Dict[str, Any]:
     return node if isinstance(node, dict) else {}
 
 
-def nested_section(parent: Dict[str, Any], key: str) -> Dict[str, Any]:
+def nested_section(parent: dict[str, Any], key: str) -> dict[str, Any]:
     node = parent.get(key)
     return node if isinstance(node, dict) else {}
 
@@ -68,6 +68,16 @@ def as_bool(value: Any, default: bool) -> bool:
     return default
 
 
+def resolve_flag(env_name: str, yaml_value: Any, default: bool) -> bool:
+    """Env wins when set. Otherwise YAML, otherwise ``default``."""
+    raw = get_provider_env(env_name)
+    if raw:
+        return as_bool(raw, default)
+    if yaml_value is None:
+        return default
+    return as_bool(yaml_value, default)
+
+
 def resolve_timeout(*candidates: Any, default: float = DEFAULT_PROVIDER_TIMEOUT) -> float:
     for raw in candidates:
         if raw is None or raw == "":
@@ -82,7 +92,7 @@ def resolve_timeout(*candidates: Any, default: float = DEFAULT_PROVIDER_TIMEOUT)
     return default
 
 
-def shared_timeout(fathom: Optional[Dict[str, Any]] = None) -> float:
+def shared_timeout(fathom: Optional[dict[str, Any]] = None) -> float:
     section = fathom if fathom is not None else load_config_section(("web", "fathom"))
     return resolve_timeout(
         get_provider_env("FATHOM_TIMEOUT"),
@@ -104,7 +114,7 @@ def normalize_url(url: str) -> str:
     )
 
 
-def _public_row(item: Dict[str, Any], position: int) -> Dict[str, Any]:
+def _public_row(item: dict[str, Any], position: int) -> dict[str, Any]:
     return {
         "title": item["title"],
         "url": item["url"],
@@ -114,11 +124,11 @@ def _public_row(item: Dict[str, Any], position: int) -> Dict[str, Any]:
     }
 
 
-def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> List[Dict[str, Any]]:
+def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> list[dict[str, Any]]:
     """Dedupe by URL. Multi-backend hits first, then round-robin uniques."""
-    ranked: Dict[str, Dict[str, Any]] = {}
+    ranked: dict[str, dict[str, Any]] = {}
     order = 0
-    backend_order: List[str] = []
+    backend_order: list[str] = []
     for outcome in outcomes:
         if not outcome.success or outcome.timed_out:
             continue
@@ -155,17 +165,17 @@ def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> List[Dict[str,
         [item for item in ranked.values() if int(item["_agree"]) >= 2],
         key=lambda item: (-int(item["_agree"]), int(item["_order"])),
     )
-    uniques_by_backend: Dict[str, List[Dict[str, Any]]] = {
+    uniques_by_backend: dict[str, list[dict[str, Any]]] = {
         name: [] for name in backend_order
     }
     for item in ranked.values():
         if int(item["_agree"]) >= 2:
             continue
         uniques_by_backend.setdefault(str(item["_backend"]), []).append(item)
-    for name in uniques_by_backend:
-        uniques_by_backend[name].sort(key=lambda item: int(item["_order"]))
+    for _name, rows in uniques_by_backend.items():
+        rows.sort(key=lambda item: int(item["_order"]))
 
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for item in agreed:
         out.append(_public_row(item, len(out) + 1))
         if len(out) >= limit:
@@ -188,7 +198,7 @@ def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> List[Dict[str,
 
 def dispatch_adapters(
     jobs: Sequence[tuple[str, float, Callable[[], AdapterOutcome]]],
-) -> List[AdapterOutcome]:
+) -> list[AdapterOutcome]:
     """Run adapters in parallel. Each job carries its own timeout.
 
     The callable must already bound HTTP I/O to *timeout*. This wall is a
@@ -202,7 +212,7 @@ def dispatch_adapters(
     if not jobs:
         return []
 
-    outcomes: List[AdapterOutcome] = []
+    outcomes: list[AdapterOutcome] = []
     wall = max(timeout for _name, timeout, _call in jobs) + 2.0
     pool = ThreadPoolExecutor(max_workers=len(jobs))
     try:

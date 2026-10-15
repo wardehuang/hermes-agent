@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from agent.web_search_provider import get_provider_env
@@ -16,6 +16,7 @@ from plugins.web.fathom.common import (
     as_bool,
     load_config_section,
     normalize_base_url,
+    resolve_flag,
     resolve_timeout,
     shared_timeout,
     timeout_outcome,
@@ -37,8 +38,12 @@ def _now_shanghai() -> str:
 class GrokAdapter:
     name = "grok"
 
+    def enabled(self) -> bool:
+        fathom = load_config_section(("web", "fathom"))
+        return resolve_flag("GROK_SEARCH_ENABLED", fathom.get("grok_enabled"), True)
+
     def is_available(self) -> bool:
-        return bool(self.api_key())
+        return self.enabled() and bool(self.api_key())
 
     def timeout(self) -> float:
         return float(self.load_settings()["timeout"])
@@ -62,7 +67,7 @@ class GrokAdapter:
             return get_provider_env(provider_key_env)
         return ""
 
-    def load_settings(self) -> Dict[str, Any]:
+    def load_settings(self) -> dict[str, Any]:
         fathom = load_config_section(("web", "fathom"))
         grok2api = load_config_section(("providers", "grok2api"))
         grok2api_url = str(grok2api.get("api") or grok2api.get("base_url") or "").strip()
@@ -91,15 +96,16 @@ class GrokAdapter:
         )
 
         enable_web = as_bool(fathom.get("enable_web_search", True), True)
-        enable_x = as_bool(fathom.get("enable_x_search", True), True)
         env_web = get_provider_env("GROK_SEARCH_ENABLE_WEB_SEARCH")
-        env_x = get_provider_env("GROK_SEARCH_ENABLE_X_SEARCH")
         if env_web:
             enable_web = as_bool(env_web, enable_web)
-        if env_x:
-            enable_x = as_bool(env_x, enable_x)
+        enable_x = resolve_flag(
+            "GROK_SEARCH_ENABLE_X_SEARCH",
+            fathom.get("enable_x_search"),
+            False,
+        )
 
-        tools: List[Dict[str, str]] = []
+        tools: list[dict[str, str]] = []
         if enable_web:
             tools.append({"type": "web_search"})
         if enable_x:
@@ -139,7 +145,7 @@ class GrokAdapter:
                 ),
             )
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": settings["model"],
             "input": [{"role": "user", "content": self._build_prompt(query, limit)}],
             "tools": tools,
@@ -246,10 +252,10 @@ class GrokAdapter:
     @classmethod
     def _extract_results(
         cls,
-        response_data: Dict[str, Any],
+        response_data: dict[str, Any],
         *,
         limit: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         text_blocks, annotations = cls._collect_output_text(response_data)
         for block in text_blocks:
             parsed = cls._try_parse_json_results(block, limit=limit)
@@ -284,10 +290,10 @@ class GrokAdapter:
 
     @staticmethod
     def _collect_output_text(
-        response_data: Dict[str, Any],
-    ) -> tuple[List[str], List[Dict[str, Any]]]:
-        text_blocks: List[str] = []
-        annotations: List[Dict[str, Any]] = []
+        response_data: dict[str, Any],
+    ) -> tuple[list[str], list[dict[str, Any]]]:
+        text_blocks: list[str] = []
+        annotations: list[dict[str, Any]] = []
         output = response_data.get("output")
         if not isinstance(output, list):
             return text_blocks, annotations
@@ -316,7 +322,7 @@ class GrokAdapter:
         text: str,
         *,
         limit: int,
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> Optional[list[dict[str, Any]]]:
         candidates = [text]
         match = _JSON_BLOCK_RE.search(text)
         if match and match.group(0) != text:
@@ -332,7 +338,7 @@ class GrokAdapter:
             results = parsed.get("results")
             if not isinstance(results, list):
                 continue
-            normalized: List[Dict[str, Any]] = []
+            normalized: list[dict[str, Any]] = []
             for row in results[:limit]:
                 if not isinstance(row, dict):
                     continue
@@ -353,13 +359,13 @@ class GrokAdapter:
 
     @staticmethod
     def _results_from_annotations(
-        annotations: List[Dict[str, Any]],
+        annotations: list[dict[str, Any]],
         joined_text: str,
         *,
         limit: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         seen: set[str] = set()
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for ann in annotations:
             if ann.get("type") not in {"url_citation", "citation"}:
                 continue
@@ -393,15 +399,15 @@ class GrokAdapter:
 
     @staticmethod
     def _results_from_tool_calls(
-        response_data: Dict[str, Any],
+        response_data: dict[str, Any],
         *,
         limit: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         output = response_data.get("output")
         if not isinstance(output, list):
             return []
         seen: set[str] = set()
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for item in output:
             if not isinstance(item, dict):
                 continue

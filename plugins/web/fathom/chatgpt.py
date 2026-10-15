@@ -12,6 +12,7 @@ from plugins.web.fathom.common import (
     load_config_section,
     nested_section,
     normalize_base_url,
+    resolve_flag,
     resolve_timeout,
     shared_timeout,
     timeout_outcome,
@@ -54,8 +55,14 @@ def rows_from_chatgpt(data: dict[str, Any], limit: int) -> list[dict[str, Any]]:
 class ChatGPTAdapter:
     name = "chatgpt"
 
+    def enabled(self) -> bool:
+        fathom = load_config_section(("web", "fathom"))
+        chatgpt = nested_section(fathom, "chatgpt")
+        yaml_value = chatgpt.get("enabled") if "enabled" in chatgpt else None
+        return resolve_flag("CHATGPT_SEARCH_ENABLED", yaml_value, True)
+
     def is_available(self) -> bool:
-        return bool(self.api_key())
+        return self.enabled() and bool(self.api_key())
 
     def timeout(self) -> float:
         return float(self.load_settings()["timeout"])

@@ -39,6 +39,66 @@ def _env_value(name: str) -> str:
         return ""
 
 
+_BOOL_TRUE = {"1", "true", "yes", "on"}
+_BOOL_FALSE = {"0", "false", "no", "off"}
+
+
+def _coerce_bool(raw: str, default: bool) -> bool:
+    lowered = raw.strip().lower()
+    if lowered in _BOOL_TRUE:
+        return True
+    if lowered in _BOOL_FALSE:
+        return False
+    return default
+
+
+def _split_tool_env(entries: list) -> tuple[list, list]:
+    """Split a provider schema into secret fields and boolean toggles.
+
+    Toggles stay off ``env_vars`` so an older Tools panel does not render them
+    as password inputs or treat an unset checkbox as a missing key.
+    """
+    secrets: list = []
+    toggles: list = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("key"):
+            continue
+        if entry.get("type") == "bool":
+            raw = _env_value(str(entry["key"]))
+            default = entry.get("default")
+            default_bool = default if isinstance(default, bool) else False
+            toggle = {
+                "key": entry["key"],
+                "prompt": entry.get("prompt", entry["key"]),
+                "checked": _coerce_bool(raw, default_bool) if raw else default_bool,
+            }
+            if entry.get("group"):
+                toggle["group"] = entry["group"]
+            if entry.get("controls_group"):
+                toggle["controls_group"] = entry["controls_group"]
+            toggles.append(toggle)
+            continue
+        raw = _env_value(str(entry["key"]))
+        fallback_key = entry.get("fallback_key")
+        default = entry.get("default")
+        secret = {
+            "key": entry["key"],
+            "prompt": entry.get("prompt", entry["key"]),
+            "url": entry.get("url"),
+            "default": default if isinstance(default, str) else None,
+            "fallback_key": fallback_key,
+            "is_set": bool(
+                raw
+                or (fallback_key and _env_value(str(fallback_key)))
+                or default
+            ),
+        }
+        if entry.get("group"):
+            secret["group"] = entry["group"]
+        secrets.append(secret)
+    return secrets, toggles
+
+
 def _terminal_cfg_value(terminal_cfg: dict, key: str, env_var: str) -> str:
     """Read a terminal.* setting from config.yaml, falling back to its env var."""
     value = terminal_cfg.get(key)
@@ -349,7 +409,6 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
     from hermes_cli.tools_config import (
         TOOL_CATEGORIES, _is_provider_active, _visible_providers, provider_readiness_status,
         web_provider_capabilities)
-    from hermes_cli.config import get_env_value
     from hermes_cli.nous_subscription import get_nous_subscription_features
 
     _require_known_toolset(name)
@@ -364,20 +423,7 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
                 # Entitlement state fetched once for the whole matrix.
                 features = get_nous_subscription_features(config, force_fresh=True)
                 for prov in _visible_providers(cat, config, force_fresh=True):
-                    env_vars = [
-                        {
-                            "key": e["key"], "prompt": e.get("prompt", e["key"]),
-                            "url": e.get("url"), "default": e.get("default"),
-                            "fallback_key": e.get("fallback_key"),
-                            "is_set": bool(
-                                get_env_value(e["key"])
-                                or (
-                                    e.get("fallback_key")
-                                    and get_env_value(str(e.get("fallback_key")))
-                                )
-                                or e.get("default")
-                            )}
-                        for e in prov.get("env_vars", [])]
+                    env_vars, toggles = _split_tool_env(prov.get("env_vars", []))
                     # Same active-provider determination as the CLI picker, so the
                     # GUI highlights the provider actually written to config.
                     is_active = _is_provider_active(prov, config, force_fresh=True)
@@ -388,6 +434,7 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
                         "badge": prov.get("badge", ""),
                         "tag": prov.get("tag", ""),
                         "env_vars": env_vars,
+                        "toggles": toggles,
                         "post_setup": prov.get("post_setup"),
                         "requires_nous_auth": bool(prov.get("requires_nous_auth")),
                         # Set on the "Nous Subscription" rows: the GUI tells the gateway row apart
