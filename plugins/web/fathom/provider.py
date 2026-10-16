@@ -1,8 +1,8 @@
 """Fathom — multi-provider web search.
 
 Live adapters: Grok (Responses API), ChatGPT (chatgpt2api ``/v1/search``),
-and Exa (FreeAPI ``POST /search`` plus ``POST /contents`` for extract).
-Tavily lands next.
+and Exa (FreeAPI ``POST /search`` plus ``POST /contents`` for extract),
+and Tavily (FreeAPI ``POST /search`` plus ``POST /extract``).
 
 Each adapter has its own timeout (default 120s). A timed-out adapter is
 dropped for that call; remaining adapters still contribute.
@@ -38,6 +38,16 @@ Config::
           extract_defaults:
             text: true
             highlights: true
+        tavily:
+          enabled: true
+          base_url: "http://wcpap.edmundvps.site:19882"
+          search_defaults:
+            search_depth: advanced
+            max_results: 10
+            include_answer: true
+          extract_defaults:
+            extract_depth: advanced
+            format: markdown
 
 Env overrides (Desktop Tools panel can write these):
 
@@ -60,6 +70,12 @@ Env overrides (Desktop Tools panel can write these):
     EXA_SEARCH_DEFAULTS
     EXA_EXTRACT_DEFAULTS
     EXA_SEARCH_TIMEOUT
+    TAVILY_SEARCH_ENABLED
+    TAVILY_SEARCH_API_KEY
+    TAVILY_SEARCH_BASE_URL
+    TAVILY_SEARCH_DEFAULTS
+    TAVILY_EXTRACT_DEFAULTS
+    TAVILY_SEARCH_TIMEOUT
     FATHOM_TIMEOUT
 
 If adapter base_url / API key are unset, Fathom reuses
@@ -93,20 +109,28 @@ from plugins.web.fathom.exa import (
 from plugins.web.fathom.grok import DEFAULT_BASE_URL as GROK_DEFAULT_BASE_URL
 from plugins.web.fathom.grok import DEFAULT_EFFORT, DEFAULT_MODEL as GROK_DEFAULT_MODEL
 from plugins.web.fathom.grok import GrokAdapter
+from plugins.web.fathom.tavily import (
+    DEFAULT_API_KEY as TAVILY_DEFAULT_API_KEY,
+    DEFAULT_BASE_URL as TAVILY_DEFAULT_BASE_URL,
+    DEFAULT_EXTRACT_DEFAULTS as TAVILY_EXTRACT_DEFAULTS,
+    DEFAULT_SEARCH_DEFAULTS as TAVILY_SEARCH_DEFAULTS,
+    TavilyAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class FathomWebSearchProvider(WebSearchProvider):
-    """Ensemble search backend. Grok, ChatGPT, and Exa run in parallel."""
+    """Ensemble search backend. Grok, ChatGPT, Exa, and Tavily run in parallel."""
 
     def __init__(self) -> None:
         self._grok = GrokAdapter()
         self._chatgpt = ChatGPTAdapter()
         self._exa = ExaAdapter()
+        self._tavily = TavilyAdapter()
 
     def _adapters(self):
-        return (self._grok, self._chatgpt, self._exa)
+        return (self._grok, self._chatgpt, self._exa, self._tavily)
 
     @property
     def name(self) -> str:
@@ -130,9 +154,9 @@ class FathomWebSearchProvider(WebSearchProvider):
             "name": PROVIDER_LABEL,
             "badge": "ensemble",
             "tag": (
-                "Multi-provider web search. Grok, ChatGPT, and Exa run in parallel; "
+                "Multi-provider web search. Grok, ChatGPT, Exa, and Tavily run in parallel; "
                 "a 120s timeout drops that adapter for the call. "
-                "Exa also extracts page content. Tavily comes next."
+                "Exa and Tavily also extract page content."
             ),
             "env_vars": [
                 {
@@ -242,6 +266,42 @@ class FathomWebSearchProvider(WebSearchProvider):
                     "default": DEFAULT_EXTRACT_DEFAULTS,
                     "group": "exa",
                 },
+                {
+                    "key": "TAVILY_SEARCH_ENABLED",
+                    "prompt": "Tavily",
+                    "type": "bool",
+                    "default": True,
+                    "controls_group": "tavily",
+                },
+                {
+                    "key": "TAVILY_SEARCH_API_KEY",
+                    "prompt": "Tavily API key. Unset uses the built-in FreeAPI default.",
+                    "default": TAVILY_DEFAULT_API_KEY,
+                    "group": "tavily",
+                },
+                {
+                    "key": "TAVILY_SEARCH_BASE_URL",
+                    "prompt": "Tavily base URL. Search is POST /search; extract is POST /extract.",
+                    "default": TAVILY_DEFAULT_BASE_URL,
+                    "group": "tavily",
+                },
+                {
+                    "key": "TAVILY_SEARCH_DEFAULTS",
+                    "prompt": (
+                        "Tavily POST /search JSON defaults. query is set per call. "
+                        "topic is set by the web_search tool when the agent passes it. "
+                        "max_results is the Tavily request size; the tool limit still "
+                        "caps this adapter's rows."
+                    ),
+                    "default": TAVILY_SEARCH_DEFAULTS,
+                    "group": "tavily",
+                },
+                {
+                    "key": "TAVILY_EXTRACT_DEFAULTS",
+                    "prompt": "Tavily POST /extract JSON defaults. urls is set per call.",
+                    "default": TAVILY_EXTRACT_DEFAULTS,
+                    "group": "tavily",
+                },
             ],
         }
 
@@ -266,14 +326,14 @@ class FathomWebSearchProvider(WebSearchProvider):
             if not enabled:
                 return {
                     "success": False,
-                    "error": "No Fathom providers enabled. Turn on Grok, ChatGPT, and/or Exa.",
+                    "error": "No Fathom providers enabled. Turn on Grok, ChatGPT, Exa, and/or Tavily.",
                 }
             return {
                 "success": False,
                 "error": (
                     "No Fathom credentials. Set GROK_SEARCH_API_KEY / "
                     "GROK2API_API_KEY, CHATGPT_SEARCH_API_KEY / "
-                    "CHATGPT2API_API_KEY, or EXA_SEARCH_API_KEY."
+                    "CHATGPT2API_API_KEY, EXA_SEARCH_API_KEY, or TAVILY_SEARCH_API_KEY."
                 ),
             }
 
@@ -372,4 +432,39 @@ class FathomWebSearchProvider(WebSearchProvider):
 
     def extract(self, urls: list[str], **kwargs: Any) -> list[dict[str, Any]]:
         del kwargs
-        return self._exa.extract(list(urls))
+        urls = list(urls)
+        if not urls:
+            return []
+        adapters = [adapter for adapter in (self._exa, self._tavily) if adapter.enabled()]
+        if not adapters:
+            from plugins.web._common import extract_fail
+
+            return extract_fail(
+                urls,
+                "No Fathom extract provider enabled. Turn on Exa and/or Tavily.",
+            )
+        if len(adapters) == 1:
+            return adapters[0].extract(urls)
+        from plugins.web._common import page_error
+
+        batches = [adapter.extract(urls) for adapter in adapters]
+        merged: list[dict[str, Any]] = []
+        for index, url in enumerate(urls):
+            chosen = None
+            errors: list[str] = []
+            for batch in batches:
+                page = batch[index] if index < len(batch) else None
+                if not isinstance(page, dict):
+                    continue
+                if page.get("error"):
+                    errors.append(str(page["error"]))
+                    continue
+                if chosen is None or (page.get("content") and not chosen.get("content")):
+                    chosen = page
+            if chosen is not None and (chosen.get("content") or not errors):
+                merged.append(chosen)
+            elif errors:
+                merged.append(page_error(url, "; ".join(errors)))
+            else:
+                merged.append(page_error(url, "No extract result"))
+        return merged
