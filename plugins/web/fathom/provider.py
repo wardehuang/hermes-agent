@@ -443,28 +443,37 @@ class FathomWebSearchProvider(WebSearchProvider):
                 urls,
                 "No Fathom extract provider enabled. Turn on Exa and/or Tavily.",
             )
-        if len(adapters) == 1:
-            return adapters[0].extract(urls)
-        from plugins.web._common import page_error
+        from plugins.web._common import document, page_error
 
-        batches = [adapter.extract(urls) for adapter in adapters]
-        merged: list[dict[str, Any]] = []
+        batches = [(adapter.name, adapter.extract(urls)) for adapter in adapters]
+        packed: list[dict[str, Any]] = []
         for index, url in enumerate(urls):
-            chosen = None
+            parts: list[str] = []
+            title = ""
+            any_content = False
             errors: list[str] = []
-            for batch in batches:
+            for name, batch in batches:
                 page = batch[index] if index < len(batch) else None
                 if not isinstance(page, dict):
+                    errors.append(f"{name}: no result")
+                    parts.append(f"[{name}]\nerror: no result")
                     continue
+                page_title = str(page.get("title") or "").strip()
+                if page_title and not title:
+                    title = page_title
                 if page.get("error"):
-                    errors.append(str(page["error"]))
+                    errors.append(f"{name}: {page['error']}")
+                    parts.append(f"[{name}]\nerror: {page['error']}")
                     continue
-                if chosen is None or (page.get("content") and not chosen.get("content")):
-                    chosen = page
-            if chosen is not None and (chosen.get("content") or not errors):
-                merged.append(chosen)
-            elif errors:
-                merged.append(page_error(url, "; ".join(errors)))
-            else:
-                merged.append(page_error(url, "No extract result"))
-        return merged
+                body = str(page.get("content") or "").strip()
+                if page_title:
+                    parts.append(f"[{name}]\ntitle: {page_title}\n\n{body}")
+                else:
+                    parts.append(f"[{name}]\n\n{body}")
+                if body:
+                    any_content = True
+            if not any_content:
+                packed.append(page_error(url, "; ".join(errors) if errors else "No extract result"))
+                continue
+            packed.append(document(url, title, "\n\n".join(parts)))
+        return packed
