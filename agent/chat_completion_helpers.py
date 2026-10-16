@@ -619,14 +619,14 @@ def _check_stale_giveup(agent) -> None:
 
 
 def _stream_env_stale_base() -> tuple[float, bool]:
-    """(HERMES_STREAM_STALE_TIMEOUT or the implicit 180s, explicit) — like
+    """(HERMES_STREAM_STALE_TIMEOUT or the implicit 600s, explicit) — like
     ``AIAgent._resolved_api_call_stale_timeout_base``; an explicit env value is the
     user's deadline, so it is never capped to the run budget."""
-    return env_float("HERMES_STREAM_STALE_TIMEOUT", 180.0), "HERMES_STREAM_STALE_TIMEOUT" in os.environ
+    return env_float("HERMES_STREAM_STALE_TIMEOUT", 600.0), "HERMES_STREAM_STALE_TIMEOUT" in os.environ
 
 
 def _configured_stale_base(agent) -> float:
-    """Per-provider ``stale_timeout_seconds`` config, else HERMES_STREAM_STALE_TIMEOUT (180s)."""
+    """Per-provider ``stale_timeout_seconds`` config, else HERMES_STREAM_STALE_TIMEOUT (600s)."""
     cfg = get_provider_stale_timeout(agent.provider, agent.model)
     return cfg if cfg is not None else _stream_env_stale_base()[0]
 
@@ -690,7 +690,7 @@ def cap_to_run_budget(agent, timeout: float) -> float:
 def _cloud_stale_timeout_for(agent, api_kwargs: dict) -> float:
     """An explicit ``providers.<id>.stale_timeout_seconds`` is the operator's deadline and
     wins over every implicit floor — the context-size tier as well as the reasoning-model
-    floor — so it can SHORTEN patience for a hung stream (#115024). Only the 180s default
+    floor — so it can SHORTEN patience for a hung stream (#115024). Only the 600s default
     is scaled and floored."""
     explicit = get_provider_stale_timeout(agent.provider, agent.model)
     if explicit is not None:
@@ -3886,7 +3886,7 @@ class _StreamingCall(StreamingWaitMonitor):
         crashed endpoint forever. Cloud values scale with context size and are
         floored for known reasoning models (else BrokenPipeError from the gateway)."""
         base = _configured_stale_base(self.agent)
-        if base == 180.0 and self.agent.base_url and is_local_endpoint(self.agent.base_url):
+        if base == 600.0 and self.agent.base_url and is_local_endpoint(self.agent.base_url):
             self._stream_stale_timeout = _local_stream_stale_timeout_default()
             logger.debug("Local provider detected (%s) — stale stream timeout set to %.0fs",
                 self.agent.base_url, self._stream_stale_timeout)

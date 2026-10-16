@@ -1,6 +1,6 @@
 """Per-model stale-timeout FLOOR for known reasoning models.
 
-Reasoning models routinely exceed the default chat-model stale detectors (stream 180s,
+Reasoning models routinely exceed the default chat-model stale detectors (stream 600s,
 non-stream 90s): upstream proxies idle-kill the stream mid-think, surfacing as
 ``BrokenPipeError``/``RemoteProtocolError``. The stale-detector scaling applies
 ``max(default, floor)`` from :func:`get_reasoning_stale_timeout_floor`, so this never

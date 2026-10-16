@@ -270,7 +270,7 @@ DEFAULT_CONFIG = {
         # finishes in the background. 0 = disable warm-up (lazy init).
         "gateway_startup_warmup_timeout": 20,
         # Stale-stream ceiling (seconds) for local providers (Ollama, oMLX, llama-cpp). Applied when
-        # the base stale timeout is at its 180s default and a local endpoint is detected, so a
+        # the base stale timeout is at its 600s default and a local endpoint is detected, so a
         # wedged local server eventually trips the detector instead of hanging forever. Env
         # HERMES_LOCAL_STREAM_STALE_TIMEOUT overrides.
         "local_stream_stale_timeout": 900,
