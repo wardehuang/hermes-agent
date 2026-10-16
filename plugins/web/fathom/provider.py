@@ -1,7 +1,8 @@
 """Fathom — multi-provider web search.
 
-Live adapters: Grok (Responses API) and ChatGPT (chatgpt2api ``/v1/search``).
-Exa and Tavily land next.
+Live adapters: Grok (Responses API), ChatGPT (chatgpt2api ``/v1/search``),
+and Exa (FreeAPI ``POST /search`` plus ``POST /contents`` for extract).
+Tavily lands next.
 
 Each adapter has its own timeout (default 120s). A timed-out adapter is
 dropped for that call; remaining adapters still contribute.
@@ -26,6 +27,17 @@ Config::
           effort: "extended"
           timeout: 120
           key_env: "CHATGPT2API_API_KEY"
+        exa:
+          enabled: true
+          base_url: "http://wcpap.edmundvps.site:19881"
+          search_defaults:
+            type: deep-reasoning
+            numResults: 10
+            contents:
+              highlights: true
+          extract_defaults:
+            text: true
+            highlights: true
 
 Env overrides (Desktop Tools panel can write these):
 
@@ -42,6 +54,12 @@ Env overrides (Desktop Tools panel can write these):
     CHATGPT_SEARCH_EFFORT
     CHATGPT_SEARCH_TIMEOUT
     CHATGPT_SEARCH_ENABLED
+    EXA_SEARCH_ENABLED
+    EXA_SEARCH_API_KEY
+    EXA_SEARCH_BASE_URL
+    EXA_SEARCH_DEFAULTS
+    EXA_EXTRACT_DEFAULTS
+    EXA_SEARCH_TIMEOUT
     FATHOM_TIMEOUT
 
 If adapter base_url / API key are unset, Fathom reuses
@@ -65,6 +83,13 @@ from plugins.web.fathom.common import (
     dispatch_adapters,
     merge_rows,
 )
+from plugins.web.fathom.exa import (
+    DEFAULT_API_KEY as EXA_DEFAULT_API_KEY,
+    DEFAULT_BASE_URL as EXA_DEFAULT_BASE_URL,
+    DEFAULT_EXTRACT_DEFAULTS,
+    DEFAULT_SEARCH_DEFAULTS,
+    ExaAdapter,
+)
 from plugins.web.fathom.grok import DEFAULT_BASE_URL as GROK_DEFAULT_BASE_URL
 from plugins.web.fathom.grok import DEFAULT_EFFORT, DEFAULT_MODEL as GROK_DEFAULT_MODEL
 from plugins.web.fathom.grok import GrokAdapter
@@ -73,11 +98,15 @@ logger = logging.getLogger(__name__)
 
 
 class FathomWebSearchProvider(WebSearchProvider):
-    """Ensemble search backend. Grok and ChatGPT run in parallel."""
+    """Ensemble search backend. Grok, ChatGPT, and Exa run in parallel."""
 
     def __init__(self) -> None:
         self._grok = GrokAdapter()
         self._chatgpt = ChatGPTAdapter()
+        self._exa = ExaAdapter()
+
+    def _adapters(self):
+        return (self._grok, self._chatgpt, self._exa)
 
     @property
     def name(self) -> str:
@@ -88,22 +117,22 @@ class FathomWebSearchProvider(WebSearchProvider):
         return PROVIDER_LABEL
 
     def is_available(self) -> bool:
-        return self._grok.is_available() or self._chatgpt.is_available()
+        return any(adapter.is_available() for adapter in self._adapters())
 
     def supports_search(self) -> bool:
         return True
 
     def supports_extract(self) -> bool:
-        return False
+        return True
 
     def get_setup_schema(self) -> dict[str, Any]:
         return {
             "name": PROVIDER_LABEL,
             "badge": "ensemble",
             "tag": (
-                "Multi-provider web search. Grok and ChatGPT run in parallel; "
+                "Multi-provider web search. Grok, ChatGPT, and Exa run in parallel; "
                 "a 120s timeout drops that adapter for the call. "
-                "Exa and Tavily come next."
+                "Exa also extracts page content. Tavily comes next."
             ),
             "env_vars": [
                 {
@@ -178,6 +207,41 @@ class FathomWebSearchProvider(WebSearchProvider):
                     "default": CHATGPT_DEFAULT_EFFORT,
                     "group": "chatgpt",
                 },
+                {
+                    "key": "EXA_SEARCH_ENABLED",
+                    "prompt": "Exa",
+                    "type": "bool",
+                    "default": True,
+                    "controls_group": "exa",
+                },
+                {
+                    "key": "EXA_SEARCH_API_KEY",
+                    "prompt": "Exa API key. Unset uses the built-in FreeAPI default.",
+                    "default": EXA_DEFAULT_API_KEY,
+                    "group": "exa",
+                },
+                {
+                    "key": "EXA_SEARCH_BASE_URL",
+                    "prompt": "Exa base URL. Search is POST /search; extract is POST /contents.",
+                    "default": EXA_DEFAULT_BASE_URL,
+                    "group": "exa",
+                },
+                {
+                    "key": "EXA_SEARCH_DEFAULTS",
+                    "prompt": (
+                        "Exa POST /search JSON defaults. query is set per call. "
+                        "numResults is the Exa request size; the tool limit still "
+                        "caps this adapter's rows."
+                    ),
+                    "default": DEFAULT_SEARCH_DEFAULTS,
+                    "group": "exa",
+                },
+                {
+                    "key": "EXA_EXTRACT_DEFAULTS",
+                    "prompt": "Exa POST /contents JSON defaults. urls is set per call.",
+                    "default": DEFAULT_EXTRACT_DEFAULTS,
+                    "group": "exa",
+                },
             ],
         }
 
@@ -198,18 +262,18 @@ class FathomWebSearchProvider(WebSearchProvider):
 
         jobs = self._jobs(query, limit)
         if not jobs:
-            enabled = [adapter for adapter in (self._grok, self._chatgpt) if adapter.enabled()]
+            enabled = [adapter for adapter in self._adapters() if adapter.enabled()]
             if not enabled:
                 return {
                     "success": False,
-                    "error": "No Fathom providers enabled. Turn on Grok and/or ChatGPT.",
+                    "error": "No Fathom providers enabled. Turn on Grok, ChatGPT, and/or Exa.",
                 }
             return {
                 "success": False,
                 "error": (
                     "No Fathom credentials. Set GROK_SEARCH_API_KEY / "
-                    "GROK2API_API_KEY or CHATGPT_SEARCH_API_KEY / "
-                    "CHATGPT2API_API_KEY."
+                    "GROK2API_API_KEY, CHATGPT_SEARCH_API_KEY / "
+                    "CHATGPT2API_API_KEY, or EXA_SEARCH_API_KEY."
                 ),
             }
 
@@ -224,7 +288,7 @@ class FathomWebSearchProvider(WebSearchProvider):
 
     def _jobs(self, query: str, limit: int):
         jobs = []
-        for adapter in (self._grok, self._chatgpt):
+        for adapter in self._adapters():
             if not adapter.is_available():
                 continue
             try:
@@ -305,3 +369,7 @@ class FathomWebSearchProvider(WebSearchProvider):
                 "fathom": fathom_meta,
             },
         }
+
+    def extract(self, urls: list[str], **kwargs: Any) -> list[dict[str, Any]]:
+        del kwargs
+        return self._exa.extract(list(urls))

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import abc
 import os
+from contextvars import ContextVar, Token
 from typing import Any, Dict, List
 
 from agent.provider_base import ProviderBase
@@ -51,6 +52,23 @@ def get_provider_env(name: str) -> str:
     if val is None and not scope_bound:
         val = os.getenv(name, "")
     return (val or "").strip()
+
+
+_search_topic: ContextVar[str] = ContextVar("hermes_web_search_topic", default="")
+
+
+def set_search_topic(topic: str) -> Token[str]:
+    """Bind the topic for this web_search call. Empty means the backend default."""
+    return _search_topic.set(topic)
+
+
+def reset_search_topic(token: Token[str]) -> None:
+    _search_topic.reset(token)
+
+
+def current_search_topic() -> str:
+    """Topic set by the current web_search call, or empty when the agent omitted it."""
+    return _search_topic.get()
 
 
 def _secret_scope_state() -> tuple[bool, bool]:

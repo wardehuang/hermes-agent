@@ -102,7 +102,7 @@ class TestBundledPluginsRegister:
             ("tavily", True, True),
             ("perplexity", True, True),
             ("firecrawl", True, True),
-            ("fathom", True, False),
+            ("fathom", True, True),
             # xai: search-only via Grok's agentic web_search tool.
             ("xai", True, False),
             # openai-native: marker for the Codex Responses server-side web_search swap;

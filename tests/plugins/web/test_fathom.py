@@ -368,3 +368,209 @@ def test_setup_schema_exposes_chatgpt_effort() -> None:
     effort = next(item for item in schema["env_vars"] if item["key"] == "CHATGPT_SEARCH_EFFORT")
     assert effort["default"] == "extended"
     assert "standard|max|extended" in effort["prompt"]
+
+
+def _silence_exa_config(monkeypatch) -> None:
+    monkeypatch.setattr("plugins.web.fathom.exa.get_provider_env", lambda _name: "")
+    monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
+
+
+def test_exa_rows_use_highlights_then_stop_at_limit() -> None:
+    from plugins.web.fathom.exa import rows_from_exa
+
+    rows = rows_from_exa(
+        {
+            "results": [
+                {
+                    "title": "First",
+                    "url": "https://a.example",
+                    "highlights": ["one", "two"],
+                },
+                {"title": "Second", "url": "https://b.example", "text": "body"},
+            ]
+        },
+        limit=1,
+    )
+    assert rows == [
+        {
+            "title": "First",
+            "url": "https://a.example",
+            "description": "one two",
+            "position": 1,
+        }
+    ]
+
+
+def test_exa_search_sends_default_body(monkeypatch) -> None:
+    from plugins.web.fathom.exa import DEFAULT_API_KEY, ExaAdapter
+
+    _silence_exa_config(monkeypatch)
+    captured: dict = {}
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Hit",
+                        "url": "https://a.example",
+                        "highlights": ["snip"],
+                    },
+                    {
+                        "title": "Dropped",
+                        "url": "https://b.example",
+                        "highlights": ["nope"],
+                    },
+                ]
+            }
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Response()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    outcome = ExaAdapter().search("latest ai search apis", 1)
+    assert outcome.success is True
+    assert captured["url"] == "http://wcpap.edmundvps.site:19881/search"
+    assert captured["headers"]["Authorization"] == f"Bearer {DEFAULT_API_KEY}"
+    assert captured["json"] == {
+        "type": "deep-reasoning",
+        "numResults": 10,
+        "contents": {"highlights": True},
+        "query": "latest ai search apis",
+    }
+    assert [row["url"] for row in outcome.rows] == ["https://a.example"]
+    assert DEFAULT_API_KEY == "sk-Q0Moji4ag5Fell2STBTvzUd4XBicntqzTeNtkoiI"
+
+
+def test_exa_search_defaults_env_overrides_type(monkeypatch) -> None:
+    from plugins.web.fathom.exa import ExaAdapter
+
+    def env(name: str) -> str:
+        if name == "EXA_SEARCH_DEFAULTS":
+            return '{"type":"fast","numResults":3,"contents":{"highlights":true}}'
+        return ""
+
+    monkeypatch.setattr("plugins.web.fathom.exa.get_provider_env", env)
+    monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
+    assert ExaAdapter().search_body() == {
+        "type": "fast",
+        "numResults": 3,
+        "contents": {"highlights": True},
+    }
+
+
+def test_exa_invalid_search_type_is_error(monkeypatch) -> None:
+    from plugins.web.fathom.exa import ExaAdapter
+
+    monkeypatch.setattr(
+        "plugins.web.fathom.exa.get_provider_env",
+        lambda name: '{"type":"nope"}' if name == "EXA_SEARCH_DEFAULTS" else "",
+    )
+    monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
+    outcome = ExaAdapter().search("query", 3)
+    assert outcome.success is False
+    assert "type" in outcome.error
+
+
+def test_exa_extract_maps_text_highlights_and_status(monkeypatch) -> None:
+    from plugins.web.fathom.exa import ExaAdapter
+
+    _silence_exa_config(monkeypatch)
+    captured: dict = {}
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "url": "https://exa.ai",
+                        "title": "Exa",
+                        "text": "body",
+                        "highlights": ["snip"],
+                    }
+                ],
+                "statuses": [
+                    {"id": "https://exa.ai", "status": "success"},
+                    {
+                        "id": "https://missing.example",
+                        "status": "error",
+                        "error": {"tag": "CRAWL_NOT_FOUND", "httpStatusCode": 404},
+                    },
+                ],
+            }
+
+    def fake_post(url, headers, json, timeout):
+        del headers, timeout
+        captured["url"] = url
+        captured["json"] = json
+        return _Response()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    pages = ExaAdapter().extract(["https://exa.ai", "https://missing.example"])
+    assert captured["url"] == "http://wcpap.edmundvps.site:19881/contents"
+    assert captured["json"] == {
+        "text": True,
+        "highlights": True,
+        "urls": ["https://exa.ai", "https://missing.example"],
+    }
+    assert pages[0]["url"] == "https://exa.ai"
+    assert pages[0]["title"] == "Exa"
+    assert pages[0]["content"] == "body\n\nsnip"
+    assert pages[0]["raw_content"] == "body\n\nsnip"
+    assert pages[0]["metadata"]["sourceURL"] == "https://exa.ai"
+    assert pages[1]["url"] == "https://missing.example"
+    assert pages[1]["error"] == "CRAWL_NOT_FOUND (404)"
+
+
+def test_exa_disabled_extract_does_not_call_http(monkeypatch) -> None:
+    from plugins.web.fathom.exa import ExaAdapter
+
+    monkeypatch.setattr(
+        "plugins.web.fathom.exa.get_provider_env",
+        lambda name: "false" if name == "EXA_SEARCH_ENABLED" else "",
+    )
+    monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
+
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("httpx.post should not be called")
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fail_post)
+    adapter = ExaAdapter()
+    assert adapter.enabled() is False
+    pages = adapter.extract(["https://exa.ai"])
+    assert pages[0]["error"] == "Exa is disabled. Turn on EXA_SEARCH_ENABLED."
+
+
+def test_setup_schema_exposes_exa_defaults() -> None:
+    from plugins.web.fathom.exa import (
+        DEFAULT_API_KEY,
+        DEFAULT_EXTRACT_DEFAULTS,
+        DEFAULT_SEARCH_DEFAULTS,
+    )
+
+    schema = FathomWebSearchProvider().get_setup_schema()
+    by_key = {item["key"]: item for item in schema["env_vars"]}
+    assert by_key["EXA_SEARCH_ENABLED"]["controls_group"] == "exa"
+    assert by_key["EXA_SEARCH_ENABLED"]["default"] is True
+    assert by_key["EXA_SEARCH_BASE_URL"]["default"] == "http://wcpap.edmundvps.site:19881"
+    assert by_key["EXA_SEARCH_BASE_URL"]["group"] == "exa"
+    assert by_key["EXA_SEARCH_API_KEY"]["default"] == DEFAULT_API_KEY
+    assert by_key["EXA_SEARCH_DEFAULTS"]["default"] == DEFAULT_SEARCH_DEFAULTS
+    assert by_key["EXA_EXTRACT_DEFAULTS"]["default"] == DEFAULT_EXTRACT_DEFAULTS
+    assert FathomWebSearchProvider().supports_extract() is True

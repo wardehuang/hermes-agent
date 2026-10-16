@@ -299,7 +299,7 @@ def _finish_debug(call_name: str, debug_call_data: dict, error_msg: Optional[str
     return None if error_msg is None else tool_error(error_msg)
 
 
-def web_search_tool(query: str, limit: int = 5) -> str:
+def web_search_tool(query: str, limit: int = 5, topic: str | None = None) -> str:
     """Search the web via the configured backend.
 
     Returns a JSON string ``{"success": bool, "data": {"web": [{"title", "url", "description", "position"},
@@ -309,8 +309,9 @@ def web_search_tool(query: str, limit: int = 5) -> str:
         limit = min(max(int(limit), 1), 100)
     except (TypeError, ValueError):
         limit = 5
+    topic_text = topic.strip().lower() if isinstance(topic, str) else ""
     debug_call_data = {
-        "parameters": {"query": query, "limit": limit}, "error": None, "results_count": 0,
+        "parameters": {"query": query, "limit": limit, "topic": topic_text}, "error": None, "results_count": 0,
         "original_response_size": 0, "final_response_size": 0,
     }
 
@@ -335,8 +336,14 @@ def web_search_tool(query: str, limit: int = 5) -> str:
             fallback = "No web search provider configured. Run `hermes tools` to set one up."
             response_data = {"success": False, "error": _no_provider_error("search", fallback)}
         else:
-            logger.info("Web search via %s: '%s' (limit: %d)", provider.name, query, limit)
-            response_data = _memoized_search(provider, query, limit)
+            logger.info("Web search via %s: '%s' (limit: %d, topic: %s)", provider.name, query, limit, topic_text or "-")
+            from agent.web_search_provider import reset_search_topic, set_search_topic
+
+            token = set_search_topic(topic_text)
+            try:
+                response_data = _memoized_search(provider, query, limit, topic_text)
+            finally:
+                reset_search_topic(token)
 
         debug_call_data["results_count"] = len(response_data.get("data", {}).get("web", []))
         result_json = json.dumps(response_data, indent=2, ensure_ascii=False)
@@ -347,7 +354,7 @@ def web_search_tool(query: str, limit: int = 5) -> str:
         return _finish_debug("web_search_tool", debug_call_data, f"Error searching web: {e!s}")
 
 
-def _memoized_search(provider, query: str, limit: int) -> dict:
+def _memoized_search(provider, query: str, limit: int, topic: str = "") -> dict:
     """TTL memo + single-flight around the paid vendor call (tools/web_result_cache.py); sits after every
     safety/config check. The provider is asked for the BUCKETED count so near-identical limits share an entry;
     the caller's count is sliced out. Only successful, non-rescued responses are cached — caching a rescue
@@ -377,15 +384,15 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
             return fallback
         return _rescue_search(provider.name, error, query, fetch_limit) if _rescue_eligible(provider) else None
 
-    response_data = search_memo.lookup(provider.name, query, limit)
+    response_data = search_memo.lookup(provider.name, query, limit, topic)
     if response_data is None:
-        with search_memo.flight_lock(provider.name, query, limit):
+        with search_memo.flight_lock(provider.name, query, limit, topic):
             # Re-check inside the lock: a concurrent identical call may have stored.
-            response_data = search_memo.lookup(provider.name, query, limit)
+            response_data = search_memo.lookup(provider.name, query, limit, topic)
             if response_data is None:
                 response_data, was_rescued = _paid_search()
                 if not was_rescued:
-                    search_memo.store(provider.name, query, limit, response_data)
+                    search_memo.store(provider.name, query, limit, response_data, topic)
     return slice_search_response(response_data, limit)
 
 
@@ -528,6 +535,11 @@ WEB_SEARCH_SCHEMA = {
                 "minimum": 1,
                 "maximum": 100,
                 "default": 5
+            },
+            "topic": {
+                "type": "string",
+                "enum": ["general", "news", "finance"],
+                "description": "Optional Tavily topic. general, news, or finance. Omit for the backend default (general). Other search backends ignore it."
             }
         },
         "required": ["query"]
@@ -558,7 +570,11 @@ WEB_EXTRACT_SCHEMA = {
 
 registry.register(
     name="web_search", toolset="web", schema=WEB_SEARCH_SCHEMA,
-    handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5)),
+    handler=lambda args, **kw: web_search_tool(
+        args.get("query", ""),
+        limit=args.get("limit", 5),
+        topic=args.get("topic"),
+    ),
     check_fn=check_web_api_key, requires_env=_web_requires_env(), emoji="🔍",
     max_result_size_chars=100_000,
 )
