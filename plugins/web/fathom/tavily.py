@@ -15,6 +15,7 @@ from plugins.web.fathom.common import (
     load_config_section,
     nested_section,
     normalize_base_url,
+    raise_request_count,
     resolve_flag,
     resolve_timeout,
     shared_timeout,
@@ -299,6 +300,11 @@ class TavilyAdapter:
         except ValueError as exc:
             return AdapterOutcome(name=self.name, success=False, error=str(exc))
         payload["query"] = query
+        try:
+            floor = int(limit)
+        except (TypeError, ValueError):
+            floor = 1
+        raise_request_count(payload, "max_results", max(1, floor), 20)
         timeout = float(settings["timeout"])
         try:
             data = self._post("/search", payload, "search")

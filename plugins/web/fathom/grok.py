@@ -237,8 +237,9 @@ class GrokAdapter:
             "Use the web_search tool. Also use x_search when the query involves news, "
             "announcements, social discussion, or anything time-sensitive on X.\n"
             "Split the query into multiple search angles. Prefer official / first-party "
-            "sources, then independent secondary sources. Verify dates. If sources conflict, "
-            "keep both sides. Do not stop after the first plausible answer.\n"
+            "sources, then independent secondary sources. Verify dates. "
+            "Do not pick a winner and do not write a combined verdict. "
+            "Return sources only. Do not stop after the first plausible page.\n"
             "Return ONLY a single JSON object — no prose, no markdown fences, no inline "
             "citation links — matching this schema:\n\n"
             '{"results": [{"title": "string", "url": "string", '

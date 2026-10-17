@@ -114,14 +114,59 @@ def normalize_url(url: str) -> str:
     )
 
 
+CANDIDATE_POOL = 20
+
+
+def candidate_limit(output_limit: int) -> int:
+    """How many rows each adapter should return before the final cap.
+
+    The tool ``limit`` is the output cap. Adapters that slice to it first
+    throw away candidates the judge never sees.
+    """
+    return min(100, max(int(output_limit), CANDIDATE_POOL))
+
+
+def raise_request_count(body: dict[str, Any], key: str, floor: int, upper: int) -> None:
+    """Raise a configured result count up to ``floor``, never above ``upper``.
+
+    A configured value already above ``floor`` is left alone, so an explicit
+    larger ``numResults`` / ``max_results`` still reaches the wire.
+    """
+    current = body.get(key)
+    if isinstance(current, bool) or not isinstance(current, int):
+        current = 0
+    body[key] = max(1, min(upper, max(current, floor)))
+
+
+def _snippet_description(snippets: list[dict[str, str]], fallback: str) -> str:
+    texts: list[str] = []
+    labeled: list[str] = []
+    for snippet in snippets:
+        text = snippet.get("text") or ""
+        if not text:
+            continue
+        if text not in texts:
+            texts.append(text)
+        labeled.append(f"[{snippet['backend']}] {text}")
+    if len(texts) > 1:
+        return "\n".join(labeled)
+    if texts:
+        return texts[0]
+    return fallback
+
+
 def _public_row(item: dict[str, Any], position: int) -> dict[str, Any]:
-    return {
+    snippets = list(item.get("snippets") or [])
+    row = {
         "title": item["title"],
         "url": item["url"],
-        "description": item["description"],
+        "description": _snippet_description(snippets, item["description"]),
         "position": position,
         "backends": list(item["backends"]),
     }
+    if snippets:
+        row["snippets"] = snippets
+    return row
 
 
 def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> list[dict[str, Any]]:
@@ -140,14 +185,18 @@ def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> list[dict[str,
                 continue
             key = normalize_url(url) or url
             existing = ranked.get(key)
+            text = str(row.get("description") or "").strip()
             if existing is None:
                 order += 1
                 ranked[key] = {
                     "title": str(row.get("title") or "").strip(),
                     "url": url,
-                    "description": str(row.get("description") or "").strip(),
+                    "description": text,
                     "position": order,
                     "backends": [outcome.name],
+                    "snippets": (
+                        [{"backend": outcome.name, "text": text}] if text else []
+                    ),
                     "_agree": 1,
                     "_order": order,
                     "_backend": outcome.name,
@@ -156,10 +205,15 @@ def merge_rows(outcomes: Sequence[AdapterOutcome], limit: int) -> list[dict[str,
             existing["_agree"] += 1
             if outcome.name not in existing["backends"]:
                 existing["backends"].append(outcome.name)
+            if text and not any(
+                snippet["backend"] == outcome.name and snippet["text"] == text
+                for snippet in existing["snippets"]
+            ):
+                existing["snippets"].append({"backend": outcome.name, "text": text})
             if not existing["title"]:
                 existing["title"] = str(row.get("title") or "").strip()
             if not existing["description"]:
-                existing["description"] = str(row.get("description") or "").strip()
+                existing["description"] = text
 
     agreed = sorted(
         [item for item in ranked.values() if int(item["_agree"]) >= 2],

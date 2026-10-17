@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextvars
+import json
 
 from plugins.web.fathom import (
     SEARCH_DISPATCH_PROMPT,
@@ -87,6 +88,8 @@ def test_merge_prefers_urls_seen_on_multiple_backends() -> None:
     assert normalize_url(merged[0]["url"]) == "https://b.example/two"
     assert merged[0]["backends"] == ["grok", "chatgpt"]
     assert merged[0]["title"] == "Shared"
+    assert merged[0]["description"] == "from grok"
+    assert merged[0]["snippets"] == [{"backend": "grok", "text": "from grok"}]
     assert {normalize_url(row["url"]) for row in merged} == {
         "https://b.example/two",
         "https://a.example/one",
@@ -161,6 +164,211 @@ def test_merge_round_robins_unique_urls() -> None:
     assert backends.count("grok") == 2
 
 
+def test_merge_keeps_every_backend_snippet() -> None:
+    merged = merge_rows(
+        [
+            AdapterOutcome(
+                name="grok",
+                success=True,
+                rows=[
+                    {
+                        "title": "Shared",
+                        "url": "https://b.example/two",
+                        "description": "grok said Tuesday",
+                        "position": 1,
+                    }
+                ],
+            ),
+            AdapterOutcome(
+                name="tavily",
+                success=True,
+                rows=[
+                    {
+                        "title": "Shared",
+                        "url": "https://b.example/two/",
+                        "description": "tavily said Wednesday",
+                        "position": 1,
+                    }
+                ],
+            ),
+        ],
+        limit=5,
+    )
+    assert merged[0]["snippets"] == [
+        {"backend": "grok", "text": "grok said Tuesday"},
+        {"backend": "tavily", "text": "tavily said Wednesday"},
+    ]
+    assert "[grok] grok said Tuesday" in merged[0]["description"]
+    assert "[tavily] tavily said Wednesday" in merged[0]["description"]
+
+
+def test_adjudicate_emits_one_answer_and_keeps_conflicts() -> None:
+    from plugins.web.fathom.judge import adjudicate
+
+    calls: list[str] = []
+
+    def complete(messages):
+        system = messages[0]["content"]
+        calls.append(system)
+        if system.startswith("You rank"):
+            return (
+                json.dumps(
+                    {
+                        "order": [
+                            "https://keep.example/a",
+                            "https://drop.example/b",
+                        ],
+                        "read": ["https://keep.example/a"],
+                    }
+                ),
+                "session-main",
+            )
+        return (
+            json.dumps(
+                {
+                    "answer": "The page says Tuesday.",
+                    "results": [
+                        {
+                            "url": "https://keep.example/a",
+                            "description": "Page says Tuesday.",
+                        }
+                    ],
+                    "conflicts": [
+                        {
+                            "point": "which day",
+                            "sides": [
+                                {"claim": "Tuesday", "url": "https://keep.example/a"},
+                                {"claim": "Wednesday", "url": "https://other.example/c"},
+                                {
+                                    "claim": "invented",
+                                    "url": "https://invented.example/nope",
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ),
+            "session-main",
+        )
+
+    def extract(urls):
+        assert urls == ["https://keep.example/a"]
+        return [
+            {
+                "url": urls[0],
+                "title": "Keep",
+                "content": "The event is on Tuesday.",
+            }
+        ]
+
+    outcomes = [
+        AdapterOutcome(
+            name="chatgpt",
+            success=True,
+            rows=[
+                {
+                    "title": "Off topic",
+                    "url": "https://drop.example/b",
+                    "description": "unrelated",
+                    "position": 1,
+                },
+                {
+                    "title": "Keep",
+                    "url": "https://keep.example/a",
+                    "description": "snippet tuesday",
+                    "position": 2,
+                },
+            ],
+            extra={"answer": "maybe Wednesday"},
+        ),
+        AdapterOutcome(
+            name="tavily",
+            success=True,
+            rows=[
+                {
+                    "title": "Other",
+                    "url": "https://other.example/c",
+                    "description": "snippet wednesday",
+                    "position": 1,
+                }
+            ],
+            extra={"answer": "maybe Tuesday"},
+        ),
+    ]
+    result = adjudicate(
+        None,
+        "which day",
+        outcomes,
+        2,
+        complete=complete,
+        extract=extract,
+    )
+    assert result.error == ""
+    payload = result.response
+    assert payload["success"] is True
+    assert [row["url"] for row in payload["data"]["web"]] == [
+        "https://keep.example/a",
+        "https://drop.example/b",
+    ]
+    assert payload["data"]["web"][0]["description"] == "Page says Tuesday."
+    assert payload["data"]["fathom"]["answer"] == "The page says Tuesday."
+    assert "answers" not in payload["data"]["fathom"]
+    assert payload["data"]["fathom"]["conflicts"] == [
+        {
+            "point": "which day",
+            "sides": [
+                {"claim": "Tuesday", "url": "https://keep.example/a"},
+                {"claim": "Wednesday", "url": "https://other.example/c"},
+            ],
+        }
+    ]
+    assert payload["data"]["fathom"]["judge"]["fallback"] is None
+    assert payload["data"]["fathom"]["judge"]["model"] == "session-main"
+    assert len(calls) == 2
+
+
+def test_adjudicate_bad_rank_returns_no_response() -> None:
+    from plugins.web.fathom.judge import adjudicate
+
+    result = adjudicate(
+        None,
+        "query",
+        [
+            AdapterOutcome(
+                name="grok",
+                success=True,
+                rows=[
+                    {
+                        "title": "Keep",
+                        "url": "https://keep.example/",
+                        "description": "ok",
+                        "position": 1,
+                    }
+                ],
+            )
+        ],
+        5,
+        complete=lambda _messages: ("not json", "session-main"),
+        extract=lambda _urls: [],
+    )
+    assert result.response is None
+    assert "JSON" in result.error
+
+
+def test_raise_request_count_respects_floor_and_cap() -> None:
+    from plugins.web.fathom.common import raise_request_count
+
+    body = {"numResults": 30}
+    raise_request_count(body, "numResults", 20, 100)
+    assert body["numResults"] == 30
+    body = {"numResults": 10}
+    raise_request_count(body, "numResults", 20, 100)
+    assert body["numResults"] == 20
+    body = {"max_results": 10}
+    raise_request_count(body, "max_results", 50, 20)
+    assert body["max_results"] == 20
+
+
 def test_chatgpt_maps_sources_and_snippets() -> None:
     rows = rows_from_chatgpt(
         {
@@ -212,8 +420,11 @@ def test_assemble_keeps_fathom_badge_and_timeout_meta() -> None:
     assert assembled["data"]["provider_label"] == "Fathom"
     assert assembled["data"]["fathom"]["used"] == ["chatgpt"]
     assert assembled["data"]["fathom"]["timed_out"] == ["grok"]
-    assert assembled["data"]["fathom"]["answers"]["chatgpt"] == "short answer"
+    assert "answers" not in assembled["data"]["fathom"]
     assert assembled["data"]["web"][0]["url"] == "https://keep.example/"
+    assert assembled["data"]["web"][0]["snippets"] == [
+        {"backend": "chatgpt", "text": "ok"}
+    ]
 
 
 def test_assemble_all_timeout_is_error_with_badge() -> None:

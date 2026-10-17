@@ -254,8 +254,9 @@ class FathomWebSearchProvider(WebSearchProvider):
                     "key": "EXA_SEARCH_DEFAULTS",
                     "prompt": (
                         "Exa POST /search JSON defaults. query is set per call. "
-                        "numResults is the Exa request size; the tool limit still "
-                        "caps this adapter's rows."
+                        "numResults is the Exa request size. Fathom raises it to the "
+                        "candidate pool when the configured value is smaller. "
+                        "The tool limit still caps the final rows."
                     ),
                     "default": DEFAULT_SEARCH_DEFAULTS,
                     "group": "exa",
@@ -290,8 +291,9 @@ class FathomWebSearchProvider(WebSearchProvider):
                     "prompt": (
                         "Tavily POST /search JSON defaults. query is set per call. "
                         "topic is set by the web_search tool when the agent passes it. "
-                        "max_results is the Tavily request size; the tool limit still "
-                        "caps this adapter's rows."
+                        "max_results is the Tavily request size. Fathom raises it to "
+                        "the candidate pool when the configured value is smaller "
+                        "(Tavily's own cap is 20). The tool limit still caps the final rows."
                     ),
                     "default": TAVILY_SEARCH_DEFAULTS,
                     "group": "tavily",
@@ -319,8 +321,10 @@ class FathomWebSearchProvider(WebSearchProvider):
         except (TypeError, ValueError):
             limit = 5
         limit = max(1, min(limit, 100))
+        from plugins.web.fathom.common import candidate_limit
 
-        jobs = self._jobs(query, limit)
+        pool_limit = candidate_limit(limit)
+        jobs = self._jobs(query, pool_limit)
         if not jobs:
             enabled = [adapter for adapter in self._adapters() if adapter.enabled()]
             if not enabled:
@@ -338,13 +342,33 @@ class FathomWebSearchProvider(WebSearchProvider):
             }
 
         logger.info(
-            "Fathom ensemble query=%r limit=%d adapters=%s",
+            "Fathom ensemble query=%r limit=%d pool=%d adapters=%s",
             query,
             limit,
+            pool_limit,
             [name for name, _timeout, _call in jobs],
         )
         outcomes = dispatch_adapters(jobs)
-        return self._assemble(outcomes, limit)
+        baseline = self._assemble(outcomes, limit)
+        if not baseline.get("success"):
+            return baseline
+        from plugins.web.fathom.judge import adjudicate
+
+        judged = adjudicate(self, query, outcomes, limit)
+        if judged.response is None and judged.error == "interrupted":
+            return {"success": False, "error": "Interrupted"}
+        if judged.response is None:
+            baseline["data"]["fathom"]["judge"] = {
+                "fallback": "merge",
+                "error": judged.error,
+            }
+            logger.info(
+                "Fathom judge fallback=merge query=%r error=%s",
+                query,
+                judged.error,
+            )
+            return baseline
+        return judged.response
 
     def _jobs(self, query: str, limit: int):
         jobs = []
@@ -379,7 +403,6 @@ class FathomWebSearchProvider(WebSearchProvider):
         used: list[str] = []
         timed_out: list[str] = []
         failed: list[dict[str, str]] = []
-        answers: dict[str, str] = {}
 
         for outcome in outcomes:
             if outcome.timed_out:
@@ -389,9 +412,6 @@ class FathomWebSearchProvider(WebSearchProvider):
                 failed.append({"name": outcome.name, "error": outcome.error})
                 continue
             used.append(outcome.name)
-            answer = str(outcome.extra.get("answer") or "").strip()
-            if answer:
-                answers[outcome.name] = answer
 
         rows = merge_rows(outcomes, limit)
         fathom_meta: dict[str, Any] = {
@@ -399,8 +419,6 @@ class FathomWebSearchProvider(WebSearchProvider):
             "timed_out": timed_out,
             "failed": failed,
         }
-        if answers:
-            fathom_meta["answers"] = answers
 
         if not used:
             parts = []
