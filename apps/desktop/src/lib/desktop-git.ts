@@ -77,6 +77,8 @@ const remoteGit: GitBridge = {
       (await gitGet<{ diff: string }>('review/diff', { base: baseRef, file: filePath, path: repoPath, scope, staged }))
         .diff,
 
+    openExternalDiff: () => Promise.reject(new Error('External diff is only available for a local repository')),
+
     stage: (repoPath, filePath) => gitPost('review/stage', { file: filePath ?? null, path: repoPath }),
 
     unstage: (repoPath, filePath) => gitPost('review/unstage', { file: filePath ?? null, path: repoPath }),

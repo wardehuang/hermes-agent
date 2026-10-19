@@ -6,10 +6,12 @@
 
 import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 
 import simpleGit from 'simple-git'
 
+import { launchWinMerge, resolveWinMergeExecutable, WINMERGE_NOT_FOUND } from './external-diff'
 import { resolveRequestedPathForIpc } from './hardening'
 import { execGit, noConsoleGitEnv, simpleGitBinary, windowsGitHost } from './no-console-git'
 
@@ -891,6 +893,105 @@ async function repoStatus(repoPath, gitBin) {
   return result
 }
 
+// Repo-relative review path. Rejects absolute paths and `..` so a menu click
+// cannot `git show` something outside the repo.
+function reviewGitPath(cwd, filePath) {
+  const raw = String(filePath || '').trim()
+  const abs = path.resolve(cwd, raw)
+  const rel = path.relative(path.resolve(cwd), abs)
+
+  if (!raw || !rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Invalid review path')
+  }
+
+  return { abs, gitPath: rel.split(path.sep).join('/') }
+}
+
+async function showBlob(gitBin, cwd, spec) {
+  const result = await execGit(gitBin || 'git', ['show', spec], { cwd, timeoutMs: 30_000 }).catch(() => null)
+
+  if (!result || result.code) {
+    return ''
+  }
+
+  return result.stdout
+}
+
+async function pathExists(filePath) {
+  try {
+    await fs.access(filePath)
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Two real files for WinMerge, matching reviewDiff's scope:
+// uncommitted staged = HEAD vs index; uncommitted worktree = index vs file on
+// disk; branch = merge-base vs HEAD; lastTurn = turn baseline vs worktree.
+async function reviewOpenExternalDiff(repoPath, filePath, scope, baseRef, staged, gitBin) {
+  const cwd = resolveRequestedPathForIpc(repoPath, { purpose: 'External diff' })
+  const { abs, gitPath } = reviewGitPath(cwd, filePath)
+  const executable = resolveWinMergeExecutable()
+
+  if (!executable) {
+    throw new Error(WINMERGE_NOT_FOUND)
+  }
+
+  const git = gitFor(cwd, gitBin)
+  let leftSpec = `HEAD:${gitPath}`
+  let rightSpec = null
+  let leftLabel = 'HEAD'
+  let rightLabel = 'Working tree'
+  let rightPath = abs
+
+  if (scope === 'branch') {
+    const base = await branchBase(git)
+
+    if (!base) {
+      throw new Error('No branch base to compare')
+    }
+
+    leftSpec = `${base}:${gitPath}`
+    rightSpec = `HEAD:${gitPath}`
+    leftLabel = base.slice(0, 12)
+    rightLabel = 'HEAD'
+    rightPath = null
+  } else if (scope === 'lastTurn') {
+    if (!baseRef) {
+      throw new Error('No turn baseline to compare')
+    }
+
+    leftSpec = `${baseRef}:${gitPath}`
+    leftLabel = String(baseRef).slice(0, 12)
+    rightLabel = 'Working tree'
+    rightPath = (await pathExists(abs)) ? abs : null
+  } else if (staged) {
+    rightSpec = `:${gitPath}`
+    rightLabel = 'Index'
+    rightPath = null
+  } else {
+    leftSpec = `:${gitPath}`
+    leftLabel = 'Index'
+    rightPath = (await pathExists(abs)) ? abs : null
+  }
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-winmerge-'))
+  const leftPath = path.join(dir, `left-${path.basename(abs)}`)
+  const rightFile = rightPath || path.join(dir, `right-${path.basename(abs)}`)
+
+  await fs.writeFile(leftPath, await showBlob(gitBin, cwd, leftSpec))
+
+  if (!rightPath) {
+    await fs.writeFile(rightFile, rightSpec ? await showBlob(gitBin, cwd, rightSpec) : '')
+  }
+
+  await launchWinMerge(executable, leftPath, rightFile, { left: leftLabel, right: rightLabel })
+
+  return { ok: true }
+}
+
 export {
   branchBase,
   fileDiffVsHead,
@@ -903,6 +1004,7 @@ export {
   reviewCreatePr,
   reviewDiff,
   reviewList,
+  reviewOpenExternalDiff,
   reviewPrList,
   reviewPush,
   reviewRevert,

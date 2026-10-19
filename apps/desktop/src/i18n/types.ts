@@ -3228,6 +3228,8 @@ export interface Translations extends NoticeTranslations {
       close: string
       openChanges: string
       openFile: string
+      compareInWinMerge: string
+      winMergeMissing: string
       stage: string
       unstage: string
       stageAll: string

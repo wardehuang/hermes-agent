@@ -4200,6 +4200,8 @@ export const frOverrides = {
       close: 'Fermer',
       openChanges: 'Ouvrir les modifications',
       openFile: 'Ouvrir le fichier',
+      compareInWinMerge: 'Comparer dans WinMerge',
+      winMergeMissing: 'WinMerge est introuvable. Installez-le ou ajoutez WinMergeU.exe au PATH.',
       stage: 'Mettre en zone de préparation',
       unstage: 'Retirer de la zone de préparation',
       stageAll: 'Tout mettre en zone de préparation',

@@ -2784,6 +2784,8 @@ export const jaOverrides = {
       close: '閉じる',
       openChanges: '変更を開く',
       openFile: 'ファイルを開く',
+      compareInWinMerge: 'WinMerge で比較',
+      winMergeMissing: 'WinMerge が見つかりません。インストールするか、WinMergeU.exe を PATH に追加してください。',
       stage: 'ステージ',
       unstage: 'ステージ解除',
       stageAll: 'すべてステージ',

@@ -3071,6 +3071,8 @@ export const ruOverrides = {
       close: 'Закрыть',
       openChanges: 'Открыть изменения',
       openFile: 'Открыть файл',
+      compareInWinMerge: 'Сравнить в WinMerge',
+      winMergeMissing: 'WinMerge не найден. Установите его или добавьте WinMergeU.exe в PATH.',
       stage: 'Добавить в индекс',
       unstage: 'Убрать из индекса',
       stageAll: 'Добавить всё в индекс',

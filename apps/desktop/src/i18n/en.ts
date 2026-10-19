@@ -3761,6 +3761,8 @@ export const en: Translations = {
       close: 'Close',
       openChanges: 'Open changes',
       openFile: 'Open file',
+      compareInWinMerge: 'Compare in WinMerge',
+      winMergeMissing: 'WinMerge was not found. Install it, or add WinMergeU.exe to PATH.',
       stage: 'Stage',
       unstage: 'Unstage',
       stageAll: 'Stage all',

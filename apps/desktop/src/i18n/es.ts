@@ -4183,6 +4183,8 @@ export const esOverrides = {
       close: 'Cerrar',
       openChanges: 'Abrir cambios',
       openFile: 'Abrir archivo',
+      compareInWinMerge: 'Comparar en WinMerge',
+      winMergeMissing: 'No se encontró WinMerge. Instálalo o añade WinMergeU.exe al PATH.',
       stage: 'Preparar',
       unstage: 'Quitar de preparación',
       stageAll: 'Preparar todo',

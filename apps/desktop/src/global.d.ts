@@ -536,6 +536,14 @@ declare global {
             baseRef?: null | string,
             staged?: boolean
           ) => Promise<string>
+          // Open the same two sides in WinMerge. Local desktop only.
+          openExternalDiff: (
+            repoPath: string,
+            filePath: string,
+            scope: HermesReviewScope,
+            baseRef?: null | string,
+            staged?: boolean
+          ) => Promise<{ ok: boolean }>
           stage: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>
           unstage: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>
           revert: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>

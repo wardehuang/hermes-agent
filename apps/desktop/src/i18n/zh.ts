@@ -3667,6 +3667,8 @@ export const zhOverrides = {
       close: '关闭',
       openChanges: '打开更改',
       openFile: '打开文件',
+      compareInWinMerge: '用 WinMerge 对比',
+      winMergeMissing: '未找到 WinMerge。请安装，或把 WinMergeU.exe 加入 PATH。',
       stage: '暂存',
       unstage: '取消暂存',
       stageAll: '全部暂存',

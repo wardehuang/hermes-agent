@@ -310,6 +310,8 @@ export const arChat = {
       close: 'إغلاق',
       openChanges: 'فتح التغييرات',
       openFile: 'فتح الملف',
+      compareInWinMerge: 'قارن في WinMerge',
+      winMergeMissing: 'لم يُعثر على WinMerge. ثبّته أو أضف WinMergeU.exe إلى PATH.',
       stage: 'إدراج',
       unstage: 'إلغاء الإدراج',
       stageAll: 'إدراج الكل',

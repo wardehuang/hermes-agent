@@ -484,6 +484,8 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
       list: (repoPath, scope, baseRef) => ipcRenderer.invoke('hermes:git:review:list', repoPath, scope, baseRef),
       diff: (repoPath, filePath, scope, baseRef, staged) =>
         ipcRenderer.invoke('hermes:git:review:diff', repoPath, filePath, scope, baseRef, staged),
+      openExternalDiff: (repoPath, filePath, scope, baseRef, staged) =>
+        ipcRenderer.invoke('hermes:git:review:openExternalDiff', repoPath, filePath, scope, baseRef, staged),
       stage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:stage', repoPath, filePath),
       unstage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:unstage', repoPath, filePath),
       revert: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:revert', repoPath, filePath),

@@ -4189,6 +4189,8 @@ export const deOverrides = {
       close: 'Schließen',
       openChanges: 'Änderungen öffnen',
       openFile: 'Datei öffnen',
+      compareInWinMerge: 'In WinMerge vergleichen',
+      winMergeMissing: 'WinMerge wurde nicht gefunden. Installieren Sie es oder fügen Sie WinMergeU.exe zum PATH hinzu.',
       stage: 'Stagen',
       unstage: 'Unstagen',
       stageAll: 'Alles stagen',
