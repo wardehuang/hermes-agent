@@ -3761,6 +3761,8 @@ export interface Translations extends NoticeTranslations {
     remotePickerCreateFolderFailed: (error: string) => string
     folderTip: (cwd: string) => string
     openFolder: string
+    openInVSCode: string
+    openInVSCodeMissing: string
     refreshTree: string
     collapseAll: string
     showIgnored: string

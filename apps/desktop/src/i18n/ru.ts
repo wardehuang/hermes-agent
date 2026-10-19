@@ -3506,6 +3506,8 @@ export const ruOverrides = {
     remotePickerCreateFolderFailed: error => `Не удалось создать папку (${error}).`,
     folderTip: cwd => cwd,
     openFolder: 'Открыть папку',
+    openInVSCode: 'Открыть в VS Code',
+    openInVSCodeMissing: 'VS Code не найден на этом компьютере.',
     refreshTree: 'Обновить дерево',
     collapseAll: 'Свернуть все папки',
     showIgnored: 'Показать файлы из gitignore',

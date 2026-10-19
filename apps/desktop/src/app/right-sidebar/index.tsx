@@ -8,6 +8,7 @@ import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useDelayedTrue } from '@/hooks/use-delayed-true'
 import { useI18n } from '@/i18n'
+import { openDesktopPathInVSCode } from '@/lib/desktop-fs'
 import { normalizeOrLocalPreviewTarget, openLocalFileWithSystemApp } from '@/lib/local-preview'
 import { cn } from '@/lib/utils'
 import { refreshRepoStatus, registerRepoStatusCwd } from '@/store/coding-status'
@@ -15,13 +16,14 @@ import { $panesFlipped } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { openPreview } from '@/store/preview'
 import { openFolderAsProject } from '@/store/projects'
-import { $selectedStoredSessionId, $workspaceCwdOwner } from '@/store/session'
+import { $connection, $selectedStoredSessionId, $workspaceCwdOwner } from '@/store/session'
 import { $focusedWorkspaceCwd } from '@/store/session-states'
 
 import { SidebarPanelLabel } from '../shell/sidebar-label'
 
 import { ProjectTree } from './files/tree'
 import { useProjectTree } from './files/use-project-tree'
+import { VSCodeMark } from './files/vscode-mark'
 
 interface RightSidebarPaneProps {
   onActivateFile: (path: string) => void
@@ -189,6 +191,23 @@ function FilesystemTab({
 }: FilesystemTabProps) {
   const { t } = useI18n()
   const r = t.rightSidebar
+  const remote = useStore($connection)?.mode === 'remote'
+
+  const openInVSCode = async () => {
+    if (!cwd) {
+      return
+    }
+
+    try {
+      const opened = await openDesktopPathInVSCode(cwd)
+
+      if (!opened) {
+        notifyError(new Error(r.openInVSCodeMissing), r.openInVSCode)
+      }
+    } catch (error) {
+      notifyError(error, r.openInVSCode)
+    }
+  }
 
   // No working directory (a bare/detached chat) → no tree, but keep a way back
   // into a folder (#53004): the projects paradigm removed the old folder picker,
@@ -211,8 +230,22 @@ function FilesystemTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <RightSidebarSectionHeader>
-        <div className="flex min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <SidebarPanelLabel>{cwdName}</SidebarPanelLabel>
+          {!remote && (
+            <Tip label={r.openInVSCode}>
+              <Button
+                aria-label={r.openInVSCode}
+                className={cn(HEADER_ACTION_CLASS, 'shrink-0')}
+                disabled={!cwd}
+                onClick={() => void openInVSCode()}
+                size="icon-xs"
+                variant="ghost"
+              >
+                <VSCodeMark className="size-[0.8125rem]" />
+              </Button>
+            </Tip>
+          )}
         </div>
         <Tip label={showIgnored ? r.hideIgnored : r.showIgnored}>
           <Button

@@ -459,6 +459,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   readDir: dirPath => ipcRenderer.invoke('hermes:fs:readDir', dirPath),
   gitRoot: startPath => ipcRenderer.invoke('hermes:fs:gitRoot', startPath),
   openInEditor: targetPath => ipcRenderer.invoke('hermes:fs:openInEditor', targetPath),
+  openInVSCode: targetPath => ipcRenderer.invoke('hermes:fs:openInVSCode', targetPath),
   openPath: targetPath => ipcRenderer.invoke('hermes:fs:openPath', targetPath),
   revealPath: targetPath => ipcRenderer.invoke('hermes:fs:reveal', targetPath),
   openDir: dirPath => ipcRenderer.invoke('hermes:fs:openDir', dirPath),

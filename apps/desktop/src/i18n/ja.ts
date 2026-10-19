@@ -3222,6 +3222,8 @@ export const jaOverrides = {
     remotePickerCreateFolderFailed: error => `フォルダーを作成できませんでした (${error})。`,
     folderTip: cwd => cwd,
     openFolder: 'フォルダーを開く',
+    openInVSCode: 'VS Code で開く',
+    openInVSCodeMissing: 'このコンピューターに VS Code が見つかりません。',
     refreshTree: 'ツリーを更新',
     collapseAll: 'すべてのフォルダーを折りたたむ',
     showIgnored: 'gitignore されたファイルを表示',

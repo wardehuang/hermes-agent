@@ -4754,6 +4754,8 @@ export const esOverrides = {
     remotePickerCreateFolderFailed: error => `No se pudo crear la carpeta (${error}).`,
     folderTip: cwd => cwd,
     openFolder: 'Abrir carpeta',
+    openInVSCode: 'Abrir en VS Code',
+    openInVSCodeMissing: 'No se encontró VS Code en este equipo.',
     refreshTree: 'Actualizar árbol',
     collapseAll: 'Contraer todas las carpetas',
     showIgnored: 'Mostrar archivos ignorados por git',

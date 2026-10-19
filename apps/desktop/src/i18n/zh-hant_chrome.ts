@@ -440,6 +440,8 @@ export const zhHantChrome = {
     remotePickerCreateFolderFailed: error => `無法建立資料夾 (${error})。`,
     folderTip: cwd => cwd,
     openFolder: '開啟資料夾',
+    openInVSCode: '使用 VS Code 開啟',
+    openInVSCodeMissing: '這部電腦上找不到 VS Code。',
     refreshTree: '重新整理檔案樹',
     collapseAll: '收合所有資料夾',
     showIgnored: '顯示 gitignore 的檔案',

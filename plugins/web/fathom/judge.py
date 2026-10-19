@@ -11,11 +11,18 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable, Optional, Sequence
+from zoneinfo import ZoneInfo
 
 from plugins.web.fathom.common import AdapterOutcome, merge_rows, normalize_url
 
 logger = logging.getLogger(__name__)
+
+
+def _now_shanghai() -> str:
+    return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S %Z")
+
 
 READ_CAP = 8
 PAGE_CHARS = 4000
@@ -29,17 +36,29 @@ _RANK_SYSTEM = (
     "You rank web search candidates for one query. "
     "Adapter answers are unverified hypotheses, not conclusions. "
     "Snippets are not full pages. "
+    "The user message includes now (Asia/Shanghai). "
+    "Relevance includes recency. When the query is about news, current events, "
+    "products, prices, versions, or who holds a role now, a source whose stated "
+    "date is years before now is off-intent if any newer on-topic source exists: "
+    "omit it. If the query names a past date, that date is the target, not now. "
+    "Do not invent dates. A snippet with no date is not evidence that it is current. "
+    "A spec, definition, or primary document the query asks for may stay even if old. "
     "Return ONLY a JSON object with keys order and read. "
     "order is candidate URLs that match the query intent, best first. "
-    "Omit off-topic URLs. Do not invent URLs. "
+    "Omit off-topic and stale URLs. Do not invent URLs. "
     f"read is up to {READ_CAP} URLs from order whose full page should be opened, "
-    "primary sources first."
+    "newest primary sources first."
 )
 
 _ANSWER_SYSTEM = (
     "You write one search answer from the evidence below. "
     "Adapter answers are hypotheses. Snippets are not full pages. "
     "Fetched pages are the evidence for those URLs. "
+    "The user message includes now (Asia/Shanghai). "
+    "Do not state a years-old article as the current fact. "
+    "If the only evidence is old, say that it is old instead of presenting it as now. "
+    "If the query names a past date, answer for that date. "
+    "Do not invent dates. "
     "Unread rows may be used only as titles and snippets. "
     "If fetched pages disagree on a material fact, do not force one side. "
     "State what the pages agree on, and list the disagreement in conflicts. "
@@ -47,7 +66,8 @@ _ANSWER_SYSTEM = (
     "Return ONLY a JSON object with keys answer, results, and conflicts. "
     "results is a list of {url, description}. description is 1-3 sentences "
     "grounded in that URL's fetched page, or in its snippets if the page was "
-    "not fetched. conflicts is a list of {point, sides}. sides is a list of "
+    "not fetched. Include the stated date when the page or snippet has one. "
+    "conflicts is a list of {point, sides}. sides is a list of "
     "{claim, url}. conflicts is empty when the fetched pages do not disagree. "
     "Do not invent URLs."
 )
@@ -412,6 +432,7 @@ def adjudicate(
             "role": "user",
             "content": json.dumps(
                 {
+                    "now": _now_shanghai(),
                     "query": query,
                     "hypotheses": _hypotheses(outcomes),
                     "candidates": _candidate_block(pool),
@@ -455,6 +476,7 @@ def adjudicate(
             "role": "user",
             "content": json.dumps(
                 {
+                    "now": _now_shanghai(),
                     "query": query,
                     "hypotheses": _hypotheses(outcomes),
                     "ranked": _candidate_block(picked),

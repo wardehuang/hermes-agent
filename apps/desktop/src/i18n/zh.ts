@@ -4190,6 +4190,8 @@ export const zhOverrides = {
     remotePickerCreateFolderFailed: error => `无法创建文件夹 (${error})。`,
     folderTip: cwd => cwd,
     openFolder: '打开文件夹',
+    openInVSCode: '使用 VS Code 打开',
+    openInVSCodeMissing: '这台电脑上未找到 VS Code。',
     refreshTree: '刷新文件树',
     collapseAll: '折叠所有文件夹',
     showIgnored: '显示 gitignore 的文件',

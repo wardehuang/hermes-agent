@@ -4770,6 +4770,8 @@ export const frOverrides = {
     remotePickerCreateFolderFailed: error => `Impossible de créer le dossier (${error}).`,
     folderTip: cwd => cwd,
     openFolder: 'Ouvrir le dossier',
+    openInVSCode: 'Ouvrir dans VS Code',
+    openInVSCodeMissing: 'VS Code est introuvable sur cet ordinateur.',
     refreshTree: "Actualiser l'arbre",
     collapseAll: 'Réduire tous les dossiers',
     showIgnored: 'Afficher les fichiers ignorés par Git',

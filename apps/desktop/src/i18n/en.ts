@@ -4328,6 +4328,8 @@ export const en: Translations = {
     remotePickerCreateFolderFailed: error => `Could not create the folder (${error}).`,
     folderTip: cwd => cwd,
     openFolder: 'Open folder',
+    openInVSCode: 'Open in VS Code',
+    openInVSCodeMissing: 'VS Code was not found on this computer.',
     refreshTree: 'Refresh tree',
     collapseAll: 'Collapse all folders',
     showIgnored: 'Show gitignored files',

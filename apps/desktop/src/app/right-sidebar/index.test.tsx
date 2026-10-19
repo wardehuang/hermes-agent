@@ -153,4 +153,27 @@ describe('RightSidebarPane', () => {
       expect(repoStatus).toHaveBeenCalledWith('/repo-tile')
     })
   })
+
+  it('opens the project folder in VS Code from the file header', async () => {
+    const openInVSCode = vi.fn(async () => true)
+
+    ;(window as unknown as { hermesDesktop: { openInVSCode: typeof openInVSCode } }).hermesDesktop.openInVSCode =
+      openInVSCode
+    setCurrentCwd('/repo')
+
+    render(<RightSidebarPane onActivateFile={vi.fn()} onActivateFolder={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open in VS Code' }))
+    await waitFor(() => expect(openInVSCode).toHaveBeenCalledWith('/repo'))
+  })
+
+  it('hides Open in VS Code when the workspace is on a remote backend', async () => {
+    $connection.set({ mode: 'remote' } as never)
+    setCurrentCwd('/repo')
+
+    render(<RightSidebarPane onActivateFile={vi.fn()} onActivateFolder={vi.fn()} />)
+
+    await screen.findByRole('button', { name: 'Refresh tree' })
+    expect(screen.queryByRole('button', { name: 'Open in VS Code' })).toBeNull()
+  })
 })

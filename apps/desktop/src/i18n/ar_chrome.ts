@@ -494,6 +494,8 @@ export const arChrome = {
     remotePickerCreateFolderFailed: error => `تعذر إنشاء المجلد: ${error}`,
     folderTip: cwd => cwd,
     openFolder: 'فتح مجلد',
+    openInVSCode: 'فتح في VS Code',
+    openInVSCodeMissing: 'لم يتم العثور على VS Code على هذا الكمبيوتر.',
     refreshTree: 'تحديث الشجرة',
     collapseAll: 'طي الكل',
     showIgnored: 'إظهار الملفات المتجاهلة في git',

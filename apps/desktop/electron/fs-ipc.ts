@@ -18,7 +18,7 @@ import {
 import { DESKTOP_PROFILE_NAME_RE } from './desktop-profile'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
-import { openPathInEditor } from './open-in-editor'
+import { openPathInEditor, openPathInVSCode } from './open-in-editor'
 import { readWindowsUserEnvVar } from './windows-user-env'
 
 export interface FsIpcDeps {
@@ -58,6 +58,27 @@ export function registerFsIpc({
         openPath: filePath => shell.openPath(filePath),
         readUserEnv: name => readWindowsUserEnvVar(name)
       })
+    } catch {
+      return false
+    }
+  })
+
+  // Open a folder in Microsoft VS Code. Never $EDITOR and never `code.cmd`.
+  ipcMain.handle('hermes:fs:openInVSCode', async (_event, targetPath) => {
+    const target = String(targetPath || '').trim()
+
+    if (!target) {
+      return false
+    }
+
+    try {
+      const resolved = resolveRequestedPathForIpc(expandUserPath(target), { purpose: 'Open in VS Code' })
+
+      if (!fs.existsSync(resolved)) {
+        return false
+      }
+
+      return await openPathInVSCode(resolved)
     } catch {
       return false
     }

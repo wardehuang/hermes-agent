@@ -4760,6 +4760,8 @@ export const deOverrides = {
     remotePickerCreateFolderFailed: error => `Der Ordner konnte nicht erstellt werden (${error}).`,
     folderTip: cwd => cwd,
     openFolder: 'Ordner öffnen',
+    openInVSCode: 'In VS Code öffnen',
+    openInVSCodeMissing: 'VS Code wurde auf diesem Computer nicht gefunden.',
     refreshTree: 'Baum aktualisieren',
     collapseAll: 'Alle Ordner einklappen',
     showIgnored: 'Von Git ignorierte Dateien anzeigen',

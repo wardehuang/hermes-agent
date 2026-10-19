@@ -234,6 +234,18 @@ export async function openDesktopPathInEditor(path: string): Promise<boolean> {
   return desktop.openInEditor(path)
 }
 
+// Open a folder in Microsoft VS Code. Local install only; false when VS Code
+// is not installed. Remote backend paths are not on this computer.
+export async function openDesktopPathInVSCode(path: string): Promise<boolean> {
+  const desktop = bridge()
+
+  if (!desktop.openInVSCode) {
+    throw new Error('Open in VS Code is not available')
+  }
+
+  return desktop.openInVSCode(path)
+}
+
 // Open a file with the OS association (Excel, Word, …). Never $EDITOR.
 export async function openDesktopPath(path: string): Promise<void> {
   const desktop = bridge()
