@@ -386,7 +386,15 @@ export const arSettings = {
         noneAvailable: 'لا توجد حيوانات أليفة متاحة للتشغيل الآن.',
         turnOnFailed: 'تعذّر تشغيل الحيوان الأليف.',
         turnOffFailed: 'تعذّر إيقاف الحيوان الأليف.'
-      }
+      },
+      editorFontSizeLabel: 'الحجم',
+      editorFontTitle: 'شريط الخط',
+      editorFontDesc: 'خط مثبّت لمحرر الكود ومعاينة الملفات. اترك حقل العائلة فارغا لاستخدام الخط الأحادي للمظهر. الحجم بالبكسل؛ اتركه فارغا للقيمة الافتراضية.',
+      editorFontPlaceholder: 'Operator Mono Light أو مجموعة خطوط CSS',
+      editorFontPreview: 'معاينة المحارف',
+      editorFontReset: 'استخدام الافتراضي',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'بكسل'
     },
     fieldLabels: {
       model: 'النموذج الافتراضي',
@@ -896,8 +904,7 @@ export const arSettings = {
       postSetupErrorTitle: 'انتهى الإعداد بأخطاء',
       postSetupErrorMessage: step => `تحقق من سجل ${step}.`,
       postSetupFailed: step => `فشل تشغيل إعداد ${step}`
-    },
-    editorFontSizeLabel: 'الحجم'
+    }
   },
   modelAssignment: {
     saveFailed: 'لم يحفظ Hermes تغيير النموذج هذا.',

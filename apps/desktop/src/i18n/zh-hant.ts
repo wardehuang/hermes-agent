@@ -144,16 +144,7 @@ export const zhHantOverrides = {
       signIn: '登入',
       notNow: '暫不'
     }
-  },
-  files: '檔案',
-  addToChat: '新增至聊天',
-  openVideo: '開啟影片',
-  openFailed: '開啟失敗',
-  openFile: '開啟',
-  editConfig: '編輯設定',
-  failedOpenConfig: '無法開啟 config.yaml',
-  editorEmptyDescription: '從檔案樹開啟檔案即可開始編輯。',
-  editorEmptyTitle: '未開啟檔案'
+  }
 } satisfies TranslationOverrides
 
 export const zhHant = defineLocale(zhHantOverrides)

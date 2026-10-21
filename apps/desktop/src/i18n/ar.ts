@@ -77,16 +77,7 @@ export const arOverrides = {
       signIn: 'تسجيل الدخول',
       notNow: 'ليس الآن'
     }
-  },
-  files: 'الملفات',
-  addToChat: 'إضافة للمحادثة',
-  openVideo: 'فتح الفيديو',
-  openFailed: 'فشل الفتح',
-  openFile: 'فتح',
-  editConfig: 'تحرير الإعدادات',
-  failedOpenConfig: 'تعذر فتح config.yaml',
-  editorEmptyDescription: 'افتح ملفا من المستكشف لبدء التحرير.',
-  editorEmptyTitle: 'لا يوجد ملف مفتوح'
+  }
 } satisfies TranslationOverrides
 
 export const ar = defineLocale(arOverrides)

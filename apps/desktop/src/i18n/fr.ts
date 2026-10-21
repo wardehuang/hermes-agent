@@ -1061,6 +1061,15 @@ export const frOverrides = {
       chatFontPreview: 'Aperçu',
       chatFontSample: 'Portez ce vieux whisky au juge blond qui fume. 0123456789',
       chatFontReset: 'Utiliser la police du thème',
+      editorFontTitle: "Police de l'éditeur",
+      editorFontDesc:
+        "Police installée pour l'éditeur de code et l'aperçu de fichiers. Laissez la famille vide pour la monospace du thème. La taille est en px ; laissez vide pour la valeur par défaut.",
+      editorFontPlaceholder: 'Operator Mono Light ou une pile de polices CSS',
+      editorFontPreview: 'Aperçu des glyphes',
+      editorFontReset: 'Utiliser la police par défaut',
+      editorFontSizeLabel: 'Taille',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: 'Translucidité de la fenêtre',
       translucencyDesc: 'Voir votre bureau à travers toute la fenêtre. macOS et Windows uniquement.',
       translucencyGlassDesc:
@@ -2486,10 +2495,7 @@ export const frOverrides = {
           enable: 'Utiliser mon profil'
         }
       }
-    },
-    editorFontPreview: 'Aperçu des glyphes',
-    editorFontReset: 'Utiliser la valeur par défaut',
-    editorFontSizeLabel: 'Taille'
+    }
   },
   skills: {
     tabSkills: 'Skills',
@@ -2991,7 +2997,8 @@ export const frOverrides = {
       actionFailed: name => `${name} a échoué au démarrage`,
       running: 'En cours...',
       viewLog: "Journal d'action"
-    }
+    },
+    files: 'Fichiers',
   },
   messaging: {
     search: 'Rechercher dans la messagerie...',
@@ -3458,7 +3465,9 @@ export const frOverrides = {
     failedLoadSoul: 'Échec du chargement de SOUL.md',
     failedSaveSoul: "Échec de l'enregistrement de SOUL.md",
     failedCreate: 'Échec de la création du profil',
-    failedRename: 'Échec du renommage du profil'
+    failedRename: 'Échec du renommage du profil',
+    editConfig: 'Modifier la configuration',
+    failedOpenConfig: "Impossible d'ouvrir config.yaml",
   },
   modelAssignment: {
     saveFailed: 'Hermes n’a pas enregistré ce changement de modèle.',
@@ -4899,7 +4908,9 @@ export const frOverrides = {
       commentTitle: n => `Commentaire ${n}`,
       saveComment: 'Enregistrer',
       cancelComment: 'Annuler le commentaire'
-    }
+    },
+    openFailed: "Impossible d'ouvrir le fichier",
+    openFile: 'Ouvrir',
   },
   interfaceMode: {
     title: 'Mode d’interface',
@@ -4966,7 +4977,9 @@ export const frOverrides = {
     saveApply: 'Enregistrer et appliquer',
     notExpressible: "cet agencement s'entrelace (roue) — pas encore exprimable comme des divisions imbriquées",
     zoneCount: count => `${count} zones`,
-    tabCount: count => `${count} onglet${count === 1 ? '' : 's'}`
+    tabCount: count => `${count} onglet${count === 1 ? '' : 's'}`,
+    editorEmptyDescription: "Ouvrez un fichier depuis l'explorateur pour commencer à modifier.",
+    editorEmptyTitle: 'Aucun fichier ouvert',
   },
   contextMenu: {
     link: {
@@ -4989,7 +5002,8 @@ export const frOverrides = {
     page: {
       copyPageUrl: "Copier l'URL de la page",
       inspectElement: "Inspecter l'élément"
-    }
+    },
+    addToChat: 'Ajouter à la conversation',
   },
   assistant: {
     thread: {
@@ -5490,9 +5504,14 @@ export const frOverrides = {
           done: 'Fichier modifié',
           pending: 'Modification du fichier en cours',
           pendingAction: 'Modification en cours'
+        },
+        video_generate: {
+          done: 'Vidéo générée',
+          pending: 'Génération de la vidéo en cours',
+          pendingAction: 'Génération en cours'
         }
       },
-      video_generate: { pendingAction: 'Génération en cours' }
+      renderingVideo: 'Rendu de la vidéo',
     }
   },
   prompts: {
@@ -5629,7 +5648,9 @@ export const frOverrides = {
       failed: error => `Échec du transfert : ${error}`,
       timedOut: "Délai d'expiration en attendant la Gateway. `hermes gateway` est-il en cours d'exécution ?",
       startMessaging: 'Démarrer la messagerie'
-    }
+    },
+    addImageToChat: 'Ajouter à la conversation',
+    openVideo: 'Ouvrir la vidéo',
   },
   tips: {
     close: 'Ne plus afficher cette astuce',
@@ -5707,11 +5728,7 @@ export const frOverrides = {
       description: 'Affiche la barre latérale mobile.',
       toggle: open => `${open ? 'Afficher' : 'Masquer'} la barre latérale`
     }
-  },
-  files: 'Fichiers',
-  addToChat: 'Ajouter à la conversation',
-  openFailed: "Échec de l'ouverture",
-  openFile: 'Ouvrir'
+  }
 } satisfies TranslationOverrides
 
 export const fr = defineLocale(frOverrides)

@@ -290,7 +290,7 @@ describe('insertInlineRefsIntoEditor', () => {
     window.getSelection()?.addRange(range)
 
     expect(insertInlineRefsIntoEditor(editor, ['@line:gateway/__init__.py:10'])).toBe(
-      'hello @line:gateway/__init__.py:10 '
+      'hello @line:`gateway/__init__.py:10` '
     )
 
     outsider.remove()

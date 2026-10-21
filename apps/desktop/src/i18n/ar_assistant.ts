@@ -299,12 +299,14 @@ export const arAssistant = {
           done: 'تم تحرير الملف',
           pending: 'جار تحرير الملف',
           pendingAction: 'جار التحرير'
+        },
+        video_generate: {
+          done: 'تم إنشاء الفيديو',
+          pending: 'جار إنشاء الفيديو',
+          pendingAction: 'جار الإنشاء'
         }
       },
-      video_generate: { done: 'تم إنشاء الفيديو' },
-      video_generate: { pending: 'جار إنشاء الفيديو' },
-      video_generate: { pendingAction: 'جار الإنشاء' }
-    },
-    renderingVideo: 'جار عرض الفيديو...'
+      renderingVideo: 'جار عرض الفيديو...'
+    }
   }
 } satisfies Pick<TranslationOverrides, 'assistant'>

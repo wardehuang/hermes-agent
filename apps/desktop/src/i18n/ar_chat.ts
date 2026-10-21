@@ -480,7 +480,9 @@ export const arChat = {
       systemNote: platform => `↻ تم التسليم إلى ${platform} — استأنف هنا في أي وقت.`,
       failed: error => `فشل التسليم: ${error}`,
       timedOut: 'انتهت المهلة في انتظار البوابة. هل `hermes gateway` قيد التشغيل؟'
-    }
+    },
+    addImageToChat: 'إضافة إلى المحادثة',
+    openVideo: 'فتح الفيديو',
   },
   tips: {
     close: 'لا تعرض هذه النصيحة مرة أخرى',

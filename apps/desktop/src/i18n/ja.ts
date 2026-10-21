@@ -1721,7 +1721,8 @@ export const jaOverrides = {
     noModelUsage: 'モデルの使用履歴はまだありません。',
     topSkills: 'よく使うスキル',
     noSkillActivity: 'スキルのアクティビティはまだありません。',
-    actions: count => `${count} アクション`
+    actions: count => `${count} アクション`,
+    files: 'ファイル',
   },
 
   messaging: {
@@ -3306,7 +3307,9 @@ export const jaOverrides = {
       unreachableDescription: 'プレビューページに到達できませんでした。',
       openTarget: url => `${url} を開く`,
       fallbackTitle: 'プレビュー'
-    }
+    },
+    openFailed: 'ファイルを開けませんでした',
+    openFile: '開く',
   },
 
   interfaceMode: {
@@ -3833,7 +3836,8 @@ export const jaOverrides = {
       systemNote: platform => `↻ ${platform} に引き継ぎました — いつでもここで再開できます。`,
       failed: error => `引き継ぎに失敗しました: ${error}`,
       timedOut: 'ゲートウェイの待機がタイムアウトしました。`hermes gateway` は起動していますか？'
-    }
+    },
+    addImageToChat: 'チャットに追加',
   },
 
   tips: {
@@ -3920,10 +3924,7 @@ export const jaOverrides = {
       signIn: 'サインイン',
       notNow: '今はしない'
     }
-  },
-  files: 'ファイル',
-  openFailed: '開くことができませんでした',
-  openFile: '開く'
+  }
 } satisfies TranslationOverrides
 
 export const ja = defineLocale(jaOverrides)

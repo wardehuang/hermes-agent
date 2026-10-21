@@ -309,6 +309,14 @@ export const zhHantSettings = {
       chatFontPreview: '預覽',
       chatFontSample: '敏捷的棕色狐狸跳過懶狗。0123456789',
       chatFontReset: '使用主題字型',
+      editorFontTitle: '編輯器字型',
+      editorFontDesc: '內建程式碼編輯器與檔案預覽的字型。字型系列留空則用主題等寬。字級單位為 px，留空為預設。',
+      editorFontPlaceholder: 'Operator Mono Light 或 CSS 字型堆疊',
+      editorFontPreview: '字形預覽',
+      editorFontReset: '使用預設字型',
+      editorFontSizeLabel: '字級',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: '視窗透明',
       translucencyDesc: '讓整個視窗（包括文字）透出桌面。',
       translucencyGlassDesc: '霧面玻璃：桌面以柔和模糊透出，文字保持清晰。',
@@ -1565,15 +1573,7 @@ export const zhHantSettings = {
           enable: '使用我的設定檔'
         }
       }
-    },
-    editorFontDesc: '內建程式碼編輯器與檔案預覽的字型。字型系列留空則用主題等寬。字級單位為 px，留空為預設。',
-    editorFontPlaceholder: 'Operator Mono Light 或 CSS 字型堆疊',
-    editorFontPreview: '字形預覽',
-    editorFontReset: '使用預設字型',
-    editorFontSizeLabel: '字級',
-    editorFontSizePlaceholder: '11',
-    editorFontSizeUnit: 'px',
-    editorFontTitle: '編輯器字型'
+    }
   },
 
   modelPicker: {

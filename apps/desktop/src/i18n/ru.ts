@@ -595,6 +595,15 @@ export const ruOverrides = {
       chatFontPreview: 'Предпросмотр',
       chatFontSample: 'Съешь же ещё этих мягких французских булок. 0123456789',
       chatFontReset: 'Шрифт темы',
+      editorFontTitle: 'Шрифт редактора',
+      editorFontDesc:
+        'Установленный шрифт для встроенного редактора кода и предпросмотра файлов. Оставьте семейство пустым, чтобы использовать моноширинный шрифт темы. Размер указывается в px; оставьте пустым для значения по умолчанию.',
+      editorFontPlaceholder: 'Operator Mono Light или стек CSS-шрифтов',
+      editorFontPreview: 'Предпросмотр глифов',
+      editorFontReset: 'Использовать по умолчанию',
+      editorFontSizeLabel: 'Размер',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: 'Полупрозрачность окна',
       translucencyDesc:
         'Рабочий стол виден сквозь всё окно, включая текст. Отдельная настройка для светлой и тёмной тем.',
@@ -1550,10 +1559,7 @@ export const ruOverrides = {
           'Этот бэкенд ещё не настроен. Сеансы, запущенные после этого изменения, останутся без терминала и файловых инструментов, пока настройка не завершена.',
         needsSetupConfirmAction: 'Выбрать всё равно'
       }
-    },
-    editorFontPreview: 'Предпросмотр глифов',
-    editorFontReset: 'Использовать по умолчанию',
-    editorFontSizeLabel: 'Размер'
+    }
   },
   skillDeepLink: {
     installTitle: (name: string) => `Установить «${name}»?`,
@@ -1936,7 +1942,8 @@ export const ruOverrides = {
       actionFailed: name => `Не удалось запустить ${name}`,
       running: 'Выполняется...',
       viewLog: 'Журнал действия'
-    }
+    },
+    files: 'Файлы',
   },
   messaging: {
     search: 'Поиск в сообщениях...',
@@ -2315,7 +2322,9 @@ export const ruOverrides = {
     failedLoadSoul: 'Не удалось загрузить SOUL.md',
     failedSaveSoul: 'Не удалось сохранить SOUL.md',
     failedCreate: 'Не удалось создать профиль',
-    failedRename: 'Не удалось переименовать профиль'
+    failedRename: 'Не удалось переименовать профиль',
+    editConfig: 'Изменить конфигурацию',
+    failedOpenConfig: 'Не удалось открыть config.yaml',
   },
   modelAssignment: {
     saveFailed: 'Hermes не сохранил это изменение модели.'
@@ -3589,7 +3598,9 @@ export const ruOverrides = {
       unreachableDescription: 'Страница предпросмотра недоступна.',
       openTarget: url => `Открыть ${url}`,
       fallbackTitle: 'Предпросмотр'
-    }
+    },
+    openFailed: 'Не удалось открыть файл',
+    openFile: 'Открыть',
   },
   interfaceMode: {
     title: 'Режим интерфейса',
@@ -3894,9 +3905,10 @@ export const ruOverrides = {
         },
         web_extract: { done: 'Веб-страница прочитана', pending: 'Читаю веб-страницу', pendingAction: 'Читаю' },
         web_search: { done: 'Поиск в вебе выполнен', pending: 'Ищу в вебе', pendingAction: 'Ищу' },
-        write_file: { done: 'Файл изменён', pending: 'Изменяю файл', pendingAction: 'Изменяю' }
+        write_file: { done: 'Файл изменён', pending: 'Изменяю файл', pendingAction: 'Изменяю' },
+        video_generate: { done: 'Видео создано', pending: 'Создаю видео', pendingAction: 'Генерирую' }
       },
-      video_generate: { pendingAction: 'Генерирую' }
+      renderingVideo: 'Обработка видео',
     }
   },
   prompts: {
@@ -3996,7 +4008,9 @@ export const ruOverrides = {
       systemNote: platform => `↻ Передано в ${platform} — возобновите здесь в любой момент.`,
       failed: error => `Передача не удалась: ${error}`,
       timedOut: 'Превышено время ожидания шлюза. Выполняется ли `hermes gateway`?'
-    }
+    },
+    addImageToChat: 'Добавить в чат',
+    openVideo: 'Открыть видео',
   },
   errors: {
     genericFailure: 'Что-то пошло не так',
@@ -4035,10 +4049,7 @@ export const ruOverrides = {
       signIn: 'Войти',
       notNow: 'Не сейчас'
     }
-  },
-  files: 'Файлы',
-  openFailed: 'Не удалось открыть',
-  openFile: 'Открыть'
+  }
 } satisfies TranslationOverrides
 
 export const ru = defineLocale(ruOverrides)

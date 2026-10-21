@@ -503,7 +503,8 @@ export const zhHantChat = {
       systemNote: platform => `↻ 已移交到 ${platform} — 隨時可在此處恢復。`,
       failed: error => `移交失敗：${error}`,
       timedOut: '等待閘道逾時。`hermes gateway` 是否正在執行？'
-    }
+    },
+    openVideo: '開啟影片',
   },
 
   tips: {

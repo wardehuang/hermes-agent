@@ -1056,6 +1056,15 @@ export const deOverrides = {
       chatFontPreview: 'Vorschau',
       chatFontSample: 'Franz jagt im komplett verwahrlosten Taxi quer durch Bayern. 0123456789',
       chatFontReset: 'Theme-Schrift verwenden',
+      editorFontTitle: 'Editor-Schrift',
+      editorFontDesc:
+        'Installierte Schrift für den integrierten Code-Editor und die Dateivorschau. Lassen Sie die Familie leer, um die Monospace-Schrift des Themes zu verwenden. Die Größe ist in px; leer lassen für den Standard.',
+      editorFontPlaceholder: 'Operator Mono Light oder ein CSS-Font-Stack',
+      editorFontPreview: 'Glyph-Vorschau',
+      editorFontReset: 'Standard verwenden',
+      editorFontSizeLabel: 'Größe',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: 'Fenster-Transluzenz',
       translucencyDesc:
         'Sehen Sie Ihren Desktop durch das ganze Fenster hindurch, einschließlich Text. Für hell und dunkel separat abgestimmt.',
@@ -2478,10 +2487,7 @@ export const deOverrides = {
           enable: 'Mein Profil verwenden'
         }
       }
-    },
-    editorFontPreview: 'Glyph-Vorschau',
-    editorFontReset: 'Standard verwenden',
-    editorFontSizeLabel: 'Größe'
+    }
   },
   skills: {
     tabSkills: 'Skills',
@@ -2981,7 +2987,8 @@ export const deOverrides = {
       actionFailed: name => `${name} konnte nicht gestartet werden`,
       running: 'Läuft...',
       viewLog: 'Aktionslog'
-    }
+    },
+    files: 'Dateien',
   },
   messaging: {
     search: 'Messaging durchsuchen...',
@@ -3452,7 +3459,9 @@ export const deOverrides = {
     failedLoadSoul: 'SOUL.md konnte nicht geladen werden',
     failedSaveSoul: 'SOUL.md konnte nicht gespeichert werden',
     failedCreate: 'Profil konnte nicht erstellt werden',
-    failedRename: 'Profil konnte nicht umbenannt werden'
+    failedRename: 'Profil konnte nicht umbenannt werden',
+    editConfig: 'Konfiguration bearbeiten',
+    failedOpenConfig: 'config.yaml konnte nicht geöffnet werden',
   },
   modelAssignment: {
     saveFailed: 'Hermes hat diese Modelländerung nicht gespeichert.',
@@ -4889,7 +4898,9 @@ export const deOverrides = {
       commentTitle: n => `Kommentar ${n}`,
       saveComment: 'Speichern',
       cancelComment: 'Kommentar abbrechen'
-    }
+    },
+    openFailed: 'Datei konnte nicht geöffnet werden',
+    openFile: 'Öffnen',
   },
   interfaceMode: {
     title: 'Oberflächenmodus',
@@ -4953,7 +4964,9 @@ export const deOverrides = {
     saveApply: 'Speichern & anwenden',
     notExpressible: 'diese Anordnung greift ineinander (Windrad) — noch nicht als verschachtelte Splits ausdrückbar',
     zoneCount: count => `${count} Zonen`,
-    tabCount: count => `${count} Tabs`
+    tabCount: count => `${count} Tabs`,
+    editorEmptyDescription: 'Öffnen Sie eine Datei aus dem Explorer, um mit der Bearbeitung zu beginnen.',
+    editorEmptyTitle: 'Keine Datei geöffnet',
   },
   contextMenu: {
     link: {
@@ -4976,7 +4989,8 @@ export const deOverrides = {
     page: {
       copyPageUrl: 'Seiten-URL kopieren',
       inspectElement: 'Element untersuchen'
-    }
+    },
+    addToChat: 'Zum Chat hinzufügen',
   },
   assistant: {
     thread: {
@@ -5481,9 +5495,10 @@ export const deOverrides = {
           done: 'Datei bearbeitet',
           pending: 'Bearbeitet Datei',
           pendingAction: 'Bearbeitet'
-        }
+        },
+        video_generate: { done: 'Video generiert', pending: 'Generiert Video', pendingAction: 'Generiert' }
       },
-      video_generate: { pendingAction: 'Generiert' }
+      renderingVideo: 'Video wird gerendert',
     }
   },
   prompts: {
@@ -5620,7 +5635,9 @@ export const deOverrides = {
       failed: error => `Übergabe fehlgeschlagen: ${error}`,
       timedOut: 'Zeitüberschreitung beim Warten auf das Gateway. Läuft `hermes gateway`?',
       startMessaging: 'Messaging starten'
-    }
+    },
+    addImageToChat: 'Zum Chat hinzufügen',
+    openVideo: 'Video öffnen',
   },
   tips: {
     close: 'Diesen Tip nicht mehr zeigen',
@@ -5699,11 +5716,7 @@ export const deOverrides = {
       description: 'Zeigt die mobile Sidebar an.',
       toggle: open => `${open ? 'Anzeigen' : 'Ausblenden'}: Sidebar`
     }
-  },
-  files: 'Dateien',
-  addToChat: 'Zum Chat hinzufügen',
-  openFailed: 'Öffnen fehlgeschlagen',
-  openFile: 'Öffnen'
+  }
 } satisfies TranslationOverrides
 
 export const de = defineLocale(deOverrides)

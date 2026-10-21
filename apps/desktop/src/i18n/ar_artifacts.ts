@@ -156,6 +156,8 @@ export const arArtifacts = {
       unreachableDescription: 'تعذّر الوصول إلى صفحة المعاينة.',
       openTarget: url => `فتح ${url}`,
       fallbackTitle: 'معاينة'
-    }
+    },
+    openFailed: 'تعذّر فتح الملف',
+    openFile: 'فتح',
   }
 } satisfies Pick<TranslationOverrides, 'artifacts' | 'artifactCard' | 'artifactPreview' | 'preview'>

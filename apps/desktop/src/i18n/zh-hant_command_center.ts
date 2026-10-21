@@ -134,7 +134,8 @@ export const zhHantCommandCenter = {
     noModelUsage: '暫無模型使用量。',
     topSkills: '常用技能',
     noSkillActivity: '暫無技能活動。',
-    actions: count => `${count} 次動作`
+    actions: count => `${count} 次動作`,
+    files: '檔案',
   },
 
   messaging: {
@@ -437,7 +438,9 @@ export const zhHantCommandCenter = {
     failedLoadSoul: '載入 SOUL.md 失敗',
     failedSaveSoul: '儲存 SOUL.md 失敗',
     failedCreate: '建立設定檔失敗',
-    failedRename: '重新命名設定檔失敗'
+    failedRename: '重新命名設定檔失敗',
+    editConfig: '編輯設定',
+    failedOpenConfig: '無法開啟 config.yaml',
   },
 
   cron: {

@@ -163,7 +163,8 @@ export const arCommandCenter = {
     noModelUsage: 'لا يوجد استخدام نماذج',
     topSkills: 'أكثر المهارات استخداما',
     noSkillActivity: 'لا يوجد نشاط مهارات',
-    actions: count => `${count} إجراء`
+    actions: count => `${count} إجراء`,
+    files: 'الملفات',
   },
   messaging: {
     search: 'بحث',
@@ -515,7 +516,9 @@ export const arCommandCenter = {
     failedLoadSoul: 'فشل تحميل التعليمات',
     failedSaveSoul: 'فشل حفظ التعليمات',
     failedCreate: 'فشل الإنشاء',
-    failedRename: 'فشل إعادة التسمية'
+    failedRename: 'فشل إعادة التسمية',
+    editConfig: 'تحرير الإعدادات',
+    failedOpenConfig: 'تعذر فتح config.yaml',
   },
   cron: {
     close: 'إغلاق',

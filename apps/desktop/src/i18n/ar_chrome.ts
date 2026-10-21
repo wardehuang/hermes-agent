@@ -564,7 +564,9 @@ export const arChrome = {
     saveApply: 'حفظ وتطبيق',
     notExpressible: 'هذا الترتيب متشابك — لا يمكن تمثيله كتقسيمات متداخلة بعد',
     zoneCount: count => `${count} مناطق`,
-    tabCount: count => `${count} تبويبات`
+    tabCount: count => `${count} تبويبات`,
+    editorEmptyDescription: 'افتح ملفا من المستكشف لبدء التحرير.',
+    editorEmptyTitle: 'لا يوجد ملف مفتوح',
   },
   contextMenu: {
     link: {
@@ -587,7 +589,8 @@ export const arChrome = {
     page: {
       copyPageUrl: 'نسخ رابط الصفحة',
       inspectElement: 'فحص العنصر'
-    }
+    },
+    addToChat: 'إضافة للمحادثة',
   }
 } satisfies Pick<
   TranslationOverrides,

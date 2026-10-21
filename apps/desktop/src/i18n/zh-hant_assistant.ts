@@ -267,12 +267,10 @@ export const zhHantAssistant = {
         vision_analyze: { done: '已分析圖片', pending: '正在分析圖片', pendingAction: '正在分析' },
         web_extract: { done: '已讀取網頁', pending: '正在讀取網頁', pendingAction: '正在讀取' },
         web_search: { done: '已搜尋網頁', pending: '正在搜尋網頁', pendingAction: '正在搜尋' },
-        write_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' }
+        write_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' },
+        video_generate: { done: '已生成影片', pending: '正在生成影片', pendingAction: '正在生成' }
       },
-      video_generate: { done: '已生成影片' },
-      video_generate: { pending: '正在生成影片' },
-      video_generate: { pendingAction: '正在生成' }
-    },
-    renderingVideo: '正在渲染影片'
+      renderingVideo: '正在渲染影片'
+    }
   }
 } satisfies Pick<TranslationOverrides, 'assistant'>

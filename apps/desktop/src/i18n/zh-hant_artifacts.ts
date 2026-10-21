@@ -157,6 +157,8 @@ export const zhHantArtifacts = {
       unreachableDescription: '無法連線至預覽頁面。',
       openTarget: url => `開啟 ${url}`,
       fallbackTitle: '預覽'
-    }
+    },
+    openFailed: '無法開啟檔案',
+    openFile: '開啟',
   }
 } satisfies Pick<TranslationOverrides, 'artifacts' | 'artifactCard' | 'artifactPreview' | 'preview'>

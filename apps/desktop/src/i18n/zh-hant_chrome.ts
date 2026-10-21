@@ -511,7 +511,9 @@ export const zhHantChrome = {
     saveApply: '儲存並套用',
     notExpressible: '此排列互相咬合（風車形）——暫時無法表示為巢狀分割',
     zoneCount: count => `${count} 個區域`,
-    tabCount: count => `${count} 個分頁`
+    tabCount: count => `${count} 個分頁`,
+    editorEmptyDescription: '從檔案樹開啟檔案即可開始編輯。',
+    editorEmptyTitle: '未開啟檔案',
   },
 
   contextMenu: {
@@ -535,7 +537,8 @@ export const zhHantChrome = {
     page: {
       copyPageUrl: '複製頁面 URL',
       inspectElement: '檢查元素'
-    }
+    },
+    addToChat: '新增至聊天',
   }
 } satisfies Pick<
   TranslationOverrides,

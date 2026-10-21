@@ -1059,6 +1059,15 @@ export const esOverrides = {
       chatFontPreview: 'Vista previa',
       chatFontSample: 'El veloz murciélago hindú comía feliz cardillo y kiwi. 0123456789',
       chatFontReset: 'Usar la fuente del tema',
+      editorFontTitle: 'Fuente del editor',
+      editorFontDesc:
+        'Fuente instalada para el editor de código y la vista previa de archivos. Deja la familia vacía para usar la monoespaciada del tema. El tamaño va en px; déjalo vacío para el valor predeterminado.',
+      editorFontPlaceholder: 'Operator Mono Light o una pila de fuentes CSS',
+      editorFontPreview: 'Vista previa de glifos',
+      editorFontReset: 'Usar predeterminada',
+      editorFontSizeLabel: 'Tamaño',
+      editorFontSizePlaceholder: '11',
+      editorFontSizeUnit: 'px',
       translucencyTitle: 'Translucidez de la ventana',
       translucencyDesc: 'Verás tu escritorio a través de toda la ventana. Solo macOS y Windows.',
       translucencyGlassDesc:
@@ -2471,10 +2480,7 @@ export const esOverrides = {
           enable: 'Usar mi perfil'
         }
       }
-    },
-    editorFontPreview: 'Vista previa de glifos',
-    editorFontReset: 'Usar la predeterminada',
-    editorFontSizeLabel: 'Tamaño'
+    }
   },
   skills: {
     tabSkills: 'Skills',
@@ -2978,7 +2984,8 @@ export const esOverrides = {
       actionFailed: name => `No se pudo iniciar ${name}`,
       running: 'En ejecución…',
       viewLog: 'Registro de acciones'
-    }
+    },
+    files: 'Archivos',
   },
   messaging: {
     search: 'Buscar mensajería...',
@@ -3445,7 +3452,9 @@ export const esOverrides = {
     failedLoadSoul: 'No se pudo cargar SOUL.md',
     failedSaveSoul: 'No se pudo guardar SOUL.md',
     failedCreate: 'No se pudo crear el perfil',
-    failedRename: 'No se pudo renombrar el perfil'
+    failedRename: 'No se pudo renombrar el perfil',
+    editConfig: 'Editar configuración',
+    failedOpenConfig: 'No se pudo abrir config.yaml',
   },
   modelAssignment: {
     saveFailed: 'Hermes no guardó ese cambio de modelo.',
@@ -4886,7 +4895,9 @@ export const esOverrides = {
       commentTitle: (n: number) => `Comentario ${n}`,
       saveComment: 'Guardar',
       cancelComment: 'Cancelar comentario'
-    }
+    },
+    openFailed: 'No se pudo abrir el archivo',
+    openFile: 'Abrir',
   },
   interfaceMode: {
     title: 'Modo de interfaz',
@@ -4952,7 +4963,9 @@ export const esOverrides = {
     saveApply: 'Guardar y aplicar',
     notExpressible: 'esta disposición se entrelaza (en molinete) y aún no puede expresarse como divisiones anidadas',
     zoneCount: count => `${count} zonas`,
-    tabCount: count => `${count} pestañas`
+    tabCount: count => `${count} pestañas`,
+    editorEmptyDescription: 'Abre un archivo desde el explorador para empezar a editar.',
+    editorEmptyTitle: 'Ningún archivo abierto',
   },
   contextMenu: {
     link: {
@@ -4975,7 +4988,8 @@ export const esOverrides = {
     page: {
       copyPageUrl: 'Copiar URL de la página',
       inspectElement: 'Inspeccionar elemento'
-    }
+    },
+    addToChat: 'Añadir al chat',
   },
   assistant: {
     thread: {
@@ -5477,9 +5491,10 @@ export const esOverrides = {
           done: 'Archivo escrito',
           pending: 'Escribir archivo',
           pendingAction: 'Escribiendo'
-        }
+        },
+        video_generate: { done: 'Vídeo generado', pending: 'Generando vídeo', pendingAction: 'Generando' }
       },
-      video_generate: { pendingAction: 'Generando' }
+      renderingVideo: 'Procesando vídeo',
     }
   },
   prompts: {
@@ -5615,7 +5630,9 @@ export const esOverrides = {
       timedOut:
         'Hermes no pudo llegar a tu conexión de mensajería. Iníciala desde Configuración → Mensajería y vuelve a intentar el traspaso.',
       startMessaging: 'Iniciar mensajería'
-    }
+    },
+    addImageToChat: 'Añadir al chat',
+    openVideo: 'Abrir vídeo',
   },
   tips: {
     close: 'No volver a mostrar este consejo',
@@ -5693,11 +5710,7 @@ export const esOverrides = {
       description: 'Muestra la barra lateral móvil.',
       toggle: open => `${open ? 'Mostrar' : 'Ocultar'} barra lateral`
     }
-  },
-  files: 'Archivos',
-  addToChat: 'Añadir al chat',
-  openFailed: 'No se pudo abrir',
-  openFile: 'Abrir'
+  }
 } satisfies TranslationOverrides
 
 export const es = defineLocale(esOverrides)
