@@ -48,7 +48,7 @@ DENY_TOOLS = frozenset(
         "browser_vault_save_login",
         "setup_mcp",
         "desktop_project",
-        "apply_layout",
+        "set_theme",
     }
 )
 

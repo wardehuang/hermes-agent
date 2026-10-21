@@ -21,12 +21,12 @@ export function isFileEditTool(toolName: string): boolean {
 //   - File edits are the deliverable, not scaffolding. The diff is what the
 //     user reviews, so it stays visible at its place in the turn, live and
 //     settled, the way a PR shows its changes.
-//   - `clarify`, `image_generate`, `video_generate`, `delegate_task` and
-//     `manage_catalog` bypass ToolEntry to render their own markup: a question
-//     the user has to answer, media they asked for, agents in a fan-out, or a
-//     catalog consent card.
-//   - `setup_mcp` and `manage_connections` are inline consent cards the user has
-//     to act on. Folding them into a "Using 2 tools" summary hides the buttons.
+//   - `clarify`, `image_generate`, `video_generate` and `delegate_task` bypass
+//     ToolEntry to render their own markup: a question the user has to answer,
+//     media they asked for, the several agents a fan-out is running.
+//   - `manage_connections` and `manage_catalog` are consent cards; their controls must stay visible.
+//   - `set_theme` shows a picker card while it waits for the user, then a one-line receipt.
+//   - `setup_beat` is the onboarding chat's card for one beat, then a one-line receipt.
 //
 // Everything else is ephemeral activity — reads, searches, commands — which is
 // what a run summarizes and what the live ticker cycles through.
@@ -36,9 +36,8 @@ const CARD_TOOL_NAMES = [
   'image_generate',
   'manage_catalog',
   'manage_connections',
-  'setup_choose',
-  'setup_mcp',
-  'start_chat',
+  'set_theme',
+  'setup_beat',
   'video_generate'
 ] as const
 
