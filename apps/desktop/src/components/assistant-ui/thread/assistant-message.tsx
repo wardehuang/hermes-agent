@@ -30,6 +30,7 @@ import { ResponseMessageIds } from '@/components/assistant-ui/thread/response-gr
 import { ResponseLoadingIndicator, TurnActivityIndicator } from '@/components/assistant-ui/thread/status'
 import { threadMessageIndex } from '@/components/assistant-ui/thread/thread-message-index'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
+import { turnDurationSeconds } from '@/components/assistant-ui/thread/turn-duration'
 import { useMessageReactions, useTapbackDoubleClick } from '@/components/assistant-ui/thread/use-message-reactions'
 import { AGENT_MESSAGE_RE } from '@/components/assistant-ui/thread/user-message'
 import { isApprovalActivity, isCurrentTurnMessage } from '@/components/assistant-ui/tool/approval-activity'
@@ -245,9 +246,12 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
   // ChatMessage.interim).
   const isInterim = useAuiState(s => s.message.metadata?.custom?.interim === true)
 
-  // Whole-turn wall-clock seconds (set once at completion — referentially
-  // stable across the 30 Hz delta stream, so this adds no per-token renders).
-  const turnDurationS = useAuiState(s => s.message.metadata?.custom?.durationS as number | undefined)
+  // Whole-turn wall clock, shown beside the reply's timestamp. The desktop's
+  // own measurement when it watched the turn finish; otherwise derived from
+  // the authored row timestamps (history has no stored duration). Both paths
+  // resolve through one cached pass per transcript identity, so this stays a
+  // cheap, referentially stable selector across the 30 Hz delta stream.
+  const turnDurationS = useAuiState(s => turnDurationSeconds(s.thread.messages, s.message.id))
 
   // Response-scope text accessors (#118864). The DEFAULT copy/read-aloud reads
   // only THIS message's text: joining the whole response group mixed sealed
@@ -1034,15 +1038,6 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
 
   return (
     <div className="relative flex w-full shrink-0 items-center justify-end gap-1.5">
-      {durationS !== undefined && (
-        <span
-          className="mr-auto select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
-          data-slot="aui_turn-duration"
-          title={t.assistant.thread.turnDuration(formatElapsed(durationS))}
-        >
-          ⏱ {formatElapsed(durationS)}
-        </span>
-      )}
       <ActionBarPrimitive.Root
         className={
           // NOTE: intentionally NOT `hideWhenRunning`. That prop unmounts the
@@ -1056,6 +1051,17 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
         }
         data-slot="aui_msg-actions"
       >
+        {/* Turn wall clock sits in the corner cluster with the landed time, so
+            the bottom-right of a finished reply reads "⏱ 38s  3:27 PM". */}
+        {durationS !== undefined && (
+          <span
+            className="select-none whitespace-nowrap px-0.5 text-[0.6875rem] leading-5 tabular-nums text-(--ui-text-tertiary)"
+            data-slot="aui_turn-duration"
+            title={t.assistant.thread.turnDuration(formatElapsed(durationS))}
+          >
+            ⏱ {formatElapsed(durationS)}
+          </span>
+        )}
         <MessageHoverTime className="mr-1 px-0.5" />
         {onBranchInNewChat && (
           <TooltipIconButton
