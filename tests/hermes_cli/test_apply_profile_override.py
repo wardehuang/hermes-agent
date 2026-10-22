@@ -12,6 +12,7 @@ active_profile (child-process inheritance contract).
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -396,3 +397,43 @@ class TestS6ContainerGatewayRun:
                 tmp_path, monkeypatch, hermes_home=str(root), active_profile="coder", argv=argv,
             )
             assert result == str(root / "profiles" / "coder"), argv
+
+
+class TestDuplicateModuleInstanceKeepsTheResolvedHome:
+    """An explicit ``--profile default`` must survive the entry module's second load.
+
+    ``python -m hermes_cli.main`` runs ``main.py`` as ``__main__``; a late
+    ``from hermes_cli.main import ...`` then loads the same file again under its package name, and
+    its import-time resolver ran a second time after the first call had stripped ``-p`` from
+    ``sys.argv``. The sticky ``active_profile`` re-homed the process, so the detached host gateway
+    `gateway ensure` spawns with ``--profile default`` booted as the active profile and the
+    one-gateway-per-host guard refused it (exit 78) — Desktop then reported "Hermes couldn't start".
+    """
+
+    @pytest.mark.platforms("windows")
+    def test_explicit_default_profile_is_not_rehomed_by_the_duplicate_import(self, tmp_path):
+        root = tmp_path / ".hermes"
+        (root / "profiles" / "ai-study").mkdir(parents=True)
+        (root / "profiles" / "ai-study" / "config.yaml").write_text("{}\n", encoding="utf-8")
+        (root / "active_profile").write_text("ai-study", encoding="utf-8")
+        env = {**os.environ, "HERMES_HOME": str(root), "PYTHONIOENCODING": "utf-8"}
+        # The host environment may carry launch markers that legitimately suppress the sticky
+        # fallback; this test is about the duplicate import, so none of them may hide it.
+        for var in (
+            "HERMES_PROFILE", "HERMES_SUPERVISED_CHILD", "HERMES_S6_SUPERVISED_CHILD",
+            "INVOCATION_ID", "HERMES_GATEWAY_EXTERNAL_SUPERVISOR",
+        ):
+            env.pop(var, None)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "hermes_cli.main", "--profile", "default", "config", "path"],
+            cwd=str(Path(__file__).resolve().parents[2]),
+            env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=180, check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert Path(result.stdout.strip()) == root / "config.yaml", (
+            "explicit --profile default was re-homed by the duplicate module import: "
+            f"{result.stdout.strip()!r} (stderr: {result.stderr[-2000:]!r})"
+        )

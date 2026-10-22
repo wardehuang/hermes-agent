@@ -45,6 +45,7 @@ _bootstrap_root = os.path.realpath(os.path.join(os.path.dirname(__file__), os.pa
 if _bootstrap_root not in sys.path:
     sys.path.insert(0, _bootstrap_root)
 from hermes_cli import _startup_fast
+from hermes_cli.main_profile_flags import _scan_profile_flag
 import itertools
 
 # A literal ``~``/``$VAR`` in HERMES_HOME (fish, or any quoted value) must become absolute
@@ -427,94 +428,12 @@ _startup_fast.ensure_project_root_on_path()
 
 
 # Profile override — MUST happen before any hermes module import: many modules
-# cache HERMES_HOME at import time. --profile/-p is pre-parsed from sys.argv,
-# HERMES_HOME set, and the flag stripped so argparse never sees it. Falls back
-# to ~/.hermes/active_profile for the sticky default.
-_PROFILE_NAME_RE = r"^[a-z0-9][a-z0-9_-]{0,63}$"  # mirrors hermes_cli.profiles._PROFILE_ID_RE
+# cache HERMES_HOME at import time. --profile/-p is pre-parsed from sys.argv
+# (`main_profile_flags`), HERMES_HOME set, and the flag stripped so argparse
+# never sees it. Falls back to ~/.hermes/active_profile for the sticky default.
 # Set only when -p/--profile was on argv. Sticky active_profile must not count:
 # `hermes desktop` with no flag must not overwrite Desktop's stored profile.
 _explicit_cli_profile: str | None = None
-
-
-def _inside_mcp_add_args(argv: list, index: int) -> bool:
-    """True once argv reaches `hermes mcp add ... --args <command argv>`.
-
-    ``mcp add --args`` is command-argv passthrough. Flags after that point
-    belong to the child MCP command (for example Docker MCP Toolkit's
-    ``--profile``), not to Hermes' own profile selector.
-    """
-    try:
-        mcp_index = argv.index("mcp", 0, index)
-        argv.index("add", mcp_index + 1, index)
-    except ValueError:
-        return False
-    return True
-
-
-def _looks_like_hermes_invocation() -> bool:
-    """False when ``sys.argv`` belongs to a test runner rather than a ``hermes`` run.
-
-    pytest's own ``-p no:xdist`` reaches ``_scan_profile_flag`` through ``sys.argv`` at import
-    time; it must stay a silent skip, while a real ``hermes -p 'Work Bot'`` must fail loudly.
-    """
-    return "pytest" not in (sys.argv[0] or "")
-
-
-def _exit_invalid_profile_name(value: str) -> None:
-    from hermes_cli.profiles import _invalid_profile_name_error
-
-    print(f"Error: {_invalid_profile_name_error(value)}", file=sys.stderr)
-    print("Run `hermes profile list` to see your profiles.", file=sys.stderr)
-    sys.exit(2)
-
-
-def _looks_like_option_value(value: str) -> bool:
-    """A ``-p`` value that clearly belongs to some other tool (pytest's ``-p no:xdist``, a
-    third-party ``-p --flag``), never a mistyped profile name."""
-    return value.startswith("-") or ":" in value
-
-
-def _scan_profile_flag(argv: list) -> tuple:
-    """Find -p/--profile/--profile= in argv -> (name, tokens_consumed, index).
-
-    Historically the flag worked even after the subcommand (`hermes chat -p
-    coder`), so scan broadly; stop at ``--`` and at the `mcp add --args`
-    passthrough region. The value is normalised (strip + casefold, matching
-    ``profiles.normalize_profile_name``) before validation so ``-p Work`` selects
-    ``work``. A value that cannot be a profile name is rejected so
-    resolve_profile_env never sys.exits on it; the rejection is explained (exit 2)
-    only when the flag comes BEFORE the first subcommand token under a real
-    ``hermes`` run — after a subcommand, ``-p`` may belong to that subcommand or a
-    plugin (`hermes kanban ... -p 8080`), and option-looking values (``no:xdist``,
-    ``--flag``) are always a silent skip.
-    """
-    from hermes_cli._parser import top_level_value_flag_sets
-
-    value_flags, optional_value_flags = top_level_value_flag_sets()
-    i = 0
-    saw_subcommand = False
-    while i < len(argv):
-        arg = argv[i]
-        if arg == "--" or (arg == "--args" and _inside_mcp_add_args(argv, i)):
-            break
-        if arg in {"--profile", "-p"} and i + 1 < len(argv):
-            raw = argv[i + 1]
-            value = raw.strip().casefold()
-            if re.match(_PROFILE_NAME_RE, value):
-                return value, 2, i
-            if not saw_subcommand and not _looks_like_option_value(raw) and _looks_like_hermes_invocation():
-                _exit_invalid_profile_name(raw)
-            break
-        if arg.startswith("--profile="):
-            return arg.split("=", 1)[1].strip().casefold(), 1, i
-        takes_value = "=" not in arg and i + 1 < len(argv) and (
-            arg in value_flags
-            or (arg in optional_value_flags and not argv[i + 1].startswith("-"))
-        )
-        if not takes_value and not arg.startswith("-"):
-            saw_subcommand = True
-        i += 2 if takes_value else 1
-    return None, 0, None
 
 
 def _resolve_sudo_user_profile_env(name: str) -> str | None:
@@ -592,9 +511,34 @@ def explicit_cli_profile() -> str | None:
     return _explicit_cli_profile
 
 
+def _is_duplicate_main_instance() -> bool:
+    """True for a second copy of THIS module loaded while it already runs as ``__main__``.
+
+    ``python -m hermes_cli.main`` executes this file as ``__main__``; the import machine can then
+    load the very same file again under its package name — ``main_install_repair`` does so on every
+    Windows launch. The module body resolves the process profile, so the duplicate instance ran the
+    resolver a second time, after the first call had already stripped ``-p`` from ``sys.argv``. The
+    sticky ``active_profile`` then re-homed a process its caller had pinned to ``--profile default``:
+    the detached host gateway spawned for Desktop booted as the user's active profile and the
+    one-gateway-per-host guard refused it (exit 78). The instance that IS ``__main__`` owns the
+    process profile; every later copy is inert.
+    """
+    twin = sys.modules.get("__main__")
+    if twin is None or twin.__dict__ is globals():
+        return False
+    twin_file = getattr(twin, "__file__", None)
+    if not twin_file:
+        return False
+    return os.path.normcase(os.path.abspath(twin_file)) == os.path.normcase(os.path.abspath(__file__))
+
+
 def _apply_profile_override() -> None:
     """Pre-parse --profile/-p and set HERMES_HOME before imports."""
     global _explicit_cli_profile
+    if _is_duplicate_main_instance():
+        # Answer `explicit_cli_profile()` like the owning instance does; never re-resolve the home.
+        _explicit_cli_profile = getattr(sys.modules["__main__"], "_explicit_cli_profile", None)
+        return
     _explicit_cli_profile = None
     argv = sys.argv[1:]
     profile_name, consume, profile_index = _scan_profile_flag(argv)
