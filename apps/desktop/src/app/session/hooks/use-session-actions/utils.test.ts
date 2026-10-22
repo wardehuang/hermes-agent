@@ -1317,6 +1317,43 @@ describe('preserveLocalPendingTurnMessages', () => {
     expect(preserveLocalPendingTurnMessages(next, [msg('1-user', 'user', 'question'), interim])).toBe(next)
   })
 
+  // A tool-heavy turn fills the whole hydration page, so the refresh carries the
+  // turn's durable rows while the window still holds the bubbles the stream
+  // sealed for it. Those have no rowId, so ordinal pairing cannot see them and
+  // the same commentary used to be re-appended after the newest row.
+  it('does not re-append sealed commentary the refresh page already carries (#long-turn)', () => {
+    const toolCall = (id: string) =>
+      ({ type: 'tool-call', toolCallId: id, toolName: 'terminal', args: {} }) as unknown as ChatMessagePart
+
+    const folded = {
+      id: '160400-2-assistant',
+      role: 'assistant' as const,
+      rowId: 160400,
+      parts: [
+        { type: 'text' as const, text: 'I will look at the layout first.', sourceRowId: 160191 },
+        toolCall('call_1'),
+        { type: 'text' as const, text: 'The layout has two rows.', sourceRowId: 160203 },
+        toolCall('call_2'),
+        { type: 'text' as const, text: 'Done.', sourceRowId: 160400 }
+      ]
+    }
+
+    const next: ChatMessage[] = [msg('160188-0-user', 'user', 'layout request', { rowId: 160188 }), folded]
+
+    const previous: ChatMessage[] = [
+      msg('160188-0-user', 'user', 'layout request', { rowId: 160188 }),
+      msg('assistant-interim-1', 'assistant', 'I will look at the layout first.', { interim: true }),
+      { id: 'assistant-stream-1', role: 'assistant', pending: true, parts: [toolCall('call_1')] },
+      msg('assistant-interim-2', 'assistant', 'The layout has two rows.', { interim: true }),
+      { id: 'assistant-stream-2', role: 'assistant', pending: true, parts: [toolCall('call_2')] },
+      msg('assistant-160400', 'assistant', 'Done.', { pending: false })
+    ]
+
+    const preserved = preserveLocalPendingTurnMessages(next, previous)
+
+    expect(preserved.map(message => message.id)).toEqual(['160188-0-user', '160400-2-assistant'])
+  })
+
   it('keeps a settled final-answer bubble the folded tool round has not absorbed', () => {
     const toolRound = {
       id: 'row-1-assistant',

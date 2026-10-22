@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatMessage } from '@/lib/chat-messages'
+import { chatMessageText } from '@/lib/chat-messages'
+import { withoutPageCoveredLiveBubbles } from '@/lib/chat-messages/coverage'
 import { $transcriptTailBySessionId, recordTranscriptTail, transcriptTailState } from '@/store/transcript-tail'
 
 import {
@@ -284,6 +286,88 @@ describe('graftRefreshedTailOntoBackfill', () => {
     const refreshed = [chat('a', 1), chat('b', 2)]
 
     expect(graftRefreshedTailOntoBackfill(refreshed, previous)).toBe(refreshed)
+  })
+
+  // A tool-heavy turn fills the whole hydration page, so the page's newest rows
+  // ARE the turn the window streamed. Its sealed commentary bubbles carry no
+  // rowId, and the stored-id merge used to park them after the newest row —
+  // painting the turn's opening paragraph a second time at the bottom.
+  const toolCall = (id: string) =>
+    ({ type: 'tool-call', toolCallId: id, toolName: 'terminal', args: {} }) as unknown as ChatMessage['parts'][number]
+
+  const assistant = (id: string, text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
+    id,
+    role: 'assistant',
+    parts: [{ type: 'text', text }],
+    ...extra
+  })
+
+  it('drops the sealed commentary the refreshed page already folded (#long-turn)', () => {
+    // The turn is longer than the hydration page, so the refresh reads an older
+    // page to overlap it. The extended page therefore STARTS on a row the window
+    // never had (no anchor), shares only the turn's prompt, and merges by stored
+    // id — the path that used to park every rowId-less live bubble at the end.
+    const previous: ChatMessage[] = [
+      chat('prompt', 160188),
+      assistant('assistant-interim-1', 'I will look at the layout first.', { interim: true }),
+      { id: 'assistant-stream-1', role: 'assistant', pending: true, parts: [toolCall('call_1')] },
+      assistant('assistant-interim-2', 'The layout has two rows.', { interim: true }),
+      { id: 'assistant-stream-2', role: 'assistant', pending: true, parts: [toolCall('call_2')] },
+      assistant('assistant-final', 'Done.', { pending: false })
+    ]
+
+    // The page's newest turn: hydration folds every tool round into one durable
+    // row, so the whole run the window streamed is already carried by it.
+    const refreshed: ChatMessage[] = [
+      chat('older-page-row', 160150),
+      chat('prompt-refetch', 160188),
+      {
+        id: '160400-3-assistant',
+        role: 'assistant',
+        rowId: 160400,
+        durableComplete: true,
+        parts: [
+          { type: 'text', text: 'I will look at the layout first.', sourceRowId: 160191 },
+          toolCall('call_1'),
+          { type: 'text', text: 'The layout has two rows.', sourceRowId: 160203 },
+          toolCall('call_2'),
+          { type: 'text', text: 'Done.', sourceRowId: 160400 }
+        ]
+      }
+    ]
+
+    const joined = graftRefreshedTailOntoBackfill(refreshed, previous)
+      .map(chatMessageText)
+      .join('\n')
+
+    for (const sentence of ['I will look at the layout first.', 'The layout has two rows.', 'Done.']) {
+      expect(joined.split(sentence)).toHaveLength(2)
+    }
+  })
+
+  it('keeps the whole run when the page only covers part of it (#long-turn)', () => {
+    // `graftRefreshedTailOntoBackfill` itself defers to the page when the page
+    // anchors on the window's first row, so the all-or-nothing rule is asserted
+    // on the shared predicate: a page that stops mid-turn must leave EVERY live
+    // bubble alone, or the remaining rounds lose the siblings the pairing needs.
+    const previous: ChatMessage[] = [
+      chat('prompt', 160188),
+      assistant('assistant-interim-1', 'I will look at the layout first.', { interim: true }),
+      { id: 'assistant-stream-2', role: 'assistant', pending: true, parts: [toolCall('call_2')] }
+    ]
+
+    const refreshed: ChatMessage[] = [
+      chat('prompt-refetch', 160188),
+      {
+        id: '160400-2-assistant',
+        role: 'assistant',
+        rowId: 160400,
+        durableComplete: false,
+        parts: [{ type: 'text', text: 'I will look at the layout first.', sourceRowId: 160191 }, toolCall('call_1')]
+      }
+    ]
+
+    expect(withoutPageCoveredLiveBubbles(previous, refreshed)).toBe(previous)
   })
 })
 

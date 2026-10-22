@@ -326,3 +326,78 @@ def test_apply_live_compression_config_is_self_contained():
     _apply_live_compression_config(agent, {"compression": {"enabled": True}})
     assert agent.compression_enabled is True
     assert agent.codex_responses_native_compaction is False
+
+
+def test_external_context_engine_keeps_its_own_compaction_policy(monkeypatch):
+    """A context-engine PLUGIN owns compaction policy (agent_init never hands it the host
+    threshold), so the live sync must adopt only the agent-level flags and never write the
+    built-in compressor's private knobs onto it.
+
+    Regression: LCMEngine has no ``_coerce_threshold_tokens_cap``, so the unconditional write
+    raised AttributeError and aborted the whole sync — every Desktop turn logged
+    "Could not apply live compression config" and NO compression key was adopted live.
+    """
+    from tui_gateway.session_compression import _apply_live_compression_config
+
+    class ExternalEngine:
+        name = "external"
+
+        def __init__(self):
+            self.context_length = 600_000
+            self.threshold_tokens = 300_000
+            self.threshold_percent = 0.5
+            self.model_thresholds = {}
+
+    engine = ExternalEngine()
+    agent = SimpleNamespace(
+        model="unset-test-model",
+        provider="",
+        base_url="",
+        context_compressor=engine,
+        compression_enabled=False,
+        compression_idle_compact_after_seconds=0,
+        codex_responses_native_compaction=False,
+        codex_responses_compact_threshold=200_000,
+    )
+
+    _apply_live_compression_config(
+        agent,
+        {"compression": {"enabled": True, "threshold_tokens": 100_000, "protect_last_n": 9}},
+    )
+
+    # The agent-level flags still apply...
+    assert agent.compression_enabled is True
+    # ...and the engine's own policy is untouched (no attribute invented, none overwritten).
+    assert engine.threshold_tokens == 300_000
+    assert engine.threshold_percent == 0.5
+    assert engine.model_thresholds == {}
+    assert not hasattr(engine, "threshold_tokens_cap")
+    assert not hasattr(engine, "tail_mode")
+
+
+def test_external_context_engine_sync_does_not_warn(monkeypatch):
+    """The turn-start sync path must stay silent for an external engine — that warning was the
+    only visible symptom of the aborted sync."""
+    class ExternalEngine:
+        name = "external"
+        context_length = 600_000
+        threshold_tokens = 300_000
+        threshold_percent = 0.5
+
+    agent = SimpleNamespace(
+        model="unset-test-model",
+        provider="",
+        base_url="",
+        context_compressor=ExternalEngine(),
+        compression_enabled=True,
+        compression_idle_compact_after_seconds=0,
+        codex_responses_native_compaction=False,
+        codex_responses_compact_threshold=200_000,
+    )
+    session = {"agent": agent, "session_key": "session-external"}
+    warnings: list[str] = []
+
+    monkeypatch.setattr(server.logger, "warning", lambda msg, *a, **k: warnings.append(msg % a if a else msg))
+    _sync_with_cfg(monkeypatch, session, {"compression": {"threshold_tokens": 100_000}})
+
+    assert warnings == []

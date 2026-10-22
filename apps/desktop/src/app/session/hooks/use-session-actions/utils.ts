@@ -10,6 +10,7 @@ import {
   textPart,
   toChatMessages
 } from '@/lib/chat-messages'
+import { withoutPageCoveredLiveBubbles } from '@/lib/chat-messages/coverage'
 import { normalizePersonalityValue } from '@/lib/chat-runtime'
 import { embeddedImageUrls, textWithoutEmbeddedImages } from '@/lib/embedded-images'
 import { parseErrorSurface } from '@/lib/error-surface'
@@ -830,11 +831,18 @@ function durableFoldCoversLiveResponse(folds: ChatMessage[], live: ChatMessage):
 
 export function preserveLocalPendingTurnMessages(
   nextMessages: ChatMessage[],
-  previousMessages: ChatMessage[]
+  previousWindow: ChatMessage[]
 ): ChatMessage[] {
-  if (!previousMessages.length) {
+  if (!previousWindow.length) {
     return nextMessages
   }
+
+  // A long tool turn fills the whole hydration page, so this refresh carries the
+  // turn's durable rows while the window still holds the bubbles the stream
+  // sealed for it. Those carry no rowId, so the pairing below cannot see them and
+  // appends the same commentary after the newest row. Drop the covered ones
+  // first — the shared predicate, so both refresh entry points agree.
+  const previousMessages = withoutPageCoveredLiveBubbles(previousWindow, nextMessages)
 
   const acknowledged = acknowledgedTranscriptBoundary(nextMessages, previousMessages)
   const remainingNext = nextMessages.slice(acknowledged.storedIndex + 1)

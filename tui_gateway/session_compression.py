@@ -114,6 +114,17 @@ def _apply_live_compression_config(agent: Any, cfg: dict | None) -> None:
     cc = getattr(agent, "context_compressor", None)
     if cc is None:
         return
+    # Everything below writes ContextCompressor's OWN trigger knobs (tail_mode, protect_last_n,
+    # summary_target_ratio, model_thresholds, the private percent/context caches,
+    # threshold_tokens_cap). A context-engine PLUGIN owns compaction policy — agent_init says so
+    # explicitly and never hands it the host threshold — so writing them here is either a no-op on
+    # an attribute the engine never reads or, for the private coercer, an AttributeError that aborts
+    # the whole sync. LCMEngine hit the latter on every Desktop turn ("'LCMEngine' object has no
+    # attribute '_coerce_threshold_tokens_cap'"), so no compression key was ever adopted live.
+    # Adopt only the agent-level flags above for an external engine.
+    from agent.context_compressor import ContextCompressor
+    if not isinstance(cc, ContextCompressor):
+        return
     # tail_mode: unknown/absent values land on the ctor default ("lean"), matching agent_init.
     default_tail = str(_compressor_ctor_default("tail_mode", "lean"))
     mode = str(compression.get("tail_mode", default_tail) or default_tail).strip().lower()

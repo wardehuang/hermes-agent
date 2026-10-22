@@ -18,6 +18,7 @@
 import { transcriptRowIds } from '@/app/session/hooks/use-session-actions/pending-turn-identity'
 import { getOlderSessionMessages, getSessionMessages, type ProfileScope } from '@/hermes'
 import { type ChatMessage, chatMessageText, toChatMessages } from '@/lib/chat-messages'
+import { withoutPageCoveredLiveBubbles } from '@/lib/chat-messages/coverage'
 import {
   recordTranscriptBackfillPage,
   tailStateFromPage,
@@ -378,10 +379,15 @@ function mergeOverlappingTail(previous: ChatMessage[], refreshedTail: ChatMessag
   return [...stored, ...refreshedTrailing, ...previousTrailing]
 }
 
-export function graftRefreshedTailOntoBackfill(refreshedTail: ChatMessage[], previous: ChatMessage[]): ChatMessage[] {
-  if (refreshedTail.length === 0 || previous.length === 0) {
+export function graftRefreshedTailOntoBackfill(refreshedTail: ChatMessage[], previousWindow: ChatMessage[]): ChatMessage[] {
+  if (refreshedTail.length === 0 || previousWindow.length === 0) {
     return refreshedTail
   }
+
+  // A long tool turn leaves the window's own sealed bubbles outside the page it
+  // just re-read; drop the ones the page now carries before any branch below
+  // measures coverage against them.
+  const previous = withoutPageCoveredLiveBubbles(previousWindow, refreshedTail)
 
   // The first rendered message can be a page-local tool fold whose id is not
   // durable. Anchor on the first shared persisted row anywhere in the page.
