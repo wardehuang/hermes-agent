@@ -7,9 +7,12 @@ import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromC
 import { composerServiceTier } from '@/lib/model-status-label'
 import { normalizeReasoningEffortValue } from '@/lib/reasoning-effort'
 import { normalize } from '@/lib/text'
+import { $busyInputConfig, busyInputOwnerKey, normalizeBusyInputMode } from '@/store/busy-input-mode'
 import { setDisplayTimestampsFromConfig } from '@/store/display-timestamps'
 import { composerEffortForSelection } from '@/store/model-presets'
-import { setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
+import { $activeGatewayProfile } from '@/store/profile'
+import { localShowReasoning, setShowReasoningFromConfig } from '@/store/reasoning-disclosure'
+import { $connection } from '@/store/session'
 import {
   $currentModel,
   $currentProvider,
@@ -94,6 +97,8 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
 
       const profileRefreshEpoch = profileRefreshEpochRef.current
       const selectionGeneration = getComposerSelectionGeneration()
+      const connection = $connection.get()
+      const profile = $activeGatewayProfile.get()
 
       try {
         const [config, defaults] = await Promise.all([getHermesConfig(), getHermesConfigDefaults().catch(() => ({}))])
@@ -183,8 +188,16 @@ export function useHermesConfig({ activeSessionIdRef }: HermesConfigOptions) {
           return
         }
 
+        if ($connection.get() === connection && $activeGatewayProfile.get() === profile) {
+          $busyInputConfig.set({
+            owner: busyInputOwnerKey(connection?.connectionId, profile),
+            connection,
+            mode: normalizeBusyInputMode(config.display?.busy_input_mode)
+          })
+        }
+
         setDisplayTimestampsFromConfig(config.display?.timestamps)
-        setShowReasoningFromConfig(config.display?.show_reasoning)
+        setShowReasoningFromConfig(localShowReasoning(config.display))
         setShowToolActivityFromConfig(config.display?.tool_progress)
         setTerminalFontFamilyFromConfig(config.terminal?.font_family)
         setEditorFontFamilyFromConfig(config.editor?.font_family)
