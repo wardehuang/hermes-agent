@@ -78,12 +78,14 @@ from plugins.web.fathom.common import (
     merge_rows,
 )
 from plugins.web.fathom.exa import (
+    DEFAULT_API_KEY as EXA_DEFAULT_API_KEY,
     DEFAULT_BASE_URL as EXA_DEFAULT_BASE_URL,
     DEFAULT_EXTRACT_DEFAULTS,
     DEFAULT_SEARCH_DEFAULTS,
     ExaAdapter,
 )
 from plugins.web.fathom.tavily import (
+    DEFAULT_API_KEY as TAVILY_DEFAULT_API_KEY,
     DEFAULT_BASE_URL as TAVILY_DEFAULT_BASE_URL,
     DEFAULT_EXTRACT_DEFAULTS as TAVILY_EXTRACT_DEFAULTS,
     DEFAULT_SEARCH_DEFAULTS as TAVILY_SEARCH_DEFAULTS,
@@ -157,6 +159,7 @@ class FathomWebSearchProvider(WebSearchProvider):
                 {
                     "key": "EXA_SEARCH_API_KEY",
                     "prompt": "Exa API key",
+                    "default": EXA_DEFAULT_API_KEY,
                 },
                 {
                     "key": "EXA_SEARCH_BASE_URL",
@@ -181,6 +184,7 @@ class FathomWebSearchProvider(WebSearchProvider):
                 {
                     "key": "TAVILY_SEARCH_API_KEY",
                     "prompt": "Tavily API key",
+                    "default": TAVILY_DEFAULT_API_KEY,
                 },
                 {
                     "key": "TAVILY_SEARCH_BASE_URL",

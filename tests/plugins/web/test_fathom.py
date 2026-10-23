@@ -600,10 +600,14 @@ def _exa_env(monkeypatch, **overrides: str) -> None:
     values = dict(_EXA_ENV)
     values.update(overrides)
 
-    monkeypatch.setattr(
-        "plugins.web.fathom.exa.get_provider_env",
-        lambda name: values.get(name, ""),
-    )
+    def read(name: str) -> str | None:
+        if name in values:
+            return values[name]
+        return None
+
+    monkeypatch.setattr("plugins.web.fathom.exa.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.common.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.exa.get_provider_env", lambda name: values.get(name, "") or "")
     monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
 
 
@@ -685,12 +689,12 @@ def test_exa_search_sends_configured_body(monkeypatch) -> None:
 def test_exa_search_defaults_env_overrides_type(monkeypatch) -> None:
     from plugins.web.fathom.exa import ExaAdapter
 
-    def env(name: str) -> str:
+    def read(name: str) -> str | None:
         if name == "EXA_SEARCH_DEFAULTS":
             return '{"type":"fast","numResults":3,"contents":{"highlights":true}}'
-        return ""
+        return None
 
-    monkeypatch.setattr("plugins.web.fathom.exa.get_provider_env", env)
+    monkeypatch.setattr("plugins.web.fathom.exa.read_env", read)
     monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
     assert ExaAdapter().search_body() == {
         "type": "fast",
@@ -769,7 +773,13 @@ def test_exa_extract_maps_text_highlights_and_status(monkeypatch) -> None:
 def test_exa_incomplete_extract_does_not_call_http(monkeypatch) -> None:
     from plugins.web.fathom.exa import ExaAdapter
 
-    monkeypatch.setattr("plugins.web.fathom.exa.get_provider_env", lambda _name: "")
+    def read(name: str) -> str | None:
+        if name == "EXA_SEARCH_API_KEY":
+            return "   "
+        return None
+
+    monkeypatch.setattr("plugins.web.fathom.exa.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.common.read_env", read)
     monkeypatch.setattr("plugins.web.fathom.exa.load_config_section", lambda _path: {})
 
     def fail_post(*_args, **_kwargs):
@@ -786,6 +796,7 @@ def test_exa_incomplete_extract_does_not_call_http(monkeypatch) -> None:
 
 def test_setup_schema_lists_inputs_without_toggles() -> None:
     from plugins.web.fathom.exa import (
+        DEFAULT_API_KEY,
         DEFAULT_EXTRACT_DEFAULTS,
         DEFAULT_SEARCH_DEFAULTS,
     )
@@ -796,7 +807,8 @@ def test_setup_schema_lists_inputs_without_toggles() -> None:
     assert "EXA_SEARCH_ENABLED" not in by_key
     assert "CHATGPT_SEARCH_ENABLED" not in by_key
     assert "TAVILY_SEARCH_ENABLED" not in by_key
-    assert "default" not in by_key["EXA_SEARCH_API_KEY"]
+    assert by_key["EXA_SEARCH_API_KEY"]["default"] == DEFAULT_API_KEY
+    assert by_key["TAVILY_SEARCH_API_KEY"]["default"] == DEFAULT_API_KEY
     assert "group" not in by_key["EXA_SEARCH_BASE_URL"]
     assert "controls_group" not in by_key["EXA_SEARCH_BASE_URL"]
     assert "type" not in by_key["EXA_SEARCH_BASE_URL"]

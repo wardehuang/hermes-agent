@@ -90,12 +90,70 @@ def configured_base_url(*candidates: Any) -> str:
     return normalize_base_url(raw, "")
 
 
-def configured_object_present(env_name: str, yaml_value: Any) -> bool:
-    if configured_text(get_provider_env(env_name)):
-        return True
+def read_env(name: str) -> str | None:
+    """Raw env value. ``None`` means unset; whitespace is kept for the caller to trim."""
+    try:
+        from hermes_cli.config import get_env_value
+
+        value = get_env_value(name)
+    except Exception as exc:
+        try:
+            from agent.secret_scope import UnscopedSecretError
+        except ImportError:
+            UnscopedSecretError = ()  # type: ignore[assignment,misc]
+        if isinstance(exc, UnscopedSecretError):
+            raise
+        value = None
+    if value is None:
+        return None
+    return str(value)
+
+
+def trimmed_setting(env_name: str, yaml_value: Any, default: str = "") -> str:
+    """Trim before use. A saved blank beats ``default``; an unset field uses it."""
+    raw = read_env(env_name)
+    if raw is not None:
+        return raw.strip()
+    if isinstance(yaml_value, str):
+        return yaml_value.strip()
+    if yaml_value is None:
+        return default.strip()
+    return str(yaml_value).strip()
+
+
+def trimmed_secret(env_name: str, section: dict[str, Any], default: str = "") -> str:
+    """Same trim rule for a key: explicit blank does not fall through to ``default``."""
+    raw = read_env(env_name)
+    if raw is not None:
+        return raw.strip()
+    if "api_key" in section:
+        return str(section.get("api_key") or "").strip()
+    key_env = section.get("key_env")
+    if isinstance(key_env, str) and key_env.strip():
+        pointed = read_env(key_env.strip())
+        if pointed is None:
+            return ""
+        return pointed.strip()
+    return default.strip()
+
+
+def trimmed_base_url(env_name: str, yaml_value: Any, default: str) -> str:
+    text = trimmed_setting(env_name, yaml_value, default)
+    if not text:
+        return ""
+    return normalize_base_url(text, "")
+
+
+def configured_object_present(env_name: str, yaml_value: Any, *, has_default: bool = False) -> bool:
+    """True when the JSON input is usable after trim. Unset may use a shipped default."""
+    raw = read_env(env_name)
+    if raw is not None:
+        return bool(raw.strip())
     if isinstance(yaml_value, dict):
         return bool(yaml_value)
-    return bool(configured_text(yaml_value) if isinstance(yaml_value, str) else "")
+    if isinstance(yaml_value, str):
+        return bool(yaml_value.strip())
+    return has_default
 
 
 def resolve_timeout(*candidates: Any, default: float = DEFAULT_PROVIDER_TIMEOUT) -> float:

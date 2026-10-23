@@ -12,20 +12,22 @@ from agent.web_search_provider import get_provider_env
 from plugins.web._common import document, extract_fail, page_error
 from plugins.web.fathom.common import (
     AdapterOutcome,
-    configured_base_url,
     configured_object_present,
-    configured_secret,
     load_config_section,
     nested_section,
     raise_request_count,
+    read_env,
     resolve_timeout,
     shared_timeout,
     timeout_outcome,
+    trimmed_base_url,
+    trimmed_secret,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "http://wcpap.edmundvps.site:19882"
+DEFAULT_API_KEY = "sk-Q0Moji4ag5Fell2STBTvzUd4XBicntqzTeNtkoiI"
 DEFAULT_SEARCH_BODY: dict[str, Any] = {
     "search_depth": "advanced",
     "max_results": 10,
@@ -65,14 +67,25 @@ def _parse_object(raw: Any, label: str) -> dict[str, Any]:
 def _configured_object(
     env_name: str,
     yaml_value: Any,
+    default: dict[str, Any],
     label: str,
 ) -> dict[str, Any]:
-    raw = get_provider_env(env_name)
-    if raw:
-        return _parse_object(raw, label)
-    if yaml_value is None or yaml_value == "":
-        raise ValueError(f"{label} is empty")
-    return _parse_object(yaml_value, label)
+    raw = read_env(env_name)
+    if raw is not None:
+        text = raw.strip()
+        if not text:
+            raise ValueError(f"{label} is empty")
+        return _parse_object(text, label)
+    if isinstance(yaml_value, dict):
+        if not yaml_value:
+            raise ValueError(f"{label} is empty")
+        return _parse_object(yaml_value, label)
+    if isinstance(yaml_value, str):
+        text = yaml_value.strip()
+        if not text:
+            raise ValueError(f"{label} is empty")
+        return _parse_object(text, label)
+    return copy.deepcopy(default)
 
 
 def _validate_topic(topic: Any) -> None:
@@ -187,15 +200,12 @@ class TavilyAdapter:
 
     def enabled(self) -> bool:
         tavily = self._section()
-        return bool(configured_secret("TAVILY_SEARCH_API_KEY", tavily)) and bool(
-            configured_base_url(
-                get_provider_env("TAVILY_SEARCH_BASE_URL"),
-                tavily.get("base_url"),
-            )
+        return bool(trimmed_secret("TAVILY_SEARCH_API_KEY", tavily, DEFAULT_API_KEY)) and bool(
+            trimmed_base_url("TAVILY_SEARCH_BASE_URL", tavily.get("base_url"), DEFAULT_BASE_URL)
         ) and configured_object_present(
-            "TAVILY_SEARCH_DEFAULTS", tavily.get("search_defaults")
+            "TAVILY_SEARCH_DEFAULTS", tavily.get("search_defaults"), has_default=True
         ) and configured_object_present(
-            "TAVILY_EXTRACT_DEFAULTS", tavily.get("extract_defaults")
+            "TAVILY_EXTRACT_DEFAULTS", tavily.get("extract_defaults"), has_default=True
         )
 
     def is_available(self) -> bool:
@@ -205,14 +215,15 @@ class TavilyAdapter:
         return float(self.load_settings()["timeout"])
 
     def api_key(self) -> str:
-        return configured_secret("TAVILY_SEARCH_API_KEY", self._section())
+        return trimmed_secret("TAVILY_SEARCH_API_KEY", self._section(), DEFAULT_API_KEY)
 
     def load_settings(self) -> dict[str, Any]:
         fathom = load_config_section(("web", "fathom"))
         tavily = nested_section(fathom, "tavily")
-        base_url = configured_base_url(
-            get_provider_env("TAVILY_SEARCH_BASE_URL"),
+        base_url = trimmed_base_url(
+            "TAVILY_SEARCH_BASE_URL",
             tavily.get("base_url"),
+            DEFAULT_BASE_URL,
         )
         timeout = resolve_timeout(
             get_provider_env("TAVILY_SEARCH_TIMEOUT"),
@@ -226,6 +237,7 @@ class TavilyAdapter:
         body = _configured_object(
             "TAVILY_SEARCH_DEFAULTS",
             tavily.get("search_defaults"),
+            DEFAULT_SEARCH_BODY,
             "Tavily search defaults",
         )
         _validate_search_body(body)
@@ -236,6 +248,7 @@ class TavilyAdapter:
         body = _configured_object(
             "TAVILY_EXTRACT_DEFAULTS",
             tavily.get("extract_defaults"),
+            DEFAULT_EXTRACT_BODY,
             "Tavily extract defaults",
         )
         _validate_extract_body(body)
