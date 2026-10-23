@@ -325,3 +325,7 @@ native/fts5_cjk/*.so
 /pm/.lock.json.lock
 
 apps/desktop/.dist-build*
+
+# Local fork packaging and deploy scripts. Not part of upstream.
+/build-script/
+/deploy/
