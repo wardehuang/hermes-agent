@@ -1,0 +1,7 @@
+name: web-fathom
+version: 1.5.0
+description: "Fathom — ensemble web search. ChatGPT + Exa + Tavily in parallel; Exa and Tavily also extract. An empty input skips that provider. 120s per adapter."
+author: warde
+kind: backend
+provides_web_providers:
+  - fathom
