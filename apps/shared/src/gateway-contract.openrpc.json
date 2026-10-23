@@ -9573,6 +9573,18 @@
             ],
             "default": null,
             "title": "Title Preview"
+          },
+          "display_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Display Text"
           }
         },
         "required": [
@@ -11357,6 +11369,18 @@
             ],
             "default": null,
             "title": "Title Preview"
+          },
+          "display_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Display Text"
           },
           "turn_author": {
             "anyOf": [
@@ -32007,6 +32031,18 @@
             ],
             "default": null,
             "title": "Title Preview"
+          },
+          "display_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Display Text"
           },
           "truncate_before_user_ordinal": {
             "anyOf": [

@@ -853,6 +853,12 @@ class TurnRunner(GatewayTurnProgressMixin, GatewaySessionAgentMixin):
         )
         ctx = self._ctx
         persist_override: Optional[Any] = ctx.persist_user_message
+        from gateway.session_display import persisted_user_text
+        label = persisted_user_text(ctx.inbound_message_id)
+        if label is not None:
+            # A committed ``display_text`` (a ``/goal`` kickoff, a skill invocation): the durable user
+            # row carries the bubble the user saw, while the model still receives the admitted text.
+            persist_override = label
         from gateway.session_cli_turn import cli_turn
         api_text = cli_turn(ctx.inbound_message_id).get('api_text')
         if api_text is not None:

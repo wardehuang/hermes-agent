@@ -2729,6 +2729,7 @@ export interface PromptSubmitParams {
   voice_context?: string | null
   voice_turn?: boolean | null
   title_preview?: string | null
+  display_text?: string | null
   truncate_before_user_ordinal?: number | null
   truncate_before_row_id?: number | null
   truncate_before_message_id?: string | null
@@ -5142,6 +5143,7 @@ export interface CanonicalSubmitParams {
   voice_turn?: boolean
   display_kind?: 'hidden' | null
   title_preview?: string | null
+  display_text?: string | null
   turn_author?: CanonicalTurnAuthor | null
   api_text?: string | null
   model_override?: CanonicalModelOverride | null
@@ -5186,6 +5188,7 @@ export interface CanonicalReplaceQueuedParams {
   attachments?: CanonicalAttachment[] | null
   display_kind?: 'hidden' | null
   title_preview?: string | null
+  display_text?: string | null
 }
 export interface CanonicalConfigGetResult {
   value?: string | null

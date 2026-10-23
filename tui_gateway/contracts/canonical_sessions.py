@@ -216,9 +216,12 @@ class CanonicalSubmitParams(CanonicalSessionParams):
     voice_turn: bool = False
     # Desktop composer presentation, committed per admission (``display_v1``): a hidden widget
     # intent persists ``display_kind=hidden`` (never a user bubble); a large paste's preview is
-    # titler input only, never model input.
+    # titler input only, never model input; ``display_text`` is the bubble label when it differs
+    # from the model-facing ``text`` (a ``/goal`` kickoff, a skill expansion), persisted as the
+    # user row's content while the model still receives ``text``.
     display_kind: Literal['hidden'] | None = None
     title_preview: str | None = None
+    display_text: str | None = None
     # Classic CLI per-turn inputs, committed per admission (``cli_turn_v1``): who wrote the turn
     # (memory attribution only), the model-facing text when it differs from the persisted ``text``
     # (voice prefix, model-switch / skills-reload notes) and a one-turn ``/model --once`` override.
@@ -256,6 +259,7 @@ class CanonicalReplaceQueuedParams(CanonicalSessionParams):
     attachments: list[CanonicalAttachment] | None = None
     display_kind: Literal['hidden'] | None = None
     title_preview: str | None = None
+    display_text: str | None = None
 
 
 class CanonicalControlParams(CanonicalSessionParams):

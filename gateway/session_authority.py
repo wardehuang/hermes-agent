@@ -398,8 +398,12 @@ class SessionAuthority:
         text = payload.get('text')
         if text is None:
             text = payload.get('native_text_v1', {}).get('event', {}).get('text', '')
+        # A committed bubble label (``display_text``) is what the submitter saw: a queued card
+        # shows the same text the transcript row will carry, not the model-facing payload.
+        label = (payload.get('display_v1') or {}).get('display_text')
         from gateway.session_queued_controls import queued_controls
-        return PendingAdmission(**vars(self._receipt(row)), input_id=row['request_id'], text=text,
+        return PendingAdmission(**vars(self._receipt(row)), input_id=row['request_id'],
+                                text=label if label is not None else text,
                                 controls=queued_controls(self, row), steering=row['outcome'] == STEERING)
 
     def _publish_pending(self, ref):
@@ -654,7 +658,8 @@ class SessionAuthority:
         self._require_admission_open(queue_only=queue_only)
         if (request.intent != 'queue' or not {'text'} <= set(request.payload) <= {
                 'text', 'attachments', 'finite', 'unattended', 'surface', 'voice_context', 'interrupted',
-                'voice_turn', 'display_kind', 'title_preview', 'turn_author', 'api_text', 'model_override', 'clarify_batch'}
+                'voice_turn', 'display_kind', 'title_preview', 'display_text', 'turn_author', 'api_text',
+                'model_override', 'clarify_batch'}
                 or not isinstance(request.payload['text'], str)):
             raise RuntimeStoreError('invalid_params')
         from gateway.session_ingress_media import admit_attachments

@@ -38,6 +38,9 @@ class PromptSubmitParams(SessionParams):
     voice_turn: bool | None = None  # a spoken voice-conversation turn: runs on auxiliary.voice_chat
     # Desktop-generated large-paste preview (first ~1000 chars); TITLE input only, never the model turn.
     title_preview: str | None = None
+    # Bubble label when it differs from the model-facing ``text`` (skills, a /goal kickoff): the
+    # persisted user row's content is this text, the agent still receives ``text``.
+    display_text: str | None = None
     truncate_before_user_ordinal: int | None = None
     truncate_before_row_id: int | None = None
     truncate_before_message_id: str | None = None
