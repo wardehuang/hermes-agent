@@ -2091,6 +2091,7 @@ catalog: CatalogTranslations
     goToSession: string
     branches: string
     projects: string
+    files: string
     openFolder: string
     openFolderAt: (path: string) => string
     newSessionInProject: (project: string) => string
@@ -3874,6 +3875,7 @@ catalog: CatalogTranslations
   }
 
   contextMenu: {
+    addToChat: string
     link: {
       openInApp: string
       openExternal: string

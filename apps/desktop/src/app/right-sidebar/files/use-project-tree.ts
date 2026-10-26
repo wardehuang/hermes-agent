@@ -141,6 +141,30 @@ const initialState: ProjectTreeState = {
 
 const inflight = new Set<string>()
 const $projectTree = atom<ProjectTreeState>(initialState)
+
+export function findProjectTreeNode(id: string): TreeNode | null {
+  return findNode($projectTree.get().data, id)
+}
+
+export function findProjectTreeChild(parentId: string | null, name: string, ignoreCase: boolean): TreeNode | undefined {
+  const siblings = parentId ? findProjectTreeNode(parentId)?.children : $projectTree.get().data
+  const real = siblings?.filter(node => !node.placeholder)
+
+  if (!real?.length) {
+    return undefined
+  }
+
+  const exact = real.find(node => node.name === name)
+
+  if (exact || !ignoreCase) {
+    return exact
+  }
+
+  const folded = name.toLowerCase()
+
+  return real.find(node => node.name.toLowerCase() === folded)
+}
+
 let nextRootRequestId = 0
 let lastConnectionKey = ''
 

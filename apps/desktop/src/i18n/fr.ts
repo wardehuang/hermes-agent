@@ -4848,6 +4848,7 @@ export const frOverrides = {
     tabCount: count => `${count} onglet${count === 1 ? '' : 's'}`
   },
   contextMenu: {
+    addToChat: 'Ajouter à la conversation',
     link: {
       openInApp: 'Ouvrir dans le navigateur intégré',
       openExternal: 'Ouvrir dans le navigateur externe',

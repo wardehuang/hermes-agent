@@ -4826,6 +4826,7 @@ export const esOverrides = {
     tabCount: count => `${count} pestañas`
   },
   contextMenu: {
+    addToChat: 'Añadir al chat',
     link: {
       openInApp: 'Abrir en el navegador integrado',
       openExternal: 'Abrir en navegador externo',

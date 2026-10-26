@@ -11,11 +11,10 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from 'streamdown'
 
 import { getApiRequestConnection } from '@/api/client'
-import { requestComposerFocus, requestComposerInsertRefs } from '@/app/chat/composer/focus'
-import { droppedFileInlineRef } from '@/app/chat/composer/inline-refs'
 import { HERMES_PATHS_MIME } from '@/app/chat/hooks/use-composer-actions'
 import { RichCodeBlock } from '@/components/assistant-ui/embeds'
 import { CodeEditor } from '@/components/chat/code-editor'
+import { inclusiveLineRange, nativeSelectionInHost, registerCodeSource } from '@/components/chat/code-source-selection'
 import { FileDiffPanel } from '@/components/chat/diff-lines'
 import { chunkTextLines, useFixedRowWindow } from '@/components/chat/fixed-row-window'
 import { LazyShiki as ShikiHighlighter } from '@/components/chat/shiki-highlighter'
@@ -35,7 +34,6 @@ import {
 import { ExternalLink } from '@/lib/external-link'
 import { Check, Pencil, X } from '@/lib/icons'
 import { createMemoizedMathPlugin } from '@/lib/katex-memo'
-import { isComposerChord } from '@/lib/keybinds/chords'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { shikiLanguageForFilename } from '@/lib/markdown-code'
 import { normalizeFilePreviewMath } from '@/lib/markdown-preprocess'
@@ -50,7 +48,7 @@ import { previewTargetFromMarkdownHref } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 import { markPreviewTabMissing, openPreview, type PreviewTarget } from '@/store/preview'
 import { setPreviewDirty } from '@/store/preview-edit'
-import { $connection, $currentCwd } from '@/store/session'
+import { $connection } from '@/store/session'
 import { notifyWorkspaceChanged } from '@/store/workspace-events'
 
 const SHIKI_THEME = { dark: 'github-dark-default', light: 'github-light-default' } as const
@@ -667,39 +665,38 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
     startLineDrag(event, filePath, inSelection(line) && selection ? selection : { end: line, start: line })
   }
 
-  // ⌘/Ctrl+L with a line selection drops the same `@line:path:start-end` ref the
-  // gutter drag produces — so the keyboard path mirrors dragging the lines into
-  // the composer. Capture-phase + stopPropagation so it beats the terminal's
-  // global ⌘L handler (which would otherwise grab the native text selection).
+  // ⌘/Ctrl+L and the app context menu both read this host: a native text
+  // selection, or the gutter line range. Capture-phase in registerCodeSource
+  // beats the terminal's global ⌘L handler.
   useEffect(() => {
-    if (!selection || !filePath) {
+    const host = scrollerRef.current
+
+    if (!host || !filePath) {
       return
     }
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!isComposerChord(event)) {
-        return
+    const path = filePath
+
+    return registerCodeSource(host, () => {
+      const native = nativeSelectionInHost(host, path)
+
+      if (native) {
+        return native
       }
 
-      const lineEnd = selection.end > selection.start ? selection.end : undefined
-      const ref = droppedFileInlineRef({ line: selection.start, lineEnd, path: filePath }, $currentCwd.get())
-
-      if (!ref) {
-        return
+      if (!selection) {
+        return null
       }
 
-      event.preventDefault()
-      event.stopPropagation()
-      // Insert into and focus the SAME composer — 'active' — so a tile that owns
-      // focus keeps it instead of the ref landing in a tile but main stealing focus.
-      requestComposerInsertRefs([ref])
-      requestComposerFocus('active')
-    }
+      const range = inclusiveLineRange(selection.start, selection.end)
 
-    window.addEventListener('keydown', onKeyDown, { capture: true })
+      if (!range) {
+        return null
+      }
 
-    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
-  }, [filePath, selection])
+      return { filePath: path, text: '', ...range }
+    })
+  }, [filePath, scrollerRef, selection])
 
   return (
     <div className="h-full overflow-auto" onScroll={onScroll} ref={scrollerRef}>
@@ -732,7 +729,11 @@ export function SourceView({ filePath, language, text }: { filePath?: string; la
                 )
               })}
             </div>
-            <div className="preview-source-code min-w-0 [&_pre]:m-0" data-selectable-text="true">
+            <div
+              className="preview-source-code min-w-0 [&_pre]:m-0"
+              data-selectable-text="true"
+              data-source-chunk-start={chunk.start}
+            >
               <ShikiHighlighter code={chunk.text} language={language || 'text'} theme={SHIKI_THEME} />
             </div>
           </Fragment>

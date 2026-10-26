@@ -4837,6 +4837,7 @@ export const deOverrides = {
     tabCount: count => `${count} Tabs`
   },
   contextMenu: {
+    addToChat: 'Zum Chat hinzufügen',
     link: {
       openInApp: 'Im In-App-Browser öffnen',
       openExternal: 'Im externen Browser öffnen',

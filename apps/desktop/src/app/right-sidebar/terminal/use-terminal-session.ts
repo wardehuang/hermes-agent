@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { codeSourceHasSelection } from '@/components/chat/code-source-selection'
 import { writeClipboardText } from '@/components/ui/copy-button'
 import { triggerHaptic } from '@/lib/haptics'
 import { isComposerChord } from '@/lib/keybinds/chords'
@@ -451,7 +452,7 @@ export function useTerminalSession({
 
   const addSelectionToChat = useCallback(() => {
     const termSelection = (termRef.current?.getSelection() || selectionRef.current).trim()
-    const selectedText = termSelection || window.getSelection()?.toString() || ''
+    const selectedText = termSelection || (codeSourceHasSelection() ? '' : window.getSelection()?.toString() || '')
     const trimmed = selectedText.trim()
 
     if (!trimmed) {
@@ -491,9 +492,14 @@ export function useTerminalSession({
         return
       }
 
-      const hasSelection = Boolean(readSelection().trim())
+      // Editor / source-view selections own the chord as `@line:` chips.
+      // Do not fall back to window.getSelection() — that is the preview
+      // text the terminal used to poach as `@terminal:`.
+      if (codeSourceHasSelection() && !readSelection().trim()) {
+        return
+      }
 
-      if (!shouldOwnAddSelectionShortcut(event, { active: true, hasSelection })) {
+      if (!shouldOwnAddSelectionShortcut(event, { active: true, hasSelection: Boolean(readSelection().trim()) })) {
         return
       }
 

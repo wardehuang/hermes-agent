@@ -2228,11 +2228,12 @@ export const zhOverrides = {
     close: '关闭命令中心',
     paletteTitle: '命令面板',
     back: '返回',
-    searchPlaceholder: '搜索会话、视图与操作',
+    searchPlaceholder: '搜索文件、会话、视图与操作',
     goTo: '前往',
     goToSession: '前往会话',
     branches: '分支',
     projects: '项目',
+    files: '文件',
     openFolder: '打开文件夹为项目…',
     openFolderAt: path => `打开文件夹为项目 — ${path}`,
     newSessionInProject: project => `在 ${project} 中新建会话`,
@@ -4256,6 +4257,7 @@ export const zhOverrides = {
   },
 
   contextMenu: {
+    addToChat: '添加到对话',
     link: {
       openInApp: '在应用内浏览器中打开',
       openExternal: '在外部浏览器中打开',

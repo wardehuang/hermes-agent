@@ -2302,11 +2302,12 @@ export const en: Translations = {
     close: 'Close command center',
     paletteTitle: 'Command palette',
     back: 'Back',
-    searchPlaceholder: 'Search sessions, views, and actions',
+    searchPlaceholder: 'Search files, sessions, views, and actions',
     goTo: 'Go to',
     goToSession: 'Go to session',
     branches: 'Branches',
     projects: 'Projects',
+    files: 'Files',
     openFolder: 'Open folder as project…',
     openFolderAt: path => `Open folder as project — ${path}`,
     newSessionInProject: project => `New session in ${project}`,
@@ -4417,6 +4418,7 @@ export const en: Translations = {
   },
 
   contextMenu: {
+    addToChat: 'Add to chat',
     link: {
       openInApp: 'Open in in-app browser',
       openExternal: 'Open in external browser',
