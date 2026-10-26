@@ -1,0 +1,15 @@
+name: ultra-plan
+version: 1.0.0
+description: >-
+  Ultra Plan — Cursor-like Plan mode for Hermes Desktop (+ menu Plan chip,
+  dedicated plan view, selection comments, Continue/Build).
+author: warde
+license: MIT
+platforms: [windows, macos, linux]
+hooks:
+  - pre_llm_call
+  - pre_tool_call
+provides_hooks:
+  - pre_llm_call
+  - pre_tool_call
+tags: [composer, plan, desktop, ui]
