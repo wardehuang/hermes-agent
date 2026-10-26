@@ -1,0 +1,10 @@
+name: prompt-purge
+version: 0.1.0
+description: "Enumerate harness prompt sections at runtime, let the operator drop them per profile, and inject composable prompt templates into SOUL.md."
+author: local
+manifest_version: 1
+requires_hermes: ">=0.21.3"
+kind: standalone
+provides_tools: []
+provides_hooks: []
+requires_env: []

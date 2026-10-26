@@ -1,0 +1,7 @@
+{
+  "name": "prompt-purge",
+  "label": "Prompt Purge",
+  "description": "Drop harness prompt sections per profile and inject composable prompt templates into SOUL.md. Backend only — the UI ships as a bundled desktop plugin.",
+  "version": "0.1.0",
+  "api": "plugin_api.py"
+}
