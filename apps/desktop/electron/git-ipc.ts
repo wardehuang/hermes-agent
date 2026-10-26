@@ -14,6 +14,7 @@ import {
   reviewCreatePr,
   reviewDiff,
   reviewList,
+  reviewOpenExternalDiff,
   reviewPrList,
   reviewPush,
   reviewRevert,
@@ -72,6 +73,9 @@ export function registerGitIpc({ resolveGitBinary, resolveGhBinary }: GitIpcDeps
   )
   ipcMain.handle('hermes:git:review:diff', async (_event, repoPath, filePath, scope, baseRef, staged) =>
     reviewDiff(repoPath, filePath, scope, baseRef, staged, resolveGitBinary())
+  )
+  ipcMain.handle('hermes:git:review:openExternalDiff', async (_event, repoPath, filePath, scope, baseRef, staged) =>
+    reviewOpenExternalDiff(repoPath, filePath, scope, baseRef, staged, resolveGitBinary())
   )
   // Working-tree-vs-HEAD diff for one file (the preview's "show the diff" view).
   ipcMain.handle('hermes:git:fileDiff', async (_event, repoPath, filePath) =>

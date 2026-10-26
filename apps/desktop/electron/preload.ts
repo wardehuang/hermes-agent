@@ -469,6 +469,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   logLine: (line: string): void => ipcRenderer.send('hermes:logs:renderer-line', line),
   readDir: dirPath => ipcRenderer.invoke('hermes:fs:readDir', dirPath),
   gitRoot: startPath => ipcRenderer.invoke('hermes:fs:gitRoot', startPath),
+  openInVSCode: targetPath => ipcRenderer.invoke('hermes:fs:openInVSCode', targetPath),
   revealPath: targetPath => ipcRenderer.invoke('hermes:fs:reveal', targetPath),
   openDir: dirPath => ipcRenderer.invoke('hermes:fs:openDir', dirPath),
   desktopPluginsRoot: () => ipcRenderer.invoke('hermes:fs:desktopPluginsRoot'),
@@ -492,6 +493,8 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
       list: (repoPath, scope, baseRef) => ipcRenderer.invoke('hermes:git:review:list', repoPath, scope, baseRef),
       diff: (repoPath, filePath, scope, baseRef, staged) =>
         ipcRenderer.invoke('hermes:git:review:diff', repoPath, filePath, scope, baseRef, staged),
+      openExternalDiff: (repoPath, filePath, scope, baseRef, staged) =>
+        ipcRenderer.invoke('hermes:git:review:openExternalDiff', repoPath, filePath, scope, baseRef, staged),
       stage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:stage', repoPath, filePath),
       unstage: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:unstage', repoPath, filePath),
       revert: (repoPath, filePath) => ipcRenderer.invoke('hermes:git:review:revert', repoPath, filePath),

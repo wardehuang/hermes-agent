@@ -18,6 +18,7 @@ import {
 import { DESKTOP_PROFILE_NAME_RE } from './desktop-profile'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
+import { openPathInVSCode } from './open-in-vscode'
 
 export interface FsIpcDeps {
   hermesHome: string
@@ -39,6 +40,27 @@ export function registerFsIpc({
   ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => readDirForIpc(dirPath))
 
   ipcMain.handle('hermes:fs:gitRoot', async (_event, startPath) => gitRootForIpc(startPath))
+
+  // Open a folder in Microsoft VS Code. Never $EDITOR and never `code.cmd`.
+  ipcMain.handle('hermes:fs:openInVSCode', async (_event, targetPath) => {
+    const target = String(targetPath || '').trim()
+
+    if (!target) {
+      return false
+    }
+
+    try {
+      const resolved = resolveRequestedPathForIpc(expandUserPath(target), { purpose: 'Open in VS Code' })
+
+      if (!fs.existsSync(resolved)) {
+        return false
+      }
+
+      return await openPathInVSCode(resolved)
+    } catch {
+      return false
+    }
+  })
 
   // Reveal a path in the OS file manager (Finder / Explorer / Files).
   // `showItemInFolder` silently no-ops on a missing item, and a remote

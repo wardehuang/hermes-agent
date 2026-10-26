@@ -8,6 +8,7 @@ export const enAuxTasks: AuxTaskCopyMap = {
   mcp: { label: 'MCP', hint: 'MCP tool routing' },
   title_generation: { label: 'Title gen', hint: 'Session titles' },
   review: { label: 'Review', hint: '/review reviewer subagent' },
+  background_review: { label: 'Background review', hint: 'Post-turn memory and skills' },
   voice_chat: { label: 'Voice chat', hint: 'Spoken voice-mode replies' },
   triage_specifier: { label: 'Triage specifier', hint: 'Kanban spec fleshing' },
   kanban_decomposer: { label: 'Kanban decomposer', hint: 'Task decomposition' },

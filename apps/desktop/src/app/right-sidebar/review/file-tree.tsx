@@ -38,6 +38,7 @@ import {
   $reviewScopeCwd,
   $reviewSelectedPath,
   $reviewTreeMode,
+  openReviewInWinMerge,
   requestRevert,
   reviewRepoCwd,
   selectReviewFile,
@@ -494,6 +495,19 @@ function ReviewFileContextMenu({
       <ContextMenuContent>
         <ContextMenuItem onSelect={onOpenChanges}>{c.openChanges}</ContextMenuItem>
         <ContextMenuItem onSelect={onOpenFile}>{c.openFile}</ContextMenuItem>
+        {localFs && (
+          <ContextMenuItem
+            onSelect={() => {
+              void openReviewInWinMerge(file).catch(error => {
+                const missing = error instanceof Error && error.message.includes('WINMERGE_NOT_FOUND')
+
+                notifyError(missing ? new Error(c.winMergeMissing) : error, c.compareInWinMerge)
+              })
+            }}
+          >
+            {c.compareInWinMerge}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() =>

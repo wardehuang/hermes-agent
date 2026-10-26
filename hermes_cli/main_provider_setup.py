@@ -57,6 +57,7 @@ _AUX_TASKS: list[tuple[str, str, str]] = [
     ("mcp", "MCP", "MCP tool reasoning"),
     ("title_generation", "Title generation", "session titles"),
     ("review", "Review", "/review reviewer subagent"),
+    ("background_review", "Background review", "post-turn memory/skill review"),
     ("memory_query_rewrite", "Memory query rewrite", "memory retrieval queries"),
     ("tts_audio_tags", "TTS audio tags", "Gemini TTS tag insertion"),
     ("voice_chat", "Voice chat", "spoken voice-mode replies"),

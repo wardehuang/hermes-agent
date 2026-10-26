@@ -336,6 +336,18 @@ export function clearReviewSelection(): void {
   $reviewDiffLoading.set(false)
 }
 
+export async function openReviewInWinMerge(file: HermesReviewFile): Promise<void> {
+  const ctx = reviewCtx()
+
+  if (!ctx?.review.openExternalDiff) {
+    throw new Error('WINMERGE_NOT_FOUND')
+  }
+
+  const { scope, baseRef } = reviewReadParams()
+
+  await ctx.review.openExternalDiff(ctx.cwd, file.path, scope, baseRef, file.staged)
+}
+
 // ── View state ───────────────────────────────────────────────────────────────
 
 export async function refreshShipInfo(): Promise<void> {

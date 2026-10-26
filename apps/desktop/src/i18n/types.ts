@@ -3112,6 +3112,8 @@ catalog: CatalogTranslations
       close: string
       openChanges: string
       openFile: string
+      compareInWinMerge: string
+      winMergeMissing: string
       stage: string
       unstage: string
       stageAll: string
@@ -3669,6 +3671,8 @@ catalog: CatalogTranslations
     remotePickerCreateFolderFailed: (error: string) => string
     folderTip: (cwd: string) => string
     openFolder: string
+    openInVSCode: string
+    openInVSCodeMissing: string
     refreshTree: string
     collapseAll: string
     showIgnored: string

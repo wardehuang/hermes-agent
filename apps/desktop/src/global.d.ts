@@ -478,6 +478,8 @@ declare global {
       logLine?: (line: string) => void
       readDir: (path: string) => Promise<HermesReadDirResult>
       gitRoot?: (path: string) => Promise<string | null>
+      // Open a folder in Microsoft VS Code (never $EDITOR, never code.cmd).
+      openInVSCode?: (path: string) => Promise<boolean>
       // Reveal a path in the OS file manager (Finder / Explorer).
       revealPath?: (path: string) => Promise<boolean>
       // Open a DIRECTORY (created if missing) in the OS file manager.
@@ -539,6 +541,14 @@ declare global {
             baseRef?: null | string,
             staged?: boolean
           ) => Promise<string>
+          // Open the same two sides in WinMerge. Local desktop only.
+          openExternalDiff: (
+            repoPath: string,
+            filePath: string,
+            scope: HermesReviewScope,
+            baseRef?: null | string,
+            staged?: boolean
+          ) => Promise<{ ok: boolean }>
           stage: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>
           unstage: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>
           revert: (repoPath: string, filePath?: null | string) => Promise<{ ok: boolean }>

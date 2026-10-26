@@ -212,6 +212,18 @@ export async function desktopDefaultCwd(): Promise<{ branch: string; cwd: string
   return remoteFsApi<{ branch: string; cwd: string }>('/api/fs/default-cwd')
 }
 
+// Open a folder in Microsoft VS Code. Local install only; false when VS Code
+// is not installed. Remote backend paths are not on this computer.
+export async function openDesktopPathInVSCode(path: string): Promise<boolean> {
+  const desktop = bridge()
+
+  if (!desktop.openInVSCode) {
+    throw new Error('Open in VS Code is not available')
+  }
+
+  return desktop.openInVSCode(path)
+}
+
 // Reveal a path in the OS file manager (Finder / Explorer / Files). Local only.
 // The bridge answers `false` when the path is not on this computer (a remote
 // backend's workspace) — surface it instead of a silent no-op.

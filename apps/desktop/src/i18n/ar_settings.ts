@@ -822,6 +822,10 @@ export const arSettings = {
           label: 'المراجعة',
           hint: 'وكيل المراجعة الفرعي /review'
         },
+        background_review: {
+          label: 'المراجعة الخلفية',
+          hint: 'الذاكرة والمهارات بعد الدور'
+        },
         voice_chat: { label: 'دردشة صوتية', hint: 'ردود الوضع الصوتي' },
         triage_specifier: {
           label: 'محدد الفرز',

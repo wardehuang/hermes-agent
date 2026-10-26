@@ -333,6 +333,8 @@ export const zhHantChat = {
       close: '關閉',
       openChanges: '開啟變更',
       openFile: '開啟檔案',
+      compareInWinMerge: '用 WinMerge 比較',
+      winMergeMissing: '找不到 WinMerge。請安裝，或把 WinMergeU.exe 加入 PATH。',
       stage: '暫存',
       unstage: '取消暫存',
       stageAll: '全部暫存',
