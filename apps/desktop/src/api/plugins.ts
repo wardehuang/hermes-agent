@@ -47,6 +47,9 @@ export interface PluginRestOptions {
   /** Single-file multipart upload (see HermesApiRequest.upload). */
   upload?: { filename: string; contentType?: string; bytes: ArrayBuffer }
   timeoutMs?: number
+  /** Session owner. Omit to use the window's current profile. */
+  profile?: string
+  connectionId?: string
 }
 
 // Normalize `path` to a leading-slash suffix relative to `/api/plugins/<id>`.
@@ -82,7 +85,8 @@ export async function pluginRest<T>(pluginId: string, path: string, opts: Plugin
     body: opts.body,
     upload: opts.upload,
     timeoutMs: opts.timeoutMs,
-    ...profileScoped()
+    ...profileScoped(opts.profile),
+    ...(opts.connectionId ? { connectionId: opts.connectionId } : {})
   })
 }
 

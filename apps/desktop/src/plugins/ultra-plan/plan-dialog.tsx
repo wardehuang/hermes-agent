@@ -29,6 +29,7 @@ import {
   durableSessionId,
   openPlanDialog,
   runtimeSessionId,
+  sessionRestScope,
   setComments
 } from './plan-store'
 import { ID, newCommentId, normalizePlanRel, planBodyWithoutTasks, type PlanComment, planDisplayTitle, planTasks, resolvePlanAbs } from './shared'
@@ -212,7 +213,8 @@ function PlanDialog() {
           comments,
           plan_file: file,
           session_id: stored
-        }
+        },
+        ...sessionRestScope()
       })
       clearComments(file)
       setQuote('')

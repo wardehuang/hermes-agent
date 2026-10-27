@@ -253,14 +253,19 @@ class ModeStore:
 
 
 def load_store(name: str = "ultra-plan") -> ModeStore:
-    existing = sys.modules.get(STORE_MODULE_NAME)
-    store = getattr(existing, "_STORE", None) if existing is not None else None
-    if isinstance(store, ModeStore):
-        return store
-    store = ModeStore(name)
-    if existing is None:
+    from hermes_constants import hermes_home_key
+
+    key = hermes_home_key()
+    holder = sys.modules.get(STORE_MODULE_NAME)
+    if holder is None:
         holder = sys.modules.setdefault(STORE_MODULE_NAME, sys.modules[__name__])
-        holder._STORE = store
-    else:
-        existing._STORE = store
+    stores = getattr(holder, "_STORES", None)
+    if not isinstance(stores, dict):
+        stores = {}
+        holder._STORES = stores
+    cached = stores.get(key)
+    if isinstance(cached, ModeStore):
+        return cached
+    store = ModeStore(name)
+    stores[key] = store
     return store

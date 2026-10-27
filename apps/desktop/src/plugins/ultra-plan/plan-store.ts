@@ -133,6 +133,17 @@ export function runtimeSessionId(): string | undefined {
   return host.state.focusedSessionId.get() || host.state.activeSessionId.get() || undefined
 }
 
+export function sessionRestScope(): { connectionId?: string; profile?: string } {
+  const owner = host.state.focusedSessionOwner.get()
+  const profile = (owner?.profile || host.state.focusedSessionProfile.get() || '').trim()
+  const connectionId = (owner?.connectionId || '').trim()
+
+  return {
+    ...(profile ? { profile } : {}),
+    ...(connectionId ? { connectionId } : {})
+  }
+}
+
 export async function stageMode(mode: PlanMode, sidOverride?: null | string): Promise<boolean> {
   const ctx = $pluginCtx.get()
 
@@ -143,7 +154,7 @@ export async function stageMode(mode: PlanMode, sidOverride?: null | string): Pr
   const sid = durableSessionId(sidOverride)
 
   try {
-    await ctx.rest('/mode', { method: 'POST', body: { mode, session_id: sid } })
+    await ctx.rest('/mode', { method: 'POST', body: { mode, session_id: sid }, ...sessionRestScope() })
 
     return true
   } catch {
