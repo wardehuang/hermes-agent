@@ -1,6 +1,5 @@
 import {
   Button,
-  CodeEditor,
   Codicon,
   Dialog,
   DialogContent,
@@ -9,11 +8,9 @@ import {
   host,
   MarkdownPreview,
   readDesktopFileText,
-  SegmentedControl,
   Textarea,
   usePluginI18n,
-  useValue,
-  writeDesktopFileText
+  useValue
 } from '@hermes/plugin-sdk'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -26,18 +23,17 @@ import {
   applyMode,
   armPlanAutoOpen,
   clearComments,
-  closePlanView,
   commentsFor,
   consumePlanAutoOpen,
+  dismissPlanDialog,
   durableSessionId,
   openPlanDialog,
   runtimeSessionId,
   setComments
 } from './plan-store'
-import { ID, newCommentId, normalizePlanRel, type PlanComment, planDisplayTitle, resolvePlanAbs } from './shared'
+import { ID, newCommentId, normalizePlanRel, planBodyWithoutTasks, type PlanComment, planDisplayTitle, planTasks, resolvePlanAbs } from './shared'
 
 type LoadState = 'error' | 'loading' | 'ready'
-type ViewMode = 'edit' | 'preview'
 
 export function PlanDialogHost() {
   const open = useValue($planOpen)
@@ -47,7 +43,7 @@ export function PlanDialogHost() {
     <Dialog
       onOpenChange={next => {
         if (!next) {
-          closePlanView()
+          dismissPlanDialog()
         }
       }}
       open={open && Boolean(file)}
@@ -67,18 +63,12 @@ function PlanDialog() {
   const abs = file ? resolvePlanAbs(cwd, file) : null
   const [load, setLoad] = useState<LoadState>('loading')
   const [text, setText] = useState('')
-  const [draft, setDraft] = useState('')
-  const [view, setView] = useState<ViewMode>('preview')
-  const [saving, setSaving] = useState(false)
   const [quote, setQuote] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const previewRef = useRef<HTMLDivElement | null>(null)
-  const loadKey = `${abs ?? ''}:${file ?? ''}`
-  const dirty = draft !== text
 
   useEffect(() => {
     let cancelled = false
-    setView('preview')
     setQuote('')
     setCommentBody('')
 
@@ -104,7 +94,6 @@ function PlanDialog() {
 
         const next = result.text ?? ''
         setText(next)
-        setDraft(next)
         setLoad('ready')
       })
       .catch(() => {
@@ -117,7 +106,7 @@ function PlanDialog() {
     return () => {
       cancelled = true
     }
-  }, [abs, cwd, file, loadKey])
+  }, [abs, cwd, file])
 
   useEffect(() => {
     if (commentsEpoch === 0) {
@@ -200,24 +189,6 @@ function PlanDialog() {
     )
   }
 
-  const save = async () => {
-    if (!abs) {
-      return
-    }
-
-    setSaving(true)
-
-    try {
-      await writeDesktopFileText(abs, draft)
-      setText(draft)
-      setView('preview')
-    } catch {
-      host.notify({ kind: 'error', message: t('paneSaveError') })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const runAction = async (action: 'build' | 'continue') => {
     const ctx = $pluginCtx.get()
     const stored = durableSessionId()
@@ -250,7 +221,7 @@ function PlanDialog() {
       if (action === 'build') {
         applyMode('agent', stored)
       } else {
-        closePlanView()
+        dismissPlanDialog()
         applyMode('plan', stored)
         armPlanAutoOpen()
       }
@@ -275,12 +246,13 @@ function PlanDialog() {
     return t('paneLoadError')
   }, [cwd, t])
 
+  const tasks = planTasks(text)
   const ready = load === 'ready'
 
   return (
     <DialogContent
       bodyClassName="flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
-      className="h-[min(44rem,86vh)] w-[min(76rem,94vw)] max-w-none"
+      className="h-[min(44rem,86vh)] w-[min(84rem,94vw)] max-w-none"
       data-ultra-plan="dialog"
     >
       <header className="flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-(--stroke-nous) px-5 py-4 pr-12">
@@ -290,21 +262,6 @@ function PlanDialog() {
           {file ? <DialogDescription className="mt-0.5 truncate">{file}</DialogDescription> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-1">
-          <SegmentedControl
-            disabled={!ready}
-            onChange={next => setView(next)}
-            options={[
-              { id: 'preview', label: t('panePreview') },
-              { id: 'edit', label: t('paneEdit') }
-            ]}
-            sizing="content"
-            value={view}
-          />
-          {view === 'edit' ? (
-            <Button disabled={!ready || saving || !dirty} onClick={() => void save()} size="sm" type="button" variant="secondary">
-              {saving ? t('paneSaving') : t('paneSave')}
-            </Button>
-          ) : null}
           <Button disabled={!ready} onClick={() => void runAction('continue')} size="sm" type="button" variant="secondary">
             {t('paneContinue')}
           </Button>
@@ -319,28 +276,39 @@ function PlanDialog() {
             <div className="px-8 py-6 text-sm text-(--ui-text-tertiary)">{t('dialogLoading')}</div>
           ) : load === 'error' ? (
             <div className="px-8 py-6 text-sm text-(--ui-text-secondary)">{errorMessage}</div>
-          ) : view === 'edit' ? (
-            <div className="h-full min-h-0">
-              <CodeEditor
-                filePath={abs || file || 'plan.md'}
-                initialValue={draft}
-                key={loadKey}
-                onCancel={() => {
-                  setDraft(text)
-                  setView('preview')
-                }}
-                onChange={setDraft}
-                onSave={() => void save()}
-              />
-            </div>
           ) : (
             <div
-              className="h-full cursor-text select-text overflow-auto text-foreground [&_.preview-markdown]:mx-0 [&_.preview-markdown]:max-w-[46rem] [&_.preview-markdown]:px-8 [&_.preview-markdown]:py-6 [&_.preview-markdown]:text-[0.9375rem] [&_.preview-markdown]:leading-7 [&_.preview-markdown]:text-foreground [&_h1]:mt-0 [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_li]:text-foreground [&_p]:text-foreground"
+              className="h-full cursor-text select-text overflow-auto text-foreground"
               data-selectable-text="true"
               data-ultra-plan="preview"
               ref={previewRef}
             >
-              <MarkdownPreview text={text} />
+              <div className="mx-auto w-full max-w-[54rem] px-8 py-6">
+                {tasks.length > 0 ? (
+                  <section className="mb-6">
+                    <h2 className="mb-2 text-base font-semibold leading-snug text-foreground">{t('paneTasks')}</h2>
+                    <ul className="space-y-1.5">
+                      {tasks.map(task => (
+                        <li className="flex items-start gap-2 text-[0.9375rem] leading-6" key={`${task.done}-${task.text}`}>
+                          <span
+                            className={
+                              task.done
+                                ? 'mt-1.5 size-3.5 shrink-0 rounded-[3px] border border-(--ui-accent) bg-(--ui-accent)'
+                                : 'mt-1.5 size-3.5 shrink-0 rounded-[3px] border border-(--stroke-nous)'
+                            }
+                          />
+                          <span className={task.done ? 'text-(--ui-text-tertiary) line-through' : 'text-foreground'}>
+                            {task.text}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                <div className="[&_.preview-markdown]:mx-0 [&_.preview-markdown]:max-w-none [&_.preview-markdown]:px-0 [&_.preview-markdown]:py-0 [&_.preview-markdown]:text-left [&_.preview-markdown]:text-[0.9375rem] [&_.preview-markdown]:leading-7 [&_.preview-markdown]:text-foreground [&_h1]:mt-0 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:text-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:leading-snug [&_h2]:text-foreground [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground [&_li]:text-foreground [&_p]:text-left [&_p]:text-foreground">
+                  <MarkdownPreview text={planBodyWithoutTasks(text)} />
+                </div>
+              </div>
             </div>
           )}
         </div>

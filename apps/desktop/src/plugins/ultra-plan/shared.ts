@@ -58,3 +58,70 @@ export function resolvePlanAbs(cwd: string, rel: string): null | string {
 export function newCommentId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
+
+export type PlanTask = {
+  done: boolean
+  text: string
+}
+
+const TASK_HEADING = /^#{1,3}\s+(任务|tasks)\s*$/i
+const TASK_ITEM = /^[-*]\s+\[([ xX])\]\s+(.+)$/
+const ANY_HEADING = /^#{1,3}\s+\S/
+
+export function planTasks(markdown: string): PlanTask[] {
+  const tasks: PlanTask[] = []
+  let inTasks = false
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const trimmed = line.trim()
+
+    if (TASK_HEADING.test(trimmed)) {
+      inTasks = true
+
+      continue
+    }
+
+    if (inTasks && ANY_HEADING.test(trimmed)) {
+      break
+    }
+
+    if (!inTasks) {
+      continue
+    }
+
+    const item = TASK_ITEM.exec(trimmed)
+
+    if (!item) {
+      continue
+    }
+
+    tasks.push({ done: item[1].toLowerCase() === 'x', text: item[2].trim() })
+  }
+
+  return tasks
+}
+
+export function planBodyWithoutTasks(markdown: string): string {
+  const kept: string[] = []
+  let skipping = false
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const trimmed = line.trim()
+
+    if (TASK_HEADING.test(trimmed)) {
+      skipping = true
+
+      continue
+    }
+
+    if (skipping && ANY_HEADING.test(trimmed)) {
+      skipping = false
+    }
+
+    if (!skipping) {
+      kept.push(line)
+    }
+  }
+
+  return kept.join('\n').replace(/^\n+/, '').replace(/\n{3,}/g, '\n\n')
+}

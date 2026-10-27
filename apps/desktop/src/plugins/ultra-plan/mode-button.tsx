@@ -1,7 +1,7 @@
 import { Button, cn, Codicon, host, Tip, usePluginI18n, useValue } from '@hermes/plugin-sdk'
 import { useEffect, useRef } from 'react'
 
-import { $mode, $pluginCtx, applyMode, setModeLocal, stageMode } from './plan-store'
+import { $mode, $pluginCtx, applyMode, modeEpochNow, setModeLocal, stageMode } from './plan-store'
 import { ID } from './shared'
 
 export function PlanChip() {
@@ -37,12 +37,22 @@ export function PlanChip() {
       return
     }
 
+    const epoch = modeEpochNow()
+
     void ctx
       .rest<{ mode?: string }>(`/mode?session_id=${encodeURIComponent(sid)}`)
       .then(result => {
+        if (epoch !== modeEpochNow()) {
+          return
+        }
+
         setModeLocal(result.mode === 'plan' ? 'plan' : 'agent')
       })
       .catch(() => {
+        if (epoch !== modeEpochNow()) {
+          return
+        }
+
         setModeLocal('agent')
       })
   }, [sid])
@@ -63,8 +73,8 @@ export function PlanChip() {
           color: 'var(--ui-text-primary)'
         }}
       >
-        <Codicon className="shrink-0" name="checklist" size="0.75rem" />
-        <span className="px-0.5">{t('modePlan')}</span>
+        <Codicon className="relative top-px shrink-0" name="checklist" size="0.75rem" />
+        <span className="relative -top-px px-0.5 leading-none">{t('modePlan')}</span>
         <Button
           aria-label={t('modeClose')}
           className="size-5 shrink-0 rounded p-0 hover:bg-black/15"

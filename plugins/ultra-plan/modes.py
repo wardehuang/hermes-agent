@@ -42,6 +42,11 @@ def _plan_note() -> str:
         "- If the request is genuinely underspecified, you MUST call the "
         "clarify tool and give choices. The UI always includes Other. "
         "Never ask clarifying questions as chat prose.\n"
+        "- Write the plan markdown in Simplified Chinese unless the user explicitly asks for another language.\n"
+        "- Include a section headed exactly `## 任务`. Under it, one checkbox per task, "
+        "in the order Build should do them:\n"
+        "`- [ ] 具体任务`\n"
+        "Every step Build must perform is one of those items. Do not leave the section empty.\n"
         "- After saving the plan markdown under `.hermes/plans/`, end your "
         "reply with ONLY this directive paragraph on its own line and "
         "nothing else in that paragraph:\n"
@@ -80,6 +85,11 @@ def _pending_note(pending: dict[str, Any]) -> str:
             "Apply these selection comments while implementing; they are NOT "
             "already written into the markdown:\n"
             f"{packed}\n"
+            "The plan's `## 任务` list is the work queue. Before other edits, call "
+            "todo_list with every item in that order: the first `in_progress`, the rest "
+            "`pending`. Finish and verify one item, mark that todo `completed`, and change "
+            "its plan line from `- [ ]` to `- [x]`. Only then start the next. Never have "
+            "more than one `in_progress`. Do not check an item before its work is done.\n"
             "Do not re-emit ::plan unless you must revise the plan first."
         )
     return (

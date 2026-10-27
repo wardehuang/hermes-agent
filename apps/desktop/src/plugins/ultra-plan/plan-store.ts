@@ -14,6 +14,17 @@ export const $commentsEpoch = atom(0)
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 let autoOpenArmed = false
+let modeEpoch = 0
+
+export function nextModeEpoch() {
+  modeEpoch += 1
+
+  return modeEpoch
+}
+
+export function modeEpochNow() {
+  return modeEpoch
+}
 
 export function armPlanAutoOpen() {
   autoOpenArmed = true
@@ -146,6 +157,7 @@ export function setModeLocal(mode: PlanMode) {
 }
 
 export function applyMode(mode: PlanMode, sidOverride?: null | string) {
+  nextModeEpoch()
   setModeLocal(mode)
 
   if (mode === 'agent') {
@@ -159,9 +171,13 @@ export function cycleMode() {
   applyMode($mode.get() === 'plan' ? 'agent' : 'plan')
 }
 
-export function closePlanView() {
+export function dismissPlanDialog() {
   $planOpen.set(false)
   $planFile.set(null)
+}
+
+export function closePlanView() {
+  dismissPlanDialog()
   disarmPlanAutoOpen()
 }
 

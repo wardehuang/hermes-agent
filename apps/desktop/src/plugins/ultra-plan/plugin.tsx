@@ -158,14 +158,18 @@ const plugin: HermesPlugin = {
     let lastRuntime = host.state.focusedSessionId.get()
 
     const onSessionFocus = () => {
+      const prevStored = lastStored
       const stored = host.state.focusedStoredSessionId.get()
       const runtime = host.state.focusedSessionId.get()
-      const sameDraftPromote = !lastStored && Boolean(stored) && lastRuntime === runtime
-      const switched = stored !== lastStored || runtime !== lastRuntime
+      const sameDraftPromote = !prevStored && Boolean(stored) && lastRuntime === runtime
       lastStored = stored
       lastRuntime = runtime
 
-      if (switched && !sameDraftPromote) {
+      if (sameDraftPromote) {
+        return
+      }
+
+      if (prevStored && stored && prevStored !== stored) {
         closePlanView()
       }
     }
