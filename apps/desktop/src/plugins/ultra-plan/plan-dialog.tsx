@@ -255,19 +255,21 @@ function PlanDialog() {
       className="h-[min(44rem,86vh)] w-[min(84rem,94vw)] max-w-none"
       data-ultra-plan="dialog"
     >
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-(--stroke-nous) px-5 py-4 pr-12">
+      <header className="flex shrink-0 border-b border-(--stroke-nous) px-5 py-4 pr-12">
         <div className="min-w-0 flex-1">
           <div className="text-[0.6875rem] text-(--ui-text-tertiary)">{t('dialogKicker')}</div>
-          <DialogTitle className="mt-1 truncate text-lg">{file ? planDisplayTitle(file) : t('dialogKicker')}</DialogTitle>
+          <div className="mt-1 flex items-center justify-between gap-4">
+            <DialogTitle className="min-w-0 truncate text-lg">{file ? planDisplayTitle(file) : t('dialogKicker')}</DialogTitle>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button disabled={!ready} onClick={() => void runAction('continue')} size="sm" type="button" variant="secondary">
+                {t('paneContinue')}
+              </Button>
+              <Button disabled={!ready} onClick={() => void runAction('build')} size="sm" type="button">
+                {t('paneBuild')}
+              </Button>
+            </div>
+          </div>
           {file ? <DialogDescription className="mt-0.5 truncate">{file}</DialogDescription> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <Button disabled={!ready} onClick={() => void runAction('continue')} size="sm" type="button" variant="secondary">
-            {t('paneContinue')}
-          </Button>
-          <Button disabled={!ready} onClick={() => void runAction('build')} size="sm" type="button">
-            {t('paneBuild')}
-          </Button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -284,12 +286,15 @@ function PlanDialog() {
               ref={previewRef}
             >
               <div className="mx-auto w-full max-w-[54rem] px-8 py-6">
+                <div className="[&_.preview-markdown]:mx-0 [&_.preview-markdown]:max-w-none [&_.preview-markdown]:px-0 [&_.preview-markdown]:py-0 [&_.preview-markdown]:text-left [&_.preview-markdown]:text-[0.875rem] [&_.preview-markdown]:leading-7 [&_.preview-markdown]:text-foreground [&_h1]:mt-0 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:text-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:leading-snug [&_h2]:text-foreground [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground [&_li]:text-foreground [&_p]:text-left [&_p]:text-foreground">
+                  <MarkdownPreview text={planBodyWithoutTasks(text)} />
+                </div>
                 {tasks.length > 0 ? (
-                  <section className="mb-6">
+                  <section className="mt-8 border-t border-(--stroke-nous) pt-5">
                     <h2 className="mb-2 text-base font-semibold leading-snug text-foreground">{t('paneTasks')}</h2>
                     <ul className="space-y-1.5">
                       {tasks.map(task => (
-                        <li className="flex items-start gap-2 text-[0.9375rem] leading-6" key={`${task.done}-${task.text}`}>
+                        <li className="flex items-start gap-2 text-[0.875rem] leading-6" key={`${task.done}-${task.text}`}>
                           <span
                             className={
                               task.done
@@ -305,9 +310,6 @@ function PlanDialog() {
                     </ul>
                   </section>
                 ) : null}
-                <div className="[&_.preview-markdown]:mx-0 [&_.preview-markdown]:max-w-none [&_.preview-markdown]:px-0 [&_.preview-markdown]:py-0 [&_.preview-markdown]:text-left [&_.preview-markdown]:text-[0.9375rem] [&_.preview-markdown]:leading-7 [&_.preview-markdown]:text-foreground [&_h1]:mt-0 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:text-foreground [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:leading-snug [&_h2]:text-foreground [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground [&_li]:text-foreground [&_p]:text-left [&_p]:text-foreground">
-                  <MarkdownPreview text={planBodyWithoutTasks(text)} />
-                </div>
               </div>
             </div>
           )}
@@ -338,11 +340,9 @@ function PlanDialog() {
               <blockquote className="mb-2 line-clamp-4 border-l border-(--stroke-nous) pl-2 text-[0.75rem] leading-5 text-(--ui-text-tertiary)">
                 {quote}
               </blockquote>
-            ) : (
-              <p className="mb-2 text-[0.75rem] leading-5 text-(--ui-text-tertiary)">{t('paneQuotePlaceholder')}</p>
-            )}
+            ) : null}
             <Textarea
-              className="min-h-16 text-[0.8125rem]"
+              className="min-h-32 text-[0.8125rem]"
               onChange={event => setCommentBody(event.target.value)}
               placeholder={t('paneCommentPlaceholder')}
               value={commentBody}

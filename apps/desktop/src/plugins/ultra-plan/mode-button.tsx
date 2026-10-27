@@ -73,8 +73,8 @@ export function PlanChip() {
           color: 'var(--ui-text-primary)'
         }}
       >
-        <Codicon className="relative top-px shrink-0" name="checklist" size="0.75rem" />
-        <span className="relative -top-px px-0.5 leading-none">{t('modePlan')}</span>
+        <Codicon className="relative shrink-0" name="checklist" size="0.75rem" />
+        <span className="relative top-px px-0.5 leading-none">{t('modePlan')}</span>
         <Button
           aria-label={t('modeClose')}
           className="size-5 shrink-0 rounded p-0 hover:bg-black/15"
