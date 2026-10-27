@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import re
-import sys
 import threading
 import time
 from pathlib import Path
@@ -18,13 +17,10 @@ from typing import Any
 
 __all__ = [
     "DEFAULT_MODE",
-    "STORE_MODULE_NAME",
     "ModeStore",
     "durable_session_id",
     "load_store",
 ]
-
-STORE_MODULE_NAME = "ultra_plan_store"
 
 DEFAULT_MODE = "agent"
 _VALID_MODES = ("agent", "plan")
@@ -252,20 +248,25 @@ class ModeStore:
             self._save()
 
 
+_STORES: dict[str, ModeStore] = {}
+_STORES_GUARD = threading.Lock()
+
+
 def load_store(name: str = "ultra-plan") -> ModeStore:
+    """Return the store for the active Hermes profile.
+
+    The dict lives on this module object. ``__init__.py`` and the dashboard
+    API must load this file once, under the module name ``ultra_plan_store``.
+    A second import of the same file is a different module and would not see
+    this dict.
+    """
     from hermes_constants import hermes_home_key
 
     key = hermes_home_key()
-    holder = sys.modules.get(STORE_MODULE_NAME)
-    if holder is None:
-        holder = sys.modules.setdefault(STORE_MODULE_NAME, sys.modules[__name__])
-    stores = getattr(holder, "_STORES", None)
-    if not isinstance(stores, dict):
-        stores = {}
-        holder._STORES = stores
-    cached = stores.get(key)
-    if isinstance(cached, ModeStore):
-        return cached
-    store = ModeStore(name)
-    stores[key] = store
-    return store
+    with _STORES_GUARD:
+        cached = _STORES.get(key)
+        if isinstance(cached, ModeStore):
+            return cached
+        store = ModeStore(name)
+        _STORES[key] = store
+        return store
