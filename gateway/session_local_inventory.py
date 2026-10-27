@@ -41,6 +41,46 @@ def _grouped(tools):
     return grouped
 
 
+def _menu_provider(agent) -> str:
+    """Provider a picker should mark current.
+
+    A named custom entry (``providers.cpa``) runs as the shared billing class
+    ``custom``. Menu rows are keyed by the config key, and that key's aliases
+    are ``cpa`` / ``custom:cpa`` — never the bare class — so reporting ``custom``
+    leaves every row unchecked and the composer tooltip reading ``custom``.
+    Recover the endpoint's config key. An already-specific provider, including
+    ``custom:<key>``, is a real route and stays as-is. No matching entry keeps
+    the billing class.
+    """
+    from agent.voice_turn_route import session_runtime_view
+    view = session_runtime_view(agent) if agent is not None else None
+    provider = str(getattr(view, "provider", "") or "").strip()
+    if provider.lower() != "custom":
+        return provider
+    # ``canonical_custom_identity`` falls through to ``model.provider`` when the
+    # URL matches nothing, so every bare ``custom`` would become the profile
+    # default. Only the endpoint (or, with no URL, the model) may name the row.
+    try:
+        from hermes_cli.runtime_provider import (
+            find_custom_provider_identity,
+            find_custom_provider_identity_by_model,
+        )
+        base_url = str(getattr(view, "base_url", "") or "").strip()
+        if base_url:
+            identity = find_custom_provider_identity(base_url) or ""
+        else:
+            model = str(getattr(view, "model", "") or "").strip()
+            identity = find_custom_provider_identity_by_model(model) if model else ""
+    except Exception:  # health: allow BLE001 -- identity lookup reads config; a failure keeps the billing class
+        logger.debug("custom provider identity lookup failed", exc_info=True)
+        return provider
+    identity = str(identity).strip()
+    if identity.lower().startswith("custom:"):
+        key = identity.split(":", 1)[1].strip()
+        return key or provider
+    return identity or provider
+
+
 def _policy_tools(policy, config):
     """The tool list the session's next agent build loads (``agent/agent_init.py`` tool snapshot):
     the policy's toolsets minus the configured and platform-gated disabled ones, one-shot pruned."""
@@ -141,9 +181,7 @@ def session_inventory(authority, policy, agent, cwd):
     with owner_scope(authority):
         config = policy.config(authority, secrets=False) if policy is not None else {}
         if agent is not None:
-            from agent.voice_turn_route import session_runtime_view
-            view = session_runtime_view(agent)
-            info["provider"] = getattr(view, "provider", "") or ""
+            info["provider"] = _menu_provider(agent)
             info["tools"] = _grouped(getattr(agent, "tools", None))
             info["system_prompt"] = getattr(agent, "_cached_system_prompt", "") or ""
             compressor = getattr(agent, "context_compressor", None)
@@ -209,8 +247,7 @@ def agent_inventory(agent) -> dict:
     length. Cheap attribute reads, safe on the agent thread at turn end."""
     info: dict = {}
     with contextlib.suppress(Exception):
-        from agent.voice_turn_route import session_runtime_view
-        info["provider"] = getattr(session_runtime_view(agent), "provider", "") or ""
+        info["provider"] = _menu_provider(agent)
     with contextlib.suppress(Exception):
         info["tools"] = _grouped(getattr(agent, "tools", None))
     info["system_prompt"] = getattr(agent, "_cached_system_prompt", "") or ""
