@@ -31,6 +31,11 @@ export function useStatusSnapshot(
   const [inferenceStatus, setInferenceStatus] = useState<RuntimeReadinessResult | null>(null)
 
   useEffect(() => {
+    const startedAt = performance.now()
+
+    console.info(
+      `[session-switch] readiness reset scope=${gatewayScope} gatewayState=${gatewayState ?? 'none'}`
+    )
     let cancelled = false
     let timer: number | undefined
     let sharedProfileWarning: boolean = false
@@ -118,6 +123,9 @@ export function useStatusSnapshot(
         // became unconfigured. Keep the last authoritative result instead
         // of flashing "Inference not ready" during a gateway flap.
         publishInferenceStatus(inference)
+        console.info(
+          `[session-switch] readiness ${inference.ready ? 'ready' : 'not-ready'} +${Math.round(performance.now() - startedAt)}ms source=${inference.source}`
+        )
         setFreeTierRoute(inference.freeTier)
       }
     }

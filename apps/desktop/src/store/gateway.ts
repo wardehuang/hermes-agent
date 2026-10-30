@@ -619,6 +619,7 @@ function reportGatewayState(profile: string, state: ConnectionState): void {
   }
 
   if (normKey(profile) === g.activeKey) {
+    console.info(`[session-switch] gatewayState ${state} profile=${profile}`)
     setGatewayState(state)
   }
 }
@@ -646,6 +647,9 @@ function applyActive(profile: string, activationEpoch: number): boolean {
   g.activeKey = normKey(profile)
   const gateway = activeGateway()
   g.$gateway.set(gateway)
+  console.info(
+    `[session-switch] applyActive profile=${profile} state=${gateway?.connectionState ?? 'closed'}`
+  )
   setGatewayState(gateway?.connectionState ?? 'closed')
   // Push the active scope's registry connection into the hermes module (null
   // for the local pool) so connection-building WS calls (pluginSocket) resolve

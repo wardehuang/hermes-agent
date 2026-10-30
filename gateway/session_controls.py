@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import re
+import time
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
@@ -412,11 +413,19 @@ class AuthorityConnection:
 
     async def setup_status(self, ref, params):
         from gateway.session_readiness import readiness
-        return await readiness(self.authority, self.actor, params, runtime=False)
+        started = time.perf_counter()
+        try:
+            return await readiness(self.authority, self.actor, params, runtime=False)
+        finally:
+            logger.info("session-switch setup.status ms=%d", int((time.perf_counter() - started) * 1000))
 
     async def setup_runtime_check(self, ref, params):
         from gateway.session_readiness import readiness
-        return await readiness(self.authority, self.actor, params, runtime=True)
+        started = time.perf_counter()
+        try:
+            return await readiness(self.authority, self.actor, params, runtime=True)
+        finally:
+            logger.info("session-switch setup.runtime_check ms=%d", int((time.perf_counter() - started) * 1000))
 
     async def create(self, ref, params):
         from gateway.session_local_title import validate_title
@@ -561,6 +570,15 @@ class AuthorityConnection:
 
     async def resume(self, ref, params):
         from gateway.session_local_inventory import snapshot_info
+        started = time.perf_counter()
+        sid = getattr(ref, "session_id", "")
+
+        def mark(phase: str) -> None:
+            logger.info(
+                "session-switch canonical phase=%s sid=%s ms=%d",
+                phase, sid, int((time.perf_counter() - started) * 1000))
+
+        mark("start")
         if 'latest' in params:
             # Bare `-c` / `--resume latest`: the most recent session of that surface family the
             # actor may read (workspace first), resolved by the owner like a title.
@@ -583,6 +601,7 @@ class AuthorityConnection:
             from hermes_state_local_migration import LEGACY_LOCAL_SOURCES
             # Another viewer's refresh mid-cleanup has committed a policy it has not published yet.
             await refresh_settled(self.authority, ref.session_id)
+            mark("settled")
             row = self.authority.db.get_session(ref.session_id)
             # Canonical LOCAL compression/reset segments keep the receipt on their logical
             # owner, not on the physical transcript ID the history picker / Desktop supplies
@@ -614,7 +633,9 @@ class AuthorityConnection:
             # whose earlier open found it busy (Desktop's warm `session.activate` resumes on one connection).
             from gateway.session_policy_refresh import refresh_resumed_policy
             await refresh_resumed_policy(self.authority, ref, attached=ref.session_id in self.subscriptions)
+            mark("policy")
         snapshot = await self.authority.attach(self.actor, ref)
+        mark("attach")
         self.subscriptions[ref.session_id] = snapshot.subscription_id
         self._spawn_notice(ref)
         # Only local routes have a frozen local launch policy to project; with it, main's banner and
@@ -624,7 +645,9 @@ class AuthorityConnection:
         if source is not None and source.platform == Platform.LOCAL:
             from gateway.session_policy import policy_for_source, refresh_profile_hooks
             await asyncio.to_thread(refresh_profile_hooks, policy_for_source(self.authority.runner, source))
+            mark("hooks")
             info = await snapshot_info(self.authority, snapshot.handle.ref)
+            mark("snapshot")
         from gateway.session_connections import pending_connection
         # Its home module, not tui_gateway.server: importing the stdio sidecar points sys.stdout at stderr.
         from tui_gateway.tool_progress import _todo_state_from_history
@@ -633,6 +656,7 @@ class AuthorityConnection:
             # A micro-compaction merge stays in ``messages`` (an undo target); its originals are what shows.
             display['display_messages'] = display_projection(
                 [row for row in history if not model_only(row)], self.authority.profile_id)
+        mark("done")
         return {'session_id': ref.session_id, 'stored_session_id': ref.session_id,
                 'messages': history, **display, 'message_count': len(history),
                 'running': snapshot.handle.execution_state == 'running',
