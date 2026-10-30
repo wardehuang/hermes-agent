@@ -155,7 +155,7 @@ def _cli_skills():
     catalog cache entry it would poison is restored, so other surfaces keep their own view."""
     from tools import skills_tool
     from tools.kanban_toolset_context import scoped_kanban_toolset_selection
-    key = ("filtered", False)
+    key = skills_tool.catalog_cache_key(skip_disabled=False, include_hidden=False)
     saved = skills_tool._SKILLS_CACHE.pop(key, None)
     try:
         with scoped_kanban_toolset_selection(["kanban"]):
@@ -208,8 +208,14 @@ def session_inventory(authority, policy, agent, cwd):
             if policy is not None and policy.source == "cli":
                 info["skills"] = _cli_skills()
             else:
-                from hermes_cli.banner import get_available_skills
-                info["skills"] = get_available_skills()
+                # Resume must not wait on a cold SKILL.md parse. A signature hit is the
+                # stored groups; a miss returns the last groups for this profile (or {})
+                # and snapshot_info republishes session.info when the scan finishes.
+                from tools.skills_tool import profile_skill_groups
+                groups, refresh = profile_skill_groups(block=False)
+                info["skills"] = groups
+                if refresh:
+                    info["_skills_refresh"] = True
         with contextlib.suppress(Exception):
             from tools.mcp_tool_discovery import get_mcp_status
             info["mcp_servers"] = get_mcp_status()
@@ -238,7 +244,45 @@ async def snapshot_info(authority, ref):
     if info.get('tool_count') is None:
         # A lazy session: the tools its first turn loads (the banner's own count).
         info['tool_count'] = sum(len(names) for names in (inventory.get('tools') or {}).values())
-    return {**inventory, **info}
+    refresh = bool(inventory.pop("_skills_refresh", False))
+    merged = {**inventory, **info}
+    if refresh:
+        _schedule_profile_skill_refresh(authority, ref)
+    return merged
+
+
+def _schedule_profile_skill_refresh(authority, ref) -> None:
+    """Parse this profile's skills off the resume reply, then publish session.info."""
+    from tools.skills_tool import claim_profile_skill_refresh
+    if not claim_profile_skill_refresh():
+        return
+    try:
+        asyncio.get_running_loop().create_task(_publish_refreshed_skills(authority, ref))
+    except RuntimeError:
+        from tools.skills_tool import finish_profile_skill_refresh
+        finish_profile_skill_refresh()
+
+
+async def _publish_refreshed_skills(authority, ref) -> None:
+    from gateway.session_local import local_session_info
+    from gateway.session_policy import policy_for_source
+    from tools.skills_tool import finish_profile_skill_refresh, profile_skill_groups
+    try:
+        await asyncio.to_thread(profile_skill_groups, block=True)
+        sessions = getattr(authority, "sessions", None)
+        live = sessions.get(ref.session_id) if hasattr(sessions, "get") else None
+        if live is None:
+            return
+        info = local_session_info(authority, ref)
+        policy = policy_for_source(authority.runner, authority.sessions[ref.session_id].source)
+        agent = authority.agent(ref)
+        inventory = await asyncio.to_thread(session_inventory, authority, policy, agent, info.get("cwd"))
+        inventory.pop("_skills_refresh", None)
+        live.event_stream.publish(ref.session_id, {**inventory, **info}, event_type="session.info")
+    except Exception:
+        logger.debug("profile skill refresh failed", exc_info=True)
+    finally:
+        finish_profile_skill_refresh()
 
 
 def agent_inventory(agent) -> dict:

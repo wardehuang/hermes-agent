@@ -8,6 +8,7 @@ import contextvars
 import json
 import logging
 import os
+import threading
 import time
 from contextlib import contextmanager, suppress
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -39,11 +40,25 @@ _SKILLS_CACHE: dict = {}
 _SKILLS_CACHE_TTL_SECONDS = 30.0
 # Deepest directory the signature descends to below a root (a skill sits at <cat>/<sub>/<skill>/).
 _SIGNATURE_MAX_DEPTH = 6
+# Grouped banner names per profile home: (signature, stored_at, groups). A multiplexed gateway
+# must not keep one slot — the launch home's list would be served to every other profile.
+_PROFILE_SKILL_GROUPS: dict = {}
+_PROFILE_REFRESHING: set[str] = set()
+_PROFILE_LOCK = threading.Lock()
 
 
 def clear_skills_cache() -> None:
     """Drop the scanned catalog so the next listing re-scans (explicit reloads must not wait out the TTL)."""
     _SKILLS_CACHE.clear()
+    with _PROFILE_LOCK:
+        _PROFILE_SKILL_GROUPS.clear()
+
+
+def catalog_cache_key(*, skip_disabled: bool, include_hidden: bool) -> tuple:
+    """Catalog slot for the profile whose home is bound on this thread."""
+    from hermes_constants import hermes_home_key
+    kind = "with_disabled" if skip_disabled else "filtered"
+    return (hermes_home_key(), kind, include_hidden)
 
 
 def _dir_tree_signature(root, sig, depth=_SIGNATURE_MAX_DEPTH) -> None:
@@ -233,7 +248,7 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
     collecting candidates, so it asks for hidden rows too."""
     from agent.skill_utils import (
         TIER_PROJECT, is_disabled_entry, iter_project_skill_files, iter_skill_index_files, resolve_skill_catalog)
-    cache_key = ("with_disabled" if skip_disabled else "filtered", include_hidden)
+    cache_key = catalog_cache_key(skip_disabled=skip_disabled, include_hidden=include_hidden)
     disabled = set() if skip_disabled else _get_disabled_skill_names()
     roots, _ = skill_search_dirs()
     signature = _skills_scan_signature([d for _t, d in roots], disabled)
@@ -272,6 +287,50 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
     # signature, so the next call re-scans instead of serving a torn result.
     _SKILLS_CACHE[cache_key] = (signature, now, skills)
     return [dict(s) for s in skills]
+
+
+def profile_skill_groups(*, block: bool = True) -> tuple[dict[str, list[str]], bool]:
+    """Skills grouped by category for the bound profile.
+
+    The second value is True when the caller should refresh off the reply path. ``block=False``
+    never parses SKILL.md: a matching signature returns the stored groups, and a miss or a stale
+    signature returns the last groups for this home (or ``{}``). ``block=True`` scans, then stores.
+    The 30s TTL still covers a frontmatter edit that leaves the directory signature unchanged.
+    """
+    from hermes_constants import hermes_home_key
+    home = hermes_home_key()
+    roots, _active = skill_search_dirs()
+    signature = _skills_scan_signature([d for _tier, d in roots], _get_disabled_skill_names())
+    now = time.monotonic()
+    with _PROFILE_LOCK:
+        cached = _PROFILE_SKILL_GROUPS.get(home)
+    if cached is not None and cached[0] == signature and (now - cached[1]) < _SKILLS_CACHE_TTL_SECONDS:
+        return cached[2], False
+    if not block:
+        return (cached[2] if cached else {}), True
+    groups: dict[str, list[str]] = {}
+    for skill in find_all_skills():
+        groups.setdefault(skill.get("category") or "general", []).append(skill["name"])
+    with _PROFILE_LOCK:
+        _PROFILE_SKILL_GROUPS[home] = (signature, time.monotonic(), groups)
+    return groups, False
+
+
+def claim_profile_skill_refresh() -> bool:
+    """True when this thread should run the one in-flight scan for the bound profile."""
+    from hermes_constants import hermes_home_key
+    home = hermes_home_key()
+    with _PROFILE_LOCK:
+        if home in _PROFILE_REFRESHING:
+            return False
+        _PROFILE_REFRESHING.add(home)
+        return True
+
+
+def finish_profile_skill_refresh() -> None:
+    from hermes_constants import hermes_home_key
+    with _PROFILE_LOCK:
+        _PROFILE_REFRESHING.discard(hermes_home_key())
 
 
 def find_all_skills(*, skip_disabled: bool = False) -> list[dict[str, Any]]:
