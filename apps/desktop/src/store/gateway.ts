@@ -652,9 +652,6 @@ function applyActive(profile: string, activationEpoch: number, requestScope?: st
   g.$gateway.set(gateway)
   const nextState = gateway?.connectionState ?? 'closed'
 
-  logSessionSwitch(
-    `applyActive profile=${profile} ${$gatewayState.get()} -> ${nextState} ${sessionSwitchCaller()}`
-  )
   setGatewayState(nextState)
   // Push the active scope's registry connection into the hermes module (null
   // for the local pool) so connection-building WS calls (pluginSocket) resolve
@@ -676,6 +673,9 @@ function applyActive(profile: string, activationEpoch: number, requestScope?: st
     g.activeKey === g.primaryProfile ? g.primaryProfile : (g.secondaries.get(g.activeKey)?.profile ?? g.primaryProfile)
   const routeProfile = requestScope ? normKey(requestScope) : socketProfile
 
+  logSessionSwitch(
+    `applyActive socket=${profile} announce=${routeProfile} ${$gatewayState.get()} -> ${nextState} ${sessionSwitchCaller()}`
+  )
   g.$activeProfile.set(routeProfile)
   g.config?.onActiveRouteChanged?.(routeProfile)
   traceIdentityChange(
@@ -1863,9 +1863,12 @@ export async function ensureGatewayForAgent(
   const activationEpoch = beginGatewayActivation()
 
   if (await ridesPrimaryBackend(connectionId, profile)) {
-    // A retained primary can be open while the foreground still points at a
-    // different source. Reusing its socket must also move the active route.
-    return Boolean(isOpen(g.primaryGateway) && !signal?.aborted && applyActive(g.primaryProfile, activationEpoch))
+    // The socket stays the primary. The status route is the profile this
+    // agent asked for — publishing the launch profile bounced the status bar
+    // on every same-profile session switch, then the caller wrote it back.
+    return Boolean(
+      isOpen(g.primaryGateway) && !signal?.aborted && applyActive(g.primaryProfile, activationEpoch, normKey(profile))
+    )
   }
 
   if (!window.hermesDesktop?.getConnectionFor) {

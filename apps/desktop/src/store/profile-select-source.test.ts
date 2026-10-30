@@ -162,6 +162,15 @@ describe('selectProfile startup preference (#79886)', () => {
     await vi.waitFor(() => expect(rememberProfile).toHaveBeenCalledWith('tilly'))
   })
 
+  it('remembers a local-source pick for the next Desktop launch', async () => {
+    activeGatewayConnectionId.mockReturnValue('local')
+
+    selectProfile('ai-study')
+
+    await vi.waitFor(() => expect(rememberProfile).toHaveBeenCalledWith('ai-study'))
+    expect(ensureGatewayForProfile).toHaveBeenCalledWith('ai-study')
+  })
+
   it('does not replace the startup preference for a registry-source pick', async () => {
     activeGatewayConnectionId.mockReturnValue('mini')
 
