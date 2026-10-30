@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ def _cli_skills():
     catalog cache entry it would poison is restored, so other surfaces keep their own view."""
     from tools import skills_tool
     from tools.kanban_toolset_context import scoped_kanban_toolset_selection
-    key = skills_tool.catalog_cache_key(skip_disabled=False, include_hidden=False)
+    key = ("filtered", False)
     saved = skills_tool._SKILLS_CACHE.pop(key, None)
     try:
         with scoped_kanban_toolset_selection(["kanban"]):
@@ -175,11 +176,21 @@ def session_inventory(authority, policy, agent, cwd):
     its own, so one failing builder never blanks the others (main wrapped each in ``suppress``)."""
     from gateway.session_authorities import owner_scope
     from tui_gateway import git_probe
+    marks: list[str] = []
+
+    def mark(name: str, started: float) -> None:
+        marks.append(f"{name}={int((time.perf_counter() - started) * 1000)}")
+
+    started = time.perf_counter()
+    branch = git_probe.branch(cwd) if cwd else ""
+    project = _project(cwd)
+    mark("git", started)
     info: dict = {"tools": {}, "skills": {}, "mcp_servers": [], "version": "", "release_date": "",
                   "update_behind": None, "update_command": "",
-                  "branch": git_probe.branch(cwd) if cwd else "", "project": _project(cwd)}
+                  "branch": branch, "project": project}
     with owner_scope(authority):
         config = policy.config(authority, secrets=False) if policy is not None else {}
+        started = time.perf_counter()
         if agent is not None:
             info["provider"] = _menu_provider(agent)
             info["tools"] = _grouped(getattr(agent, "tools", None))
@@ -197,32 +208,36 @@ def session_inventory(authority, policy, agent, cwd):
                     info["tools"] = _grouped(tools)
                 except Exception:  # health: allow BLE001 -- main's suppress: the banner shows no tools, not an error
                     logger.warning("session inventory: tool snapshot failed", exc_info=True)
+        mark("tools", started)
         info["enabled_toolsets"] = sorted(enabled)
+        started = time.perf_counter()
         with contextlib.suppress(Exception):
             # The classic CLI banner colours lazy (yellow) / disabled (red) tools from this.
             from hermes_cli.banner import compute_toolset_availability
             info["tool_availability"] = compute_toolset_availability(enabled)
+        mark("availability", started)
         if policy is not None and policy.source == "cli":
             info.update(_cli_startup_notices(enabled), unknown_toolsets=_unknown_toolsets(enabled, config))
+        started = time.perf_counter()
         with contextlib.suppress(Exception):
             if policy is not None and policy.source == "cli":
                 info["skills"] = _cli_skills()
             else:
-                # Resume must not wait on a cold SKILL.md parse. A signature hit is the
-                # stored groups; a miss returns the last groups for this profile (or {})
-                # and snapshot_info republishes session.info when the scan finishes.
-                from tools.skills_tool import profile_skill_groups
-                groups, refresh = profile_skill_groups(block=False)
-                info["skills"] = groups
-                if refresh:
-                    info["_skills_refresh"] = True
+                from hermes_cli.banner import get_available_skills
+                info["skills"] = get_available_skills()
+        mark("skills", started)
+        started = time.perf_counter()
         with contextlib.suppress(Exception):
             from tools.mcp_tool_discovery import get_mcp_status
             info["mcp_servers"] = get_mcp_status()
+        mark("mcp", started)
+    started = time.perf_counter()
     with contextlib.suppress(Exception):
         from hermes_cli import __release_date__
         from hermes_cli.version_info import get_version_info
         info.update(version=get_version_info().base_version, release_date=__release_date__)
+    mark("version", started)
+    started = time.perf_counter()
     with contextlib.suppress(Exception):
         from hermes_cli.banner import get_update_result
         from hermes_cli.config import recommended_update_command
@@ -230,6 +245,8 @@ def session_inventory(authority, policy, agent, cwd):
         # Two assignments, as on main: a failing command lookup still reports update_behind.
         info["update_behind"] = get_update_result(timeout=0.5)
         info["update_command"] = recommended_update_command()
+    mark("update", started)
+    logger.info("session-switch inventory %s", " ".join(marks))
     return info
 
 
@@ -244,45 +261,7 @@ async def snapshot_info(authority, ref):
     if info.get('tool_count') is None:
         # A lazy session: the tools its first turn loads (the banner's own count).
         info['tool_count'] = sum(len(names) for names in (inventory.get('tools') or {}).values())
-    refresh = bool(inventory.pop("_skills_refresh", False))
-    merged = {**inventory, **info}
-    if refresh:
-        _schedule_profile_skill_refresh(authority, ref)
-    return merged
-
-
-def _schedule_profile_skill_refresh(authority, ref) -> None:
-    """Parse this profile's skills off the resume reply, then publish session.info."""
-    from tools.skills_tool import claim_profile_skill_refresh
-    if not claim_profile_skill_refresh():
-        return
-    try:
-        asyncio.get_running_loop().create_task(_publish_refreshed_skills(authority, ref))
-    except RuntimeError:
-        from tools.skills_tool import finish_profile_skill_refresh
-        finish_profile_skill_refresh()
-
-
-async def _publish_refreshed_skills(authority, ref) -> None:
-    from gateway.session_local import local_session_info
-    from gateway.session_policy import policy_for_source
-    from tools.skills_tool import finish_profile_skill_refresh, profile_skill_groups
-    try:
-        await asyncio.to_thread(profile_skill_groups, block=True)
-        sessions = getattr(authority, "sessions", None)
-        live = sessions.get(ref.session_id) if hasattr(sessions, "get") else None
-        if live is None:
-            return
-        info = local_session_info(authority, ref)
-        policy = policy_for_source(authority.runner, authority.sessions[ref.session_id].source)
-        agent = authority.agent(ref)
-        inventory = await asyncio.to_thread(session_inventory, authority, policy, agent, info.get("cwd"))
-        inventory.pop("_skills_refresh", None)
-        live.event_stream.publish(ref.session_id, {**inventory, **info}, event_type="session.info")
-    except Exception:
-        logger.debug("profile skill refresh failed", exc_info=True)
-    finally:
-        finish_profile_skill_refresh()
+    return {**inventory, **info}
 
 
 def agent_inventory(agent) -> dict:

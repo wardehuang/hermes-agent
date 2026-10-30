@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { getStatus } from '@/hermes'
 import { type I18nContextValue, useI18n } from '@/i18n'
 import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
 import { $freeTierStatus, refreshFreeTierStatus, setFreeTierRoute } from '@/store/free-tier'
 import { $setupReadyTick } from '@/store/live-sync'
 import { dismissNotification, notify } from '@/store/notifications'
@@ -29,13 +30,25 @@ export function useStatusSnapshot(
   const warningMessage: string = t.notifications.sharedProfileWarning
   const [statusSnapshot, setStatusSnapshot] = useState<StatusResponse | null>(null)
   const [inferenceStatus, setInferenceStatus] = useState<RuntimeReadinessResult | null>(null)
+  const readinessScopeRef = useRef({ gatewayScope, gatewayState, requestGateway, warningMessage })
 
+  // Previous effect inputs, compared and then stored in this effect so the
+  // session-switch log can name the seam. Nothing outside the effect reads it.
+  // eslint-disable-next-line no-restricted-syntax -- diagnostic prop mirror, not a callback stale-read
   useEffect(() => {
+    const previous = readinessScopeRef.current
+
+    const changes = [
+      previous.gatewayScope !== gatewayScope ? `scope "${previous.gatewayScope}" -> "${gatewayScope}"` : '',
+      previous.gatewayState !== gatewayState ? `gatewayState ${previous.gatewayState} -> ${gatewayState}` : '',
+      previous.requestGateway !== requestGateway ? 'requestGateway identity' : '',
+      previous.warningMessage !== warningMessage ? 'locale' : ''
+    ].filter(Boolean)
+
+    readinessScopeRef.current = { gatewayScope, gatewayState, requestGateway, warningMessage }
     const startedAt = performance.now()
 
-    console.info(
-      `[session-switch] readiness reset scope=${gatewayScope} gatewayState=${gatewayState ?? 'none'}`
-    )
+    logSessionSwitch(`readiness reset (${changes.length > 0 ? changes.join('; ') : 'mount'}) ${sessionSwitchCaller()}`)
     let cancelled = false
     let timer: number | undefined
     let sharedProfileWarning: boolean = false
@@ -96,6 +109,8 @@ export function useStatusSnapshot(
     // run once per seam instead of every 60s.
     const refreshReadiness = async () => {
       if (gatewayState !== 'open') {
+        logSessionSwitch(`readiness skipped state=${gatewayState ?? 'none'}`)
+
         return
       }
 
@@ -111,6 +126,10 @@ export function useStatusSnapshot(
       ])
 
       if (cancelled || inferenceResult.status !== 'fulfilled') {
+        logSessionSwitch(
+          `readiness dropped ${cancelled ? 'cancelled' : 'rejected'} +${Math.round(performance.now() - startedAt)}ms`
+        )
+
         return
       }
 
@@ -123,10 +142,12 @@ export function useStatusSnapshot(
         // became unconfigured. Keep the last authoritative result instead
         // of flashing "Inference not ready" during a gateway flap.
         publishInferenceStatus(inference)
-        console.info(
-          `[session-switch] readiness ${inference.ready ? 'ready' : 'not-ready'} +${Math.round(performance.now() - startedAt)}ms source=${inference.source}`
+        logSessionSwitch(
+          `readiness ${inference.ready ? 'ready' : 'not-ready'} +${Math.round(performance.now() - startedAt)}ms source=${inference.source}`
         )
         setFreeTierRoute(inference.freeTier)
+      } else {
+        logSessionSwitch(`readiness kept-checking source=fallback +${Math.round(performance.now() - startedAt)}ms`)
       }
     }
 

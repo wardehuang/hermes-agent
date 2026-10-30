@@ -124,19 +124,23 @@ def _memo(cache_name: str, compute):
 def get_available_skills() -> dict[str, list[str]]:
     """Return skills grouped by category, filtered by platform and disabled state.
 
-    Cached per profile home (a multiplexed gateway serves many homes in one process; one
-    process-global slot would show the launch profile's skills everywhere). A failed scan
-    yields ``{}`` and is not cached. ``prefetch_banner_data()`` still pays the first scan
-    off-thread.
+    Cached per-process (the skills-tree walk costs ~100ms and feeds only the startup banner);
+    ``prefetch_banner_data()`` pays it off-thread. A failed scan yields ``{}`` and is not cached.
     """
-    from tools.skills_tool import profile_skill_groups
+    def _scan():
+        from tools.skills_tool import find_all_skills
+        return find_all_skills()  # already filtered
 
     def _compute():
-        groups, _refresh = profile_skill_groups(block=True)
-        return groups
-
-    result = _quiet(_compute)
-    return {} if result is None else result
+        all_skills = _quiet(_scan)
+        if all_skills is None:
+            return _UNCACHED
+        skills_by_category: dict[str, list[str]] = {}
+        for skill in all_skills:
+            skills_by_category.setdefault(skill.get("category") or "general", []).append(skill["name"])
+        return skills_by_category
+    result = _memo("_available_skills_cache", _compute)
+    return {} if result is _UNCACHED else result
 
 
 def _resolve_repo_dir() -> Optional[Path]:

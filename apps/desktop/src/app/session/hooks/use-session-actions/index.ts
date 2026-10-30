@@ -33,6 +33,7 @@ import {
 import { markReasoningEffortPending } from '@/lib/chat-runtime'
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { purgeInFlightTurnJournals, recoverInFlightTurnJournal } from '@/lib/inflight-turn-journal'
+import { logSessionSwitch } from '@/lib/session-switch-log'
 import { latestSessionTodoSnapshot } from '@/lib/todos'
 import { setSessionYolo } from '@/lib/yolo-session'
 import { $clarifyRequests, clearClarifyRequest } from '@/store/clarify'
@@ -1231,9 +1232,7 @@ export function useSessionActions({
       const resumedSameSelectedSession = selectedStoredSessionIdRef.current === storedSessionId
       const switchStartedAt = performance.now()
       const markSwitch = (phase: string) => {
-        console.info(
-          `[session-switch] ${phase} sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms`
-        )
+        logSessionSwitch(`${phase} sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms`)
       }
 
       markSwitch('start')
@@ -1926,6 +1925,14 @@ export function useSessionActions({
               if (isCurrentResume()) {
                 const activatedState = updateSessionState(cachedRuntimeId, reconcileActivatedState, storedSessionId)
                 syncSessionStateToView(cachedRuntimeId, activatedState)
+                markSwitch(`warm-published rows=${activatedState.messages.length}`)
+                const publishedAt = performance.now()
+
+                requestAnimationFrame(() => {
+                  logSessionSwitch(
+                    `frame sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms after-warm=${Math.round(performance.now() - publishedAt)}ms rows=${activatedState.messages.length}`
+                  )
+                })
               } else {
                 // updateSessionState stages a view sync based on active runtime,
                 // which can lag a newer route intent. Background hydration only
@@ -2151,7 +2158,14 @@ export function useSessionActions({
           // The overlap reads await; skip painting if this resume went stale.
           if (isCurrentResume() && !chatMessageArraysEquivalent($messages.get(), localSnapshot)) {
             setMessages(localSnapshot)
-            markSwitch('painted')
+            markSwitch(`painted rows=${localSnapshot.length}`)
+            const paintedAt = performance.now()
+
+            requestAnimationFrame(() => {
+              logSessionSwitch(
+                `frame sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms after-paint=${Math.round(performance.now() - paintedAt)}ms rows=${localSnapshot.length}`
+              )
+            })
           }
         }
 

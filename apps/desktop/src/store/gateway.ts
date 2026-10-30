@@ -22,6 +22,7 @@ import {
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { traceIdentityChange } from '@/lib/identity-trace'
 import { isPermanentLocalGatewayEnsureError } from '@/lib/local-gateway-ensure-failure'
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
 import {
   isTimeoutError,
   RECONNECT_ATTEMPT_TIMEOUT_MS,
@@ -30,7 +31,7 @@ import {
 } from '@/lib/with-timeout'
 import { notifyError, RECOVERY_ACTIONS } from '@/store/notifications'
 import { markNativeNotifyBaseline } from '@/store/notify-baseline'
-import { setConnection, setGatewayState } from '@/store/session'
+import { $gatewayState, setConnection, setGatewayState } from '@/store/session'
 import { stampSecondaryProfileOwner } from '@/store/session-event-provenance'
 
 // ── Multi-profile gateway routing ──────────────────────────────────────────
@@ -619,7 +620,9 @@ function reportGatewayState(profile: string, state: ConnectionState): void {
   }
 
   if (normKey(profile) === g.activeKey) {
-    console.info(`[session-switch] gatewayState ${state} profile=${profile}`)
+    logSessionSwitch(
+      `gatewayState ${$gatewayState.get()} -> ${state} profile=${profile} via=socket ${sessionSwitchCaller()}`
+    )
     setGatewayState(state)
   }
 }
@@ -647,10 +650,12 @@ function applyActive(profile: string, activationEpoch: number): boolean {
   g.activeKey = normKey(profile)
   const gateway = activeGateway()
   g.$gateway.set(gateway)
-  console.info(
-    `[session-switch] applyActive profile=${profile} state=${gateway?.connectionState ?? 'closed'}`
+  const nextState = gateway?.connectionState ?? 'closed'
+
+  logSessionSwitch(
+    `applyActive profile=${profile} ${$gatewayState.get()} -> ${nextState} ${sessionSwitchCaller()}`
   )
-  setGatewayState(gateway?.connectionState ?? 'closed')
+  setGatewayState(nextState)
   // Push the active scope's registry connection into the hermes module (null
   // for the local pool) so connection-building WS calls (pluginSocket) resolve
   // through the same source of truth every activation path maintains here —
