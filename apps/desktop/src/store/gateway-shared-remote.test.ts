@@ -37,7 +37,7 @@ vi.mock('@/store/session', () => ({
 }))
 vi.mock('@/store/notify-baseline', () => ({ markNativeNotifyBaseline: vi.fn() }))
 
-const { $gateway, closeSecondaryGateways, configureGatewayRegistry, ensureGatewayForProfile, setPrimaryGateway } =
+const { $gateway, activeGatewayProfileKey, closeSecondaryGateways, configureGatewayRegistry, ensureGatewayForProfile, setPrimaryGateway } =
   await import('./gateway')
 
 type DesktopStub = { getConnection: ReturnType<typeof vi.fn> }
@@ -78,6 +78,7 @@ describe('ensureGatewayForProfile under a shared global remote', () => {
 
     expect(gatewayMocks.connect).not.toHaveBeenCalled()
     expect($gateway.get()).toBe(primary)
+    expect(activeGatewayProfileKey()).toBe('venture')
   })
 
   it('dials the exact WebSocket URL for a pooled profile descriptor that carries profile', async () => {

@@ -642,7 +642,7 @@ function beginGatewayActivation(): number {
   return g.activationEpoch
 }
 
-function applyActive(profile: string, activationEpoch: number): boolean {
+function applyActive(profile: string, activationEpoch: number, requestScope?: string): boolean {
   if (gatewayActivationEpoch() !== activationEpoch) {
     return false
   }
@@ -669,8 +669,12 @@ function applyActive(profile: string, activationEpoch: number): boolean {
   // truth for "which profile is the active gateway on" — every eviction /
   // fallback path funnels through applyActive, so the published profile can
   // never linger on a backend that is no longer selected (#89206).
-  const routeProfile =
+  // A shared-primary activation keeps the primary SOCKET but the status route
+  // is the profile the caller asked for. Publishing the launch profile here
+  // flashed the status bar off the session's profile and back.
+  const socketProfile =
     g.activeKey === g.primaryProfile ? g.primaryProfile : (g.secondaries.get(g.activeKey)?.profile ?? g.primaryProfile)
+  const routeProfile = requestScope ? normKey(requestScope) : socketProfile
 
   g.$activeProfile.set(routeProfile)
   g.config?.onActiveRouteChanged?.(routeProfile)
@@ -1938,10 +1942,11 @@ export async function ensureGatewayForProfile(profile: string): Promise<void> {
   // Global-remote share (routing case 3): one remote host serves every
   // profile through the PRIMARY socket, scoped per request. Activate the
   // primary instead of dialing a doomed duplicate socket at the same
-  // descriptor — $activeGatewayProfile still moves to `key`, so request
-  // scoping and profile-aware surfaces behave identically.
+  // descriptor. The status route stays `key` — the launch profile is only
+  // the socket, and publishing it here bounced the status bar on every
+  // same-profile session switch.
   if (await sharedPrimaryRoute(key)) {
-    applyActive(g.primaryProfile, activationEpoch)
+    applyActive(g.primaryProfile, activationEpoch, key)
 
     return
   }
