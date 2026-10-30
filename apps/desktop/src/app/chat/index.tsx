@@ -677,6 +677,16 @@ const ChatViewContent = memo(function ChatViewContent({
     routedSessionView: isRoutedSessionView
   })
 
+  useEffect(() => {
+    if (!routedSessionId) {
+      return
+    }
+
+    console.info(
+      `[session-switch] spinner ${loadingSession ? 'on' : 'off'} sid=${routedSessionId} history=${routedHasHistory} empty=${messagesEmpty}`
+    )
+  }, [loadingSession, messagesEmpty, routedHasHistory, routedSessionId])
+
   const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastVisibleIsUser)
 
   const showChatBar = useShowChatBar({

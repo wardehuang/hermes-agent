@@ -1050,6 +1050,7 @@ def _resume_eager(ctx: _Resume) -> dict:
 def _(rid, params: dict) -> dict:
     if not (target := params.get("session_id", "")):
         return _err(rid, 4006, "session_id required")
+    started = time.perf_counter()
     ctx = _Resume(rid, params, target)
     # Profile scope: a DEDICATED handle we own until the agent takes it; else the shared launch db.
     ctx.db, ctx.owns_db = _profile_session_db(ctx.profile_home)
@@ -1075,6 +1076,9 @@ def _(rid, params: dict) -> dict:
         return _resume_eager(ctx) if ctx.eager_build else (
             _resume_deferred(ctx) if ctx.defer_history else _resume_cold(ctx))
     finally:
+        logger.info(
+            "session-switch resume sid=%s ms=%d",
+            target, int((time.perf_counter() - started) * 1000))
         # Refcounting alone does not release the sqlite fds: SessionDB pins ITSELF (atexit.register) once its
         # background token writer starts; only close() unregisters.
         if ctx.owns_db and ctx.db is not None:
@@ -1158,15 +1162,21 @@ def _(rid, params: dict) -> dict:
 def _(rid, params: dict, session: dict) -> dict:
     """Attach the frontend to a live TUI session without closing the previously focused one."""
     sid = str(params.get("session_id") or "")
-    # Only the rebind is atomic with grace expiry; the payload (a DB history read unless
-    # ``omit_messages``) must not hold the process-wide resume lock.
-    with _session_resume_lock:
-        if (refusal := _reattach_refusal(rid, sid, session)) is not None:
-            return refusal
-        with session["history_lock"]:
-            _rebind_live_transport(sid, session, current_transport() or _stdio_transport)
-    return _ok(rid, _live_session_payload(
-        sid, session, touch=True, omit_messages=is_truthy_value(params.get("omit_messages", False))))
+    started = time.perf_counter()
+    try:
+        # Only the rebind is atomic with grace expiry; the payload (a DB history read unless
+        # ``omit_messages``) must not hold the process-wide resume lock.
+        with _session_resume_lock:
+            if (refusal := _reattach_refusal(rid, sid, session)) is not None:
+                return refusal
+            with session["history_lock"]:
+                _rebind_live_transport(sid, session, current_transport() or _stdio_transport)
+        return _ok(rid, _live_session_payload(
+            sid, session, touch=True, omit_messages=is_truthy_value(params.get("omit_messages", False))))
+    finally:
+        logger.info(
+            "session-switch activate sid=%s ms=%d",
+            sid, int((time.perf_counter() - started) * 1000))
 
 
 @method("session.delete")

@@ -764,13 +764,20 @@ async def get_session_messages(
             sid, limit=_limit, offset=offset, latest=latest_page,
             include_compacted=include_compacted, include_ancestors=True)
 
+    started = time.perf_counter()
     result = await asyncio.to_thread(_with_db, profile, _read, read_only=True)
+    read_ms = int((time.perf_counter() - started) * 1000)
     if result is None:
+        _log.info("session-switch messages sid=%s read_ms=%d project_ms=0 rows=0 missing=1", session_id, read_ms)
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
     sid, _limit, messages = result
+    project_started = time.perf_counter()
     projected_messages = await asyncio.to_thread(
         _project_for_display, messages, home=_history_profile_home(profile),
         inline_images=inline_images)
+    _log.info(
+        "session-switch messages sid=%s read_ms=%d project_ms=%d rows=%d",
+        session_id, read_ms, int((time.perf_counter() - project_started) * 1000), len(projected_messages))
     return {
         "session_id": sid,
         # The same stamp list rows carry, so the Desktop keys a page under the

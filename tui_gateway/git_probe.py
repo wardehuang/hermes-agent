@@ -6,6 +6,7 @@ would otherwise re-spawn ``git`` on every sidebar open, while the TTL keeps ``gi
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -35,7 +36,14 @@ def run_git(cwd: str, *args: str) -> str:
 
 
 def branch(cwd: str) -> str:
-    return run_git(cwd, "branch", "--show-current") or run_git(cwd, "rev-parse", "--short", "HEAD")
+    started = time.perf_counter()
+    value = run_git(cwd, "branch", "--show-current") or run_git(cwd, "rev-parse", "--short", "HEAD")
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    # Session switch calls this on the activate/resume reply path. Only slow probes are interesting.
+    if elapsed_ms >= 200:
+        logging.getLogger("hermes.session_switch").info(
+            "session-switch git branch cwd=%s ms=%d", cwd, elapsed_ms)
+    return value
 
 
 class _RootCache:

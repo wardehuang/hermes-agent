@@ -562,18 +562,28 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
   useEffect(() => {
     const connectionChanged = lastConnectionKey !== '' && lastConnectionKey !== connectionKey
     lastConnectionKey = connectionKey
+    // resetProjectTreeState() (gateway/profile switch) wipes this atom from a
+    // parent effect, after this effect has already loaded, and without
+    // changing cwd or connectionKey. The in-flight read is dropped with the
+    // bumped request id. `state.cwd` stays '' while this hook still has a
+    // cwd, and the pane treats that mismatch as loading — forever, because
+    // nothing here re-runs. Follow the wipe.
+    const atomLostThisCwd = Boolean(cwd) && state.cwd !== cwd
 
-    if (connectionChanged) {
-      clearProjectDirCache()
+    if (connectionChanged || atomLostThisCwd) {
+      if (connectionChanged) {
+        clearProjectDirCache()
+      }
+
       // Same path, different machine: what is on screen was read from the old
       // backend, so it has to go even though the cwd string is unchanged.
-      void loadRoot(cwd, { connectionKey, force: true, reset: true })
+      void loadRoot(cwd, { connectionKey, force: true, reset: connectionChanged })
 
       return
     }
 
     void loadRoot(cwd, { connectionKey })
-  }, [connectionKey, cwd])
+  }, [connectionKey, cwd, state.cwd, state.requestId])
 
   // Self-heal: an errored root re-probes every few seconds while the tree is
   // mounted. Each attempt bumps requestId, so a persistent error re-arms the

@@ -664,6 +664,29 @@ describe('useProjectTree', () => {
     await waitFor(() => expect(result.current.data.map(node => node.name)).toEqual(['from-b']))
   })
 
+  // Gateway/profile switch calls resetProjectTreeState() without changing the
+  // cwd string. The pane then shows the skeleton (atom cwd cleared, hook cwd
+  // still set) and the refresh button stays disabled. The mounted hook has to
+  // read again.
+  it('reloads the same cwd after the tree atom is reset', async () => {
+    readDir.mockResolvedValue(ok([{ name: 'README.md', path: '/p/README.md', isDirectory: false }]))
+
+    const { result } = renderHook(() => useProjectTree('/p'))
+
+    await waitFor(() => expect(result.current.data.map(node => node.name)).toEqual(['README.md']))
+    expect(result.current.rootLoading).toBe(false)
+
+    const readsBeforeReset = readDir.mock.calls.length
+
+    act(() => {
+      resetProjectTreeState()
+    })
+
+    await waitFor(() => expect(result.current.rootLoading).toBe(false))
+    expect(result.current.data.map(node => node.name)).toEqual(['README.md'])
+    expect(readDir.mock.calls.length).toBeGreaterThan(readsBeforeReset)
+  })
+
   // The whole point of the toggle is "show me more files", so the folder the
   // user is looking at must gain rows, not lose them. loadRoot(force) rebuilds
   // `data` from the root listing alone, which drops every loaded subtree's
