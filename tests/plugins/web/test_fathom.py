@@ -889,7 +889,10 @@ def test_grok_search_posts_responses_and_parses_json(monkeypatch) -> None:
     assert captured["url"] == "http://grok.example/v1/responses"
     assert captured["headers"]["Authorization"] == "Bearer grok-key"
     assert captured["json"]["model"] == "grok-4.20-multi-agent-0309"
-    assert captured["json"]["tools"] == [{"type": "web_search"}]
+    assert captured["json"]["tools"] == [
+        {"type": "web_search"},
+        {"type": "x_search"},
+    ]
     assert captured["json"]["reasoning"] == {"effort": "high"}
     assert captured["json"]["store"] is False
     assert outcome.rows == [

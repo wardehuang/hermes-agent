@@ -252,6 +252,29 @@ class TestAuxiliaryScopedKeyEnv:
         ss.set_multiplex_active(True)
         assert _scoped_key_env("OPENAI_API_KEY") == "sk-own-env"
 
+    def test_unscoped_reads_profile_dotenv_when_process_env_is_empty(self, tmp_path, monkeypatch):
+        from agent.auxiliary_client import _scoped_key_env
+        from hermes_cli.config import invalidate_env_cache
+
+        (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-from-dotenv\n", encoding="utf-8")
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        ss.set_multiplex_active(False)
+        invalidate_env_cache()
+        assert _scoped_key_env("OPENAI_API_KEY") == "sk-from-dotenv"
+
+    def test_scoped_miss_does_not_read_profile_dotenv(self, tmp_path, monkeypatch):
+        from agent.auxiliary_client import _scoped_key_env
+        from hermes_cli.config import invalidate_env_cache
+
+        (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-from-dotenv\n", encoding="utf-8")
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        ss.set_multiplex_active(True)
+        invalidate_env_cache()
+        with _Scope({"UNRELATED": "x"}):
+            assert _scoped_key_env("OPENAI_API_KEY") == ""
+
     def test_empty_name_returns_empty(self):
         from agent.auxiliary_client import _scoped_key_env
 

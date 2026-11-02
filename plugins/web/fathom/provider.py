@@ -23,7 +23,7 @@ Config::
           model: "grok-4.20-multi-agent-0309"
           effort: "high"
           enable_web_search: true
-          enable_x_search: false
+          enable_x_search: true
         chatgpt:
           base_url: "http://wcpa.edmundvps.site:3000/v1"
           model: "gpt-5-6-thinking"

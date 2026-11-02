@@ -1120,17 +1120,32 @@ def _scoped_key_env(name: str) -> str:
     """Read a provider API key (or its paired base-URL) env var through the profile secret scope.
 
     In agent turns the scope's verdict is authoritative (a scoped miss must not borrow another
-    profile's key); only the unscoped default-profile path (``UnscopedSecretError``) reads
-    ``os.environ`` -- any other scope failure propagates instead of borrowing the ambient env.
+    profile's key or the launch profile's ``.env``). An unscoped multiplex read falls back to
+    ``os.environ`` only. With multiplexing off and no scope, a process that did not export the
+    key still sees the active profile's ``.env`` — the same store ``get_env_value`` uses.
     """
     if not name:
         return ""
-    from agent.secret_scope import UnscopedSecretError, get_secret
+    from agent.secret_scope import (
+        UnscopedSecretError,
+        current_secret_scope,
+        get_secret,
+        is_multiplex_active,
+    )
 
     try:
-        return (get_secret(name) or "").strip()
+        value = get_secret(name)
     except UnscopedSecretError:
         return (os.getenv(name) or "").strip()
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if value == "":
+        return ""
+    if current_secret_scope() is not None or is_multiplex_active():
+        return ""
+    from hermes_cli.config import get_env_value
+
+    return (get_env_value(name) or "").strip()
 
 
 def _attempt_stream_socket(stream: Any) -> Any:

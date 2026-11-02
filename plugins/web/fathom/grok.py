@@ -159,7 +159,7 @@ class GrokAdapter:
         enable_x = _flag(
             "GROK_SEARCH_ENABLE_X_SEARCH",
             grok.get("enable_x_search"),
-            False,
+            True,
         )
         tools: list[dict[str, str]] = []
         if enable_web:
