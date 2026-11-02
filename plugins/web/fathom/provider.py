@@ -1,12 +1,16 @@
 """Fathom — multi-provider web search.
 
-Live adapters: ChatGPT (chatgpt2api ``/v1/search``),
+Live adapters: Grok (Responses API ``POST /responses``),
+ChatGPT (chatgpt2api ``/v1/search``),
 Exa (``POST /search`` plus ``POST /contents``),
 and Tavily (``POST /search`` plus ``POST /extract``).
 
 Each adapter has its own timeout (default 120s). A timed-out adapter is
 dropped for that call; remaining adapters still contribute. An adapter with
-any empty input is skipped. Code defaults are not filled in.
+any empty input is skipped. An explicit blank does not fall through to a
+shipped default. Unset Grok URL, model, and effort keep their shipped
+defaults; an unset Grok key may reuse grok2api. ChatGPT has no shipped
+key or URL.
 
 Config::
 
@@ -14,6 +18,12 @@ Config::
       search_backend: "fathom"
       fathom:
         timeout: 120
+        grok:
+          base_url: "http://wcpa.edmundvps.site:18453/v1"
+          model: "grok-4.20-multi-agent-0309"
+          effort: "high"
+          enable_web_search: true
+          enable_x_search: false
         chatgpt:
           base_url: "http://wcpa.edmundvps.site:3000/v1"
           model: "gpt-5-6-thinking"
@@ -43,6 +53,13 @@ Config::
 
 Env overrides (Desktop Tools panel can write these):
 
+    GROK_SEARCH_API_KEY
+    GROK_SEARCH_BASE_URL
+    GROK_SEARCH_MODEL
+    GROK_SEARCH_EFFORT
+    GROK_SEARCH_TIMEOUT
+    GROK_SEARCH_ENABLE_WEB_SEARCH
+    GROK_SEARCH_ENABLE_X_SEARCH
     CHATGPT_SEARCH_API_KEY
     CHATGPT_SEARCH_BASE_URL
     CHATGPT_SEARCH_MODEL
@@ -84,6 +101,12 @@ from plugins.web.fathom.exa import (
     DEFAULT_SEARCH_DEFAULTS,
     ExaAdapter,
 )
+from plugins.web.fathom.grok import (
+    DEFAULT_BASE_URL as GROK_DEFAULT_BASE_URL,
+    DEFAULT_EFFORT as GROK_DEFAULT_EFFORT,
+    DEFAULT_MODEL as GROK_DEFAULT_MODEL,
+    GrokAdapter,
+)
 from plugins.web.fathom.tavily import (
     DEFAULT_API_KEY as TAVILY_DEFAULT_API_KEY,
     DEFAULT_BASE_URL as TAVILY_DEFAULT_BASE_URL,
@@ -96,15 +119,16 @@ logger = logging.getLogger(__name__)
 
 
 class FathomWebSearchProvider(WebSearchProvider):
-    """Ensemble search backend. ChatGPT, Exa, and Tavily run in parallel."""
+    """Ensemble search backend. Grok, ChatGPT, Exa, and Tavily run in parallel."""
 
     def __init__(self) -> None:
+        self._grok = GrokAdapter()
         self._chatgpt = ChatGPTAdapter()
         self._exa = ExaAdapter()
         self._tavily = TavilyAdapter()
 
     def _adapters(self):
-        return (self._chatgpt, self._exa, self._tavily)
+        return (self._grok, self._chatgpt, self._exa, self._tavily)
 
     @property
     def name(self) -> str:
@@ -128,12 +152,34 @@ class FathomWebSearchProvider(WebSearchProvider):
             "name": "Fathom",
             "badge": "ensemble",
             "tag": (
-                "Multi-provider web search. ChatGPT, Exa, and Tavily run in parallel; "
+                "Multi-provider web search. Grok, ChatGPT, Exa, and Tavily run in parallel; "
                 "a 120s timeout drops that adapter for the call. "
                 "An empty input skips that provider. "
                 "Exa and Tavily also extract page content."
             ),
             "env_vars": [
+                {
+                    "key": "GROK_SEARCH_API_KEY",
+                    "prompt": (
+                        "Grok API key. Unset uses GROK2API_API_KEY or "
+                        "providers.grok2api. A blank value skips Grok."
+                    ),
+                },
+                {
+                    "key": "GROK_SEARCH_BASE_URL",
+                    "prompt": "Grok Responses API base URL. Search is POST /responses.",
+                    "default": GROK_DEFAULT_BASE_URL,
+                },
+                {
+                    "key": "GROK_SEARCH_MODEL",
+                    "prompt": "Grok model id",
+                    "default": GROK_DEFAULT_MODEL,
+                },
+                {
+                    "key": "GROK_SEARCH_EFFORT",
+                    "prompt": "Grok reasoning.effort: low|medium|high|xhigh",
+                    "default": GROK_DEFAULT_EFFORT,
+                },
                 {
                     "key": "CHATGPT_SEARCH_API_KEY",
                     "prompt": "ChatGPT search API key",
@@ -232,7 +278,7 @@ class FathomWebSearchProvider(WebSearchProvider):
             return {
                 "success": False,
                 "error": (
-                    "No Fathom providers configured. Fill every ChatGPT, Exa, "
+                    "No Fathom providers configured. Fill every Grok, ChatGPT, Exa, "
                     "and Tavily input; an empty field skips that provider."
                 ),
             }

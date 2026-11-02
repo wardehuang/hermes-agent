@@ -803,10 +803,17 @@ def test_setup_schema_lists_inputs_without_toggles() -> None:
 
     schema = FathomWebSearchProvider().get_setup_schema()
     by_key = {item["key"]: item for item in schema["env_vars"]}
-    assert "GROK_SEARCH_API_KEY" not in by_key
+    assert "GROK_SEARCH_ENABLED" not in by_key
     assert "EXA_SEARCH_ENABLED" not in by_key
     assert "CHATGPT_SEARCH_ENABLED" not in by_key
     assert "TAVILY_SEARCH_ENABLED" not in by_key
+    assert "default" not in by_key["GROK_SEARCH_API_KEY"]
+    assert by_key["GROK_SEARCH_BASE_URL"]["default"] == "http://wcpa.edmundvps.site:18453/v1"
+    assert by_key["GROK_SEARCH_MODEL"]["default"] == "grok-4.20-multi-agent-0309"
+    assert by_key["GROK_SEARCH_EFFORT"]["default"] == "high"
+    assert "group" not in by_key["GROK_SEARCH_BASE_URL"]
+    assert "controls_group" not in by_key["GROK_SEARCH_BASE_URL"]
+    assert "type" not in by_key["GROK_SEARCH_BASE_URL"]
     assert by_key["EXA_SEARCH_API_KEY"]["default"] == DEFAULT_API_KEY
     assert by_key["TAVILY_SEARCH_API_KEY"]["default"] == DEFAULT_API_KEY
     assert "group" not in by_key["EXA_SEARCH_BASE_URL"]
@@ -817,3 +824,122 @@ def test_setup_schema_lists_inputs_without_toggles() -> None:
     assert by_key["EXA_EXTRACT_DEFAULTS"]["default"] == DEFAULT_EXTRACT_DEFAULTS
     assert by_key["CHATGPT_SEARCH_EFFORT"]["default"] == "extended"
     assert FathomWebSearchProvider().supports_extract() is True
+
+
+def _grok_read(values: dict[str, str]):
+    def read(name: str) -> str | None:
+        if name in values:
+            return values[name]
+        return None
+
+    return read
+
+
+def test_grok_search_posts_responses_and_parses_json(monkeypatch) -> None:
+    from plugins.web.fathom.grok import GrokAdapter
+
+    read = _grok_read(
+        {
+            "GROK_SEARCH_API_KEY": "grok-key",
+            "GROK_SEARCH_BASE_URL": "http://grok.example/v1",
+            "GROK_SEARCH_MODEL": "grok-4.20-multi-agent-0309",
+            "GROK_SEARCH_EFFORT": "high",
+        }
+    )
+    monkeypatch.setattr("plugins.web.fathom.grok.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.common.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.grok.get_provider_env", lambda _name: "")
+    monkeypatch.setattr("plugins.web.fathom.grok.load_config_section", lambda _path: {})
+    captured: dict = {}
+
+    class _Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"results":[{"title":"Hit","url":"https://a.example",'
+                                    '"description":"snip"}]}'
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return _Response()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    outcome = GrokAdapter().search("latest grok", 3)
+    assert outcome.success is True
+    assert captured["url"] == "http://grok.example/v1/responses"
+    assert captured["headers"]["Authorization"] == "Bearer grok-key"
+    assert captured["json"]["model"] == "grok-4.20-multi-agent-0309"
+    assert captured["json"]["tools"] == [{"type": "web_search"}]
+    assert captured["json"]["reasoning"] == {"effort": "high"}
+    assert captured["json"]["store"] is False
+    assert outcome.rows == [
+        {
+            "title": "Hit",
+            "url": "https://a.example",
+            "description": "snip",
+            "position": 1,
+        }
+    ]
+
+
+def test_blank_grok_key_does_not_fall_through_to_grok2api(monkeypatch) -> None:
+    from plugins.web.fathom.grok import GrokAdapter
+
+    read = _grok_read(
+        {
+            "GROK_SEARCH_API_KEY": "   ",
+            "GROK2API_API_KEY": "inherited",
+        }
+    )
+    monkeypatch.setattr("plugins.web.fathom.grok.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.common.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.grok.load_config_section", lambda _path: {})
+
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("httpx.post should not be called")
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "post", fail_post)
+    adapter = GrokAdapter()
+    assert adapter.api_key() == ""
+    assert adapter.enabled() is False
+    outcome = adapter.search("query", 3)
+    assert outcome.success is False
+    assert outcome.error == "Grok skipped because an input is empty."
+
+
+def test_unset_grok_key_reuses_grok2api_and_shipped_defaults(monkeypatch) -> None:
+    from plugins.web.fathom.grok import GrokAdapter
+
+    read = _grok_read({"GROK2API_API_KEY": "inherited"})
+    monkeypatch.setattr("plugins.web.fathom.grok.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.common.read_env", read)
+    monkeypatch.setattr("plugins.web.fathom.grok.load_config_section", lambda _path: {})
+    monkeypatch.setattr("plugins.web.fathom.common.load_config_section", lambda _path: {})
+    adapter = GrokAdapter()
+    assert adapter.api_key() == "inherited"
+    assert adapter.base_url() == "http://wcpa.edmundvps.site:18453/v1"
+    assert adapter.inputs()["model"] == "grok-4.20-multi-agent-0309"
+    assert adapter.inputs()["effort"] == "high"
+    assert adapter.enabled() is True
