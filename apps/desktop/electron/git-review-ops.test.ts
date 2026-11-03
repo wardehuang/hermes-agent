@@ -11,6 +11,7 @@ import {
   repoStatus,
   resolveRenamePath,
   REVIEW_FILE_CAP,
+  reviewCommit,
   reviewCreatePr,
   reviewList,
   simpleGitHostEnv
@@ -329,4 +330,86 @@ test('reviewCreatePr falls back to the generic message when gh reports no stderr
   failGh('')
 
   await assert.rejects(reviewCreatePr(dir, 'git', 'gh'), /is gh installed and authenticated\?/)
+})
+
+function makeBareRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-desktop-git-bare-'))
+
+  tempDirs.push(dir)
+  execFileSync('git', ['init', '--bare', '-q'], { cwd: dir })
+
+  return dir
+}
+
+function headSubject(dir: string) {
+  return execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd: dir, encoding: 'utf8' }).trim()
+}
+
+test('reviewCommit with push commits only when the branch has no origin', async () => {
+  const dir = makeRepo()
+
+  fs.writeFileSync(path.join(dir, 'tracked.txt'), 'changed\n')
+
+  assert.deepEqual(await reviewCommit(dir, 'local only', true, 'git'), { ok: true })
+  assert.equal(headSubject(dir), 'local only')
+  assert.throws(() =>
+    execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], {
+      cwd: dir,
+      stdio: 'ignore'
+    })
+  )
+})
+
+test('reviewCommit with push commits only when origin is not a repository', async () => {
+  const dir = makeRepo()
+
+  execFileSync('git', ['remote', 'add', 'origin', path.join(dir, 'not-a-repo')], { cwd: dir })
+  fs.writeFileSync(path.join(dir, 'tracked.txt'), 'changed\n')
+
+  assert.deepEqual(await reviewCommit(dir, 'still local', true, 'git'), { ok: true })
+  assert.equal(headSubject(dir), 'still local')
+  assert.throws(() =>
+    execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], {
+      cwd: dir,
+      stdio: 'ignore'
+    })
+  )
+})
+
+test('reviewCommit with push still sets upstream when origin is a repository', async () => {
+  const dir = makeRepo()
+  const bare = makeBareRepo()
+  const branch = execFileSync('git', ['branch', '--show-current'], { cwd: dir, encoding: 'utf8' }).trim()
+
+  execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
+  fs.writeFileSync(path.join(dir, 'tracked.txt'), 'changed\n')
+
+  assert.deepEqual(await reviewCommit(dir, 'pushed', true, 'git'), { ok: true })
+  assert.equal(
+    execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], {
+      cwd: dir,
+      encoding: 'utf8'
+    }).trim(),
+    `origin/${branch}`
+  )
+})
+
+test('reviewCommit with push still rejects a non-fast-forward', async () => {
+  const dir = makeRepo()
+  const bare = makeBareRepo()
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-desktop-git-other-'))
+
+  tempDirs.push(other)
+  execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
+  execFileSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: dir })
+  execFileSync('git', ['clone', '-q', bare, other])
+  execFileSync('git', ['config', 'user.email', 'hermes-test@example.com'], { cwd: other })
+  execFileSync('git', ['config', 'user.name', 'Hermes Test'], { cwd: other })
+  fs.writeFileSync(path.join(other, 'tracked.txt'), 'from-other\n')
+  execFileSync('git', ['commit', '-aqm', 'other'], { cwd: other })
+  execFileSync('git', ['push', '-q', 'origin', 'HEAD'], { cwd: other })
+  fs.writeFileSync(path.join(dir, 'tracked.txt'), 'local\n')
+
+  await assert.rejects(reviewCommit(dir, 'should not push', true, 'git'))
+  assert.equal(headSubject(dir), 'should not push')
 })

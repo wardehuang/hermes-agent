@@ -523,9 +523,58 @@ async function reviewRevParse(repoPath, ref, gitBin) {
   }
 }
 
+// git prints this when the remote name is missing or its URL is not a
+// repository. Auth failures and non-fast-forward rejections use other text,
+// so matching this sentence does not hide a push the user can still act on.
+function remoteIsNotARepository(err) {
+  return String(err && err.message ? err.message : err).includes('does not appear to be a git repository')
+}
+
+async function originUrl(git) {
+  const remotes = await git.getRemotes(true)
+  const origin = remotes.find(remote => remote.name === 'origin')
+
+  if (!origin) {
+    return ''
+  }
+
+  return String(origin.refs.push || origin.refs.fetch || '').trim()
+}
+
+// A requested push with nowhere to send it is a commit, not a failed commit.
+// An existing upstream is still pushed; the first push still sets origin when
+// that remote is a repository. A missing or unusable origin is skipped.
+async function pushIfUpstream(git) {
+  const fresh = await git.status()
+
+  if (fresh.tracking) {
+    try {
+      await git.push()
+    } catch (err) {
+      if (!remoteIsNotARepository(err)) {
+        throw err
+      }
+    }
+
+    return
+  }
+
+  if (!fresh.current || !(await originUrl(git))) {
+    return
+  }
+
+  try {
+    await git.raw(['push', '-u', 'origin', fresh.current])
+  } catch (err) {
+    if (!remoteIsNotARepository(err)) {
+      throw err
+    }
+  }
+}
+
 // Commit the working tree. Mirrors VS Code: if nothing is staged, stage
 // everything first ("commit all"), then commit. Optionally push afterward,
-// setting upstream on the first push.
+// setting upstream on the first push when origin can take it.
 async function reviewCommit(repoPath, message, push, gitBin) {
   const cwd = resolveRequestedPathForIpc(repoPath, { purpose: 'Review commit' })
   const git = gitFor(cwd, gitBin)
@@ -538,13 +587,7 @@ async function reviewCommit(repoPath, message, push, gitBin) {
   await git.commit(message)
 
   if (push) {
-    const fresh = await git.status()
-
-    if (fresh.tracking) {
-      await git.push()
-    } else if (fresh.current) {
-      await git.raw(['push', '-u', 'origin', fresh.current])
-    }
+    await pushIfUpstream(git)
   }
 
   return { ok: true }
