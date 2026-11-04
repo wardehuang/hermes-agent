@@ -421,6 +421,7 @@ export function ChatRuntimeBoundary({
   const isHistorical = Boolean(history.page)
   const newerAvailable = history.page?.newerAvailable ?? false
   const { revealRow, returnToLatest } = history
+  const historicalMessages = history.page?.messages
 
   const transcriptWindow = useMemo(
     () => ({
@@ -428,11 +429,13 @@ export function ChatRuntimeBoundary({
       expandWindow,
       revealRow,
       returnToLatest,
-      currentMessages,
+      // Live navigation reads the session store. Broadcasting the changing
+      // live tail here invalidates the entire transcript's navigation context.
+      currentMessages: historicalMessages ?? [],
       isHistorical,
       newerAvailable
     }),
-    [expandWindow, olderAvailable, revealRow, returnToLatest, currentMessages, isHistorical, newerAvailable]
+    [expandWindow, olderAvailable, revealRow, returnToLatest, historicalMessages, isHistorical, newerAvailable]
   )
 
   const runtime = useIncrementalExternalStoreRuntime<ThreadMessage>({

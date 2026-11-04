@@ -42,60 +42,18 @@ def _grouped(tools):
     return grouped
 
 
-def _menu_provider(agent) -> str:
-    """Provider a picker should mark current.
-
-    A named custom entry (``providers.cpa``) runs as the shared billing class
-    ``custom``. Menu rows are keyed by the config key, and that key's aliases
-    are ``cpa`` / ``custom:cpa`` — never the bare class — so reporting ``custom``
-    leaves every row unchecked and the composer tooltip reading ``custom``.
-    Recover the endpoint's config key. An already-specific provider, including
-    ``custom:<key>``, is a real route and stays as-is. No matching entry keeps
-    the billing class.
-    """
-    from agent.voice_turn_route import session_runtime_view
-    view = session_runtime_view(agent) if agent is not None else None
-    provider = str(getattr(view, "provider", "") or "").strip()
-    if provider.lower() != "custom":
-        return provider
-    # ``canonical_custom_identity`` falls through to ``model.provider`` when the
-    # URL matches nothing, so every bare ``custom`` would become the profile
-    # default. Only the endpoint (or, with no URL, the model) may name the row.
-    try:
-        from hermes_cli.runtime_provider import (
-            find_custom_provider_identity,
-            find_custom_provider_identity_by_model,
-        )
-        base_url = str(getattr(view, "base_url", "") or "").strip()
-        if base_url:
-            identity = find_custom_provider_identity(base_url) or ""
-        else:
-            model = str(getattr(view, "model", "") or "").strip()
-            identity = find_custom_provider_identity_by_model(model) if model else ""
-    except Exception:  # health: allow BLE001 -- identity lookup reads config; a failure keeps the billing class
-        logger.debug("custom provider identity lookup failed", exc_info=True)
-        return provider
-    identity = str(identity).strip()
-    if identity.lower().startswith("custom:"):
-        key = identity.split(":", 1)[1].strip()
-        return key or provider
-    return identity or provider
-
-
 def _policy_tools(policy, config):
     """The tool list the session's next agent build loads (``agent/agent_init.py`` tool snapshot):
-    the policy's toolsets minus the configured and platform-gated disabled ones, one-shot pruned."""
+    the policy's toolsets minus the configured, platform-gated and one-shot disabled ones."""
     import model_tools
-    from agent.oneshot_footprint import ONESHOT_HIDDEN_TOOLS
     from agent.skill_utils import parse_config_string_list
     from toolsets import session_disabled_toolsets, session_platform_tool_drops
     enabled = list(policy.current_toolsets(config))
     disabled = session_disabled_toolsets(
-        parse_config_string_list((config.get("agent") or {}).get("disabled_toolsets")) or None, policy.platform)
+        parse_config_string_list((config.get("agent") or {}).get("disabled_toolsets")) or None, policy.platform,
+        oneshot=policy.source == "oneshot")
     tools = model_tools.get_tool_definitions(enabled_toolsets=enabled, disabled_toolsets=disabled, quiet_mode=True)
     drops = set(session_platform_tool_drops(policy.platform))
-    if policy.source == "oneshot":
-        drops |= ONESHOT_HIDDEN_TOOLS
     return enabled, [tool for tool in tools or [] if tool["function"]["name"] not in drops]
 
 
@@ -116,9 +74,9 @@ def _project(cwd):
 
 def _cli_startup_notices(enabled):
     """The lines main's HermesCLI printed under its banner, computed where the tools run: the toolset
-    availability warning (``cli.py::_show_tool_availability_warnings``) and the Browser Use downgrade
-    notice (``_show_browser_backend_notice``). The classic CLI renders them with its own console."""
-    notices: dict = {"tool_availability_warnings": [], "browser_backend_notice": None}
+    availability warning (``cli.py::_show_tool_availability_warnings``). The classic CLI renders them
+    with its own console."""
+    notices: dict = {"tool_availability_warnings": []}
     with contextlib.suppress(Exception):
         from hermes_cli.tool_availability_notices import (
             current_terminal_backend, filter_to_enabled_toolsets, tool_availability_warning_lines)
@@ -130,9 +88,6 @@ def _cli_startup_notices(enabled):
         notices["tool_availability_warnings"] = tool_availability_warning_lines(
             unavailable, terminal_reason=terminal_backend_unavailable_reason(),
             terminal_backend=current_terminal_backend())
-    with contextlib.suppress(Exception):
-        from tools.browser_use_cli import default_downgrade_notice
-        notices["browser_backend_notice"] = default_downgrade_notice()
     return notices
 
 
@@ -171,6 +126,12 @@ def _cli_skills():
     return grouped
 
 
+def _session_provider(view, config=None):
+    from hermes_cli.runtime_provider_custom import session_provider_identity
+    return session_provider_identity(getattr(view, "provider", None), getattr(view, "requested_provider", None),
+                                     getattr(view, "base_url", None), getattr(view, "model", None), config=config)
+
+
 def session_inventory(authority, policy, agent, cwd):
     """Main's banner/status fields for one session. Each section degrades to main's empty value on
     its own, so one failing builder never blanks the others (main wrapped each in ``suppress``)."""
@@ -192,7 +153,8 @@ def session_inventory(authority, policy, agent, cwd):
         config = policy.config(authority, secrets=False) if policy is not None else {}
         started = time.perf_counter()
         if agent is not None:
-            info["provider"] = _menu_provider(agent)
+            from agent.voice_turn_route import session_runtime_view
+            info["provider"] = _session_provider(session_runtime_view(agent), config if policy is not None else None)
             info["tools"] = _grouped(getattr(agent, "tools", None))
             info["system_prompt"] = getattr(agent, "_cached_system_prompt", "") or ""
             compressor = getattr(agent, "context_compressor", None)
@@ -261,6 +223,9 @@ async def snapshot_info(authority, ref):
     if info.get('tool_count') is None:
         # A lazy session: the tools its first turn loads (the banner's own count).
         info['tool_count'] = sum(len(names) for names in (inventory.get('tools') or {}).values())
+    from gateway.session_usage import snapshot_usage
+    if (usage := await asyncio.to_thread(snapshot_usage, authority, ref, agent)) is not None:
+        info['usage'] = usage
     return {**inventory, **info}
 
 
@@ -270,7 +235,8 @@ def agent_inventory(agent) -> dict:
     length. Cheap attribute reads, safe on the agent thread at turn end."""
     info: dict = {}
     with contextlib.suppress(Exception):
-        info["provider"] = _menu_provider(agent)
+        from agent.voice_turn_route import session_runtime_view
+        info["provider"] = _session_provider(session_runtime_view(agent))
     with contextlib.suppress(Exception):
         info["tools"] = _grouped(getattr(agent, "tools", None))
     info["system_prompt"] = getattr(agent, "_cached_system_prompt", "") or ""
