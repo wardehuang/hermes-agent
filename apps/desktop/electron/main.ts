@@ -1,7 +1,7 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 
 import type { GatewayEndpoint } from './local-gateway'
-import { configurePythonGatewayTicketClient, createLocalGatewayDials, createStaleGatewayRestarter, ensureLocalGateway, gatewayOwnerProfile, localGatewayDial, nativeGatewayHttpHeaders, redialLocalGateway, runGatewayEnsure, runGatewayOwnerRestart } from './local-gateway'
+import { configurePythonGatewayTicketClient, createLocalGatewayDials, createStaleGatewayRestarter, ensureLocalGateway, GATEWAY_ENSURE_TIMEOUT_S, gatewayOwnerProfile, localGatewayDial, nativeGatewayHttpHeaders, redialLocalGateway, runGatewayEnsure, runGatewayOwnerRestart } from './local-gateway'
 import { closeGatewayTicketBridges, createGatewayTicketResolver } from './local-gateway-python'
 import { createPluginWsUrlHandler } from './plugin-ws-url'
 const localGatewayDials = createLocalGatewayDials()
@@ -11419,7 +11419,7 @@ async function dialPoolBackend(profile, entry, opts: { forceLocal?: boolean; poo
 
   const connection = await ensureLocalGateway(async () => {
     const backend = await ensureRuntime(
-      await resolveHermesBackend(['--profile', profile, 'gateway', 'ensure', '--json']),
+      await resolveHermesBackend(['--profile', profile, 'gateway', 'ensure', '--json', '--timeout', String(GATEWAY_ENSURE_TIMEOUT_S)]),
       () => assertPoolEntryStillOwned(poolKey, entry)
     )
 
@@ -11825,7 +11825,7 @@ async function startHermes(requestedProfile?: string, inheritsPrimary = false) {
       rememberLog(`[env] login-shell PATH resolution unavailable (${loginShellPath.reason}); keeping inherited PATH`)
     }
 
-    const backendArgs = ['gateway', 'ensure', '--json']
+    const backendArgs = ['gateway', 'ensure', '--json', '--timeout', String(GATEWAY_ENSURE_TIMEOUT_S)]
 
     // Pin the desktop's chosen profile via the global --profile flag. This is
     // deterministic (it wins over the sticky ~/.hermes/active_profile file) and

@@ -50,6 +50,10 @@ Config::
           extract_defaults:
             extract_depth: advanced
             format: markdown
+        judge:
+          provider: ""          # empty: live main provider
+          model: ""             # empty: live main model; set with provider
+          effort: ""            # empty: no pinned reasoning level
 
 Env overrides (Desktop Tools panel can write these):
 

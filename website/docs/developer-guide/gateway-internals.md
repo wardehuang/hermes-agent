@@ -367,8 +367,10 @@ ordinary calls never reinstall a missing service based only on stored preference
 
 ## `hermes gateway ensure`
 
-Clients (Desktop, `hermes chat`, the TUI) discover or start the profile's session
-runtime with `hermes gateway ensure --json --timeout 60`; the summary is in the
+Clients (`hermes chat`, the TUI) discover or start the profile's session
+runtime with `hermes gateway ensure --json --timeout 60`. Desktop passes
+`--timeout 300`, because its first launch after the gateway was killed (logoff,
+shutdown) cold-starts the daemon and can outlast 60 s. The summary is in the
 [CLI reference](../reference/cli-commands.md#local-runtime-discovery-and-startup).
 
 The timeout is a finite, positive total deadline in seconds (default `60`, enough for a

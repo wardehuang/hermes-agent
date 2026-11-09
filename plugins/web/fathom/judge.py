@@ -1,8 +1,9 @@
 """Intent judge for one Fathom search.
 
-Adapter rows and answers are evidence. This pass ranks them with the live
-main model, reads the shortlist, then emits one answer. A failed stage falls
-back to the mechanical merge instead of failing the search.
+Adapter rows and answers are evidence. This pass ranks them, reads the
+shortlist, then emits one answer. The model is ``web.fathom.judge`` when
+provider and model are both set; otherwise it is the live main model.
+A failed stage falls back to the mechanical merge instead of failing the search.
 """
 
 from __future__ import annotations
@@ -284,7 +285,7 @@ def _candidate_block(pool: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _live_main_route() -> tuple[str, str, dict[str, Any]]:
-    """Provider and model of this turn's main runtime. Never a fixed model id."""
+    """Provider and model of this turn's main runtime."""
     from agent.auxiliary_client import _main_route_target, _normalize_main_runtime
 
     runtime = _normalize_main_runtime(None)
@@ -305,24 +306,91 @@ def _live_main_route() -> tuple[str, str, dict[str, Any]]:
     return provider, model, pinned
 
 
+def _judge_section() -> dict[str, Any]:
+    from plugins.web.fathom.common import load_config_section, nested_section
+
+    return nested_section(load_config_section(("web", "fathom")), "judge")
+
+
+def resolve_judge_route(section: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Route for one judge completion.
+
+    ``web.fathom.judge.provider`` and ``model`` are both set or both empty.
+    Empty keeps the live main route, including its endpoint and key. A set
+    pair names a configured provider; its own entry supplies the endpoint, so
+    the session route is not forwarded. ``effort`` pins reasoning on either
+    route. No auxiliary task name is used.
+    """
+    raw = _judge_section() if section is None else section
+    if not isinstance(raw, dict):
+        raw = {}
+    provider = str(raw.get("provider") or "").strip()
+    model = str(raw.get("model") or "").strip()
+    effort = str(raw.get("effort") or "").strip()
+    if bool(provider) != bool(model):
+        raise RuntimeError(
+            "web.fathom.judge.provider and web.fathom.judge.model must both be set or both be empty"
+        )
+    reasoning = None
+    if effort:
+        from hermes_constants import parse_reasoning_effort
+
+        reasoning = parse_reasoning_effort(effort)
+        if reasoning is None:
+            raise RuntimeError(
+                f"Invalid web.fathom.judge.effort {effort!r}. "
+                "Use minimal, low, medium, high, xhigh, max, or ultra."
+            )
+    if provider:
+        runtime = {"provider": provider, "model": model}
+        return {
+            "provider": provider,
+            "model": model,
+            "base_url": None,
+            "api_key": None,
+            "api_mode": None,
+            "runtime": runtime,
+            "reasoning": reasoning,
+        }
+    live_provider, live_model, runtime = _live_main_route()
+    api_key = runtime.get("api_key")
+    return {
+        "provider": live_provider,
+        "model": live_model,
+        "base_url": runtime.get("base_url") or None,
+        "api_key": api_key if isinstance(api_key, str) else None,
+        "api_mode": runtime.get("api_mode") or None,
+        "runtime": runtime,
+        "reasoning": reasoning,
+    }
+
+
 def _call_main(messages: list[dict[str, str]]) -> tuple[str, str]:
-    """One completion on the live main model. No task name, so an auxiliary slot cannot replace it."""
+    """One completion on the judge route. No task name, so an auxiliary slot cannot replace it."""
     from agent.auxiliary_client import call_llm
 
-    provider, model, runtime = _live_main_route()
-    logger.info("Fathom judge main provider=%s model=%s", provider, model)
-    api_key = runtime.get("api_key")
+    route = resolve_judge_route()
+    provider = route["provider"]
+    model = route["model"]
+    reasoning = route["reasoning"] if isinstance(route["reasoning"], dict) else {}
+    logger.info(
+        "Fathom judge main provider=%s model=%s effort=%s",
+        provider,
+        model,
+        reasoning.get("effort") or "-",
+    )
     response = call_llm(
         provider=provider,
         model=model,
-        base_url=runtime.get("base_url") or None,
-        api_key=api_key if isinstance(api_key, str) else None,
-        api_mode=runtime.get("api_mode") or None,
-        main_runtime=runtime,
+        base_url=route["base_url"],
+        api_key=route["api_key"],
+        api_mode=route["api_mode"],
+        main_runtime=route["runtime"],
         messages=messages,
         temperature=0,
         max_tokens=JUDGE_MAX_TOKENS,
         timeout=JUDGE_TIMEOUT,
+        reasoning_config=route["reasoning"],
     )
     reported = getattr(response, "model", None)
     return response_text(response), str(reported or model).strip()

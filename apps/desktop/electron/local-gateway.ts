@@ -5,10 +5,13 @@ import { profileCollectionRoute, profileRouteSuffix } from './profile-routes'
 import { hiddenWindowsChildOptions, windowsShellCommand } from './windows-child-options'
 
 // `hermes gateway ensure` answers with a protocol verdict (ready, or `starting: deadline`) within
-// its own startup deadline: `--timeout` defaults to 60 s (hermes_cli/gateway_runtime.py
-// DEFAULT_ENSURE_TIMEOUT). The client is killed only after that deadline plus interpreter start
-// and verdict output, so a slow-but-valid cold start is never reported as "produced no result".
-const GATEWAY_ENSURE_PROTOCOL_DEADLINE_MS = 60_000
+// its own startup deadline. Desktop passes it as `--timeout` (the CLI default is 60 s,
+// hermes_cli/gateway_runtime.py DEFAULT_ENSURE_TIMEOUT) because the first launch after the gateway
+// was killed (logoff/shutdown) cold-starts the daemon and can outlast 60 s. The client is killed
+// only after that deadline plus interpreter start and verdict output, so a slow-but-valid cold
+// start is never reported as "produced no result".
+export const GATEWAY_ENSURE_TIMEOUT_S = 300
+const GATEWAY_ENSURE_PROTOCOL_DEADLINE_MS = GATEWAY_ENSURE_TIMEOUT_S * 1000
 const GATEWAY_ENSURE_CLIENT_GRACE_MS = 15_000
 
 /** Run one bounded `hermes ... gateway <verb>` client (`ensure` by default; `restart` for a stale owner). */
