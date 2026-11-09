@@ -23,7 +23,6 @@ import { useI18n } from '@/i18n'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { NEW_SESSION_TITLE, sessionTitle } from '@/lib/chat-runtime'
 import { useIncrementalExternalStoreRuntime } from '@/lib/incremental-external-store-runtime'
-import { logSessionSwitch } from '@/lib/session-switch-log'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { migrateSessionDraft } from '@/store/composer'
@@ -680,16 +679,6 @@ const ChatViewContent = memo(function ChatViewContent({
     routeSessionMismatch,
     routedSessionView: isRoutedSessionView
   })
-
-  useEffect(() => {
-    if (!routedSessionId) {
-      return
-    }
-
-    logSessionSwitch(
-      `spinner ${loadingSession ? 'on' : 'off'} sid=${routedSessionId} history=${routedHasHistory} empty=${messagesEmpty} active=${activeSessionId ?? 'none'} mismatch=${routeSessionMismatch}`
-    )
-  }, [activeSessionId, loadingSession, messagesEmpty, routeSessionMismatch, routedHasHistory, routedSessionId])
 
   const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastVisibleIsUser)
 
