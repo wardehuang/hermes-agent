@@ -51,9 +51,9 @@ Config::
             extract_depth: advanced
             format: markdown
         judge:
-          provider: ""          # empty: live main provider
-          model: ""             # empty: live main model; set with provider
-          effort: ""            # empty: no pinned reasoning level
+          provider: "cpa"       # blank uses this default; names a configured provider
+          model: "grok-4.6"     # blank uses this default
+          effort: "xhigh"       # blank uses this default
 
 Env overrides (Desktop Tools panel can write these):
 

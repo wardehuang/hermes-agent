@@ -601,6 +601,15 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
   },
   updates: {
     nonInteractiveLocalChanges: 'In-App Update Local Changes'
+  },
+  web: {
+    fathom: {
+      judge: {
+        provider: 'Judge provider',
+        model: 'Judge model',
+        effort: 'Judge effort'
+      }
+    }
   }
 })
 
@@ -703,6 +712,15 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   updates: {
     nonInteractiveLocalChanges:
       'When Hermes updates itself from the app (no terminal prompt), keep local source edits (stash) or throw them away (discard). Terminal updates always ask.'
+  },
+  web: {
+    fathom: {
+      judge: {
+        provider: 'Configured provider whose endpoint and key the Fathom judge uses. Blank uses cpa.',
+        model: 'Model id for the Fathom judge. Blank uses grok-4.6.',
+        effort: 'Reasoning effort for the Fathom judge. Blank uses xhigh.'
+      }
+    }
   }
 })
 

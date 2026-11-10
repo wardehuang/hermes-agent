@@ -406,14 +406,13 @@ DEFAULT_CONFIG = {
         # preview builds). Entries match exactly, as "*.wildcard", or as a domain suffix
         # ("mysite.dev" also covers "preview.mysite.dev"). localhost/private IPs always exempt.
         "cache_exempt_hosts": [],
-        # Fathom judge. Empty provider and model keep the live main route.
-        # Set both to pin a provider entry (its base_url and key) and a model.
-        # effort is a reasoning level (xhigh, high, ...); empty leaves the call unpinned.
+        # Fathom judge. Blank provider/model/effort use these shipped defaults.
+        # A non-blank value pins that field. The provider entry supplies its own endpoint and key.
         "fathom": {
             "judge": {
-                "provider": "",
-                "model": "",
-                "effort": "",
+                "provider": "cpa",
+                "model": "grok-4.6",
+                "effort": "xhigh",
             },
         },
     },

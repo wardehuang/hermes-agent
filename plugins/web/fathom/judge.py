@@ -1,8 +1,8 @@
 """Intent judge for one Fathom search.
 
 Adapter rows and answers are evidence. This pass ranks them, reads the
-shortlist, then emits one answer. The model is ``web.fathom.judge`` when
-provider and model are both set; otherwise it is the live main model.
+shortlist, then emits one answer. The model is ``web.fathom.judge``.
+Blank provider, model, and effort use cpa, grok-4.6, and xhigh.
 A failed stage falls back to the mechanical merge instead of failing the search.
 """
 
@@ -284,26 +284,9 @@ def _candidate_block(pool: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return block
 
 
-def _live_main_route() -> tuple[str, str, dict[str, Any]]:
-    """Provider and model of this turn's main runtime."""
-    from agent.auxiliary_client import _main_route_target, _normalize_main_runtime
-
-    runtime = _normalize_main_runtime(None)
-    provider, model, base_url, api_key, api_mode = _main_route_target(runtime, None)
-    provider = str(provider or "").strip()
-    model = str(model or "").strip()
-    if not provider or not model or provider == "auto":
-        raise RuntimeError("Fathom judge has no live main model")
-    pinned = dict(runtime)
-    pinned["provider"] = provider
-    pinned["model"] = model
-    if base_url:
-        pinned["base_url"] = base_url
-    if api_key:
-        pinned["api_key"] = api_key
-    if api_mode:
-        pinned["api_mode"] = api_mode
-    return provider, model, pinned
+DEFAULT_JUDGE_PROVIDER = "cpa"
+DEFAULT_JUDGE_MODEL = "grok-4.6"
+DEFAULT_JUDGE_EFFORT = "xhigh"
 
 
 def _judge_section() -> dict[str, Any]:
@@ -315,52 +298,32 @@ def _judge_section() -> dict[str, Any]:
 def resolve_judge_route(section: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Route for one judge completion.
 
-    ``web.fathom.judge.provider`` and ``model`` are both set or both empty.
-    Empty keeps the live main route, including its endpoint and key. A set
-    pair names a configured provider; its own entry supplies the endpoint, so
-    the session route is not forwarded. ``effort`` pins reasoning on either
-    route. No auxiliary task name is used.
+    Blank ``provider``, ``model``, and ``effort`` use the shipped defaults.
+    A set provider names a configured provider entry; that entry supplies the
+    endpoint and key, so the session route is not forwarded. No auxiliary
+    task name is used.
     """
     raw = _judge_section() if section is None else section
     if not isinstance(raw, dict):
         raw = {}
-    provider = str(raw.get("provider") or "").strip()
-    model = str(raw.get("model") or "").strip()
-    effort = str(raw.get("effort") or "").strip()
-    if bool(provider) != bool(model):
-        raise RuntimeError(
-            "web.fathom.judge.provider and web.fathom.judge.model must both be set or both be empty"
-        )
-    reasoning = None
-    if effort:
-        from hermes_constants import parse_reasoning_effort
+    provider = str(raw.get("provider") or "").strip() or DEFAULT_JUDGE_PROVIDER
+    model = str(raw.get("model") or "").strip() or DEFAULT_JUDGE_MODEL
+    effort = str(raw.get("effort") or "").strip() or DEFAULT_JUDGE_EFFORT
+    from hermes_constants import parse_reasoning_effort
 
-        reasoning = parse_reasoning_effort(effort)
-        if reasoning is None:
-            raise RuntimeError(
-                f"Invalid web.fathom.judge.effort {effort!r}. "
-                "Use minimal, low, medium, high, xhigh, max, or ultra."
-            )
-    if provider:
-        runtime = {"provider": provider, "model": model}
-        return {
-            "provider": provider,
-            "model": model,
-            "base_url": None,
-            "api_key": None,
-            "api_mode": None,
-            "runtime": runtime,
-            "reasoning": reasoning,
-        }
-    live_provider, live_model, runtime = _live_main_route()
-    api_key = runtime.get("api_key")
+    reasoning = parse_reasoning_effort(effort)
+    if reasoning is None:
+        raise RuntimeError(
+            f"Invalid web.fathom.judge.effort {effort!r}. "
+            "Use minimal, low, medium, high, xhigh, max, or ultra."
+        )
     return {
-        "provider": live_provider,
-        "model": live_model,
-        "base_url": runtime.get("base_url") or None,
-        "api_key": api_key if isinstance(api_key, str) else None,
-        "api_mode": runtime.get("api_mode") or None,
-        "runtime": runtime,
+        "provider": provider,
+        "model": model,
+        "base_url": None,
+        "api_key": None,
+        "api_mode": None,
+        "runtime": {"provider": provider, "model": model},
         "reasoning": reasoning,
     }
 

@@ -962,32 +962,20 @@ def test_judge_route_uses_configured_provider_without_session_endpoint() -> None
     assert route["reasoning"] == {"enabled": True, "effort": "xhigh"}
 
 
-def test_judge_route_rejects_a_half_set_override() -> None:
+def test_blank_judge_route_uses_shipped_defaults() -> None:
     from plugins.web.fathom.judge import resolve_judge_route
 
-    try:
-        resolve_judge_route({"provider": "cpa", "model": "", "effort": "xhigh"})
-    except RuntimeError as exc:
-        assert "both be set" in str(exc)
-    else:
-        raise AssertionError("half-set judge route was accepted")
+    route = resolve_judge_route({"provider": "cpa", "model": "", "effort": ""})
+    assert route["provider"] == "cpa"
+    assert route["model"] == "grok-4.6"
+    assert route["reasoning"] == {"enabled": True, "effort": "xhigh"}
 
 
-def test_unset_judge_route_keeps_live_main(monkeypatch) -> None:
-    from plugins.web.fathom import judge
+def test_empty_judge_section_uses_shipped_defaults() -> None:
+    from plugins.web.fathom.judge import resolve_judge_route
 
-    monkeypatch.setattr(
-        judge,
-        "_live_main_route",
-        lambda: (
-            "custom",
-            "session-main",
-            {"provider": "custom", "model": "session-main", "base_url": "http://session.example/v1", "api_key": "session-key"},
-        ),
-    )
-    route = judge.resolve_judge_route({})
-    assert route["provider"] == "custom"
-    assert route["model"] == "session-main"
-    assert route["base_url"] == "http://session.example/v1"
-    assert route["api_key"] == "session-key"
-    assert route["reasoning"] is None
+    route = resolve_judge_route({})
+    assert route["provider"] == "cpa"
+    assert route["model"] == "grok-4.6"
+    assert route["base_url"] is None
+    assert route["reasoning"] == {"enabled": True, "effort": "xhigh"}

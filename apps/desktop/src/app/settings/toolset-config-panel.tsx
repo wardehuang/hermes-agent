@@ -34,6 +34,7 @@ import type {
 } from '@/types/hermes'
 
 import { EnvVarActionsMenu, EnvVarActionsTrigger, EnvVarContextMenu } from './env-var-actions-menu'
+import { FathomJudgeFields } from './fathom-judge-fields'
 import { prettyName } from './helpers'
 import { Pill } from './primitives'
 import { VoiceProviderFields } from './voice-provider-fields'
@@ -916,6 +917,7 @@ export function ToolsetConfigPanel({ toolset, onConfiguredChange, profile }: Too
                 {provider.requires_nous_auth && status === 'needs_auth' && (
                   <p className="text-[0.72rem] text-muted-foreground">{copy.nousIncluded}</p>
                 )}
+                {provider.web_backend === 'fathom' && <FathomJudgeFields profile={profile} />}
                 {provider.env_vars.length === 0 ? (
                   <p className="text-[0.72rem] text-muted-foreground">{copy.noApiKeyRequired}</p>
                 ) : (

@@ -1041,6 +1041,15 @@ export const zhOverrides = {
       },
       updates: {
         nonInteractiveLocalChanges: '应用内更新本地更改'
+      },
+      web: {
+        fathom: {
+          judge: {
+            provider: 'Judge 提供方',
+            model: 'Judge 模型',
+            effort: 'Judge 推理档'
+          }
+        }
       }
     }),
     fieldDescriptions: defineFieldCopy({
@@ -1137,6 +1146,15 @@ export const zhOverrides = {
       updates: {
         nonInteractiveLocalChanges:
           'Hermes 从应用内更新时（无终端提示），保留本地源码修改（暂存）或丢弃（放弃）。通过终端更新时始终会询问。'
+      },
+      web: {
+        fathom: {
+          judge: {
+            provider: 'Judge 使用的已配置 provider。留空为 cpa。',
+            model: 'Judge 模型。留空为 grok-4.6。',
+            effort: 'Judge 推理档。留空为 xhigh。'
+          }
+        }
       }
     }),
     uninstallSection: {
