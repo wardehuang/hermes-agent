@@ -9,6 +9,7 @@ import {
 import { map, type MapStore } from 'nanostores'
 
 import type { HermesApiRequest } from '@/global'
+import { logSetupRpcPhase } from '@/lib/session-switch-log'
 
 import { CanonicalDesktopProtocol, canonicalProfile, canonicalPromptParams, canonicalSessionKey, openGatewaySocket, recordCanonicalOwner, splitRewindSubmit } from './canonical-protocol'
 import { DialReadiness, GATEWAY_NOT_CONNECTED_MESSAGE, remainingRequestBudget } from './dial-readiness'
@@ -424,6 +425,9 @@ export class HermesGateway extends JsonRpcGatewayClient {
   override async request<T>(method: string, params: Record<string, unknown> = {}, timeoutMs?: number, signal?: AbortSignal): Promise<T> {
     const generation = this.connectionGeneration
     const deadline = requestDeadline(timeoutMs)
+    const startedAt = performance.now()
+
+    logSetupRpcPhase(method, `gateway-enter ready=${this.readiness.ready} state=${this.connectionState} canonical=${this.canonical}`, startedAt)
 
     // Once readiness has settled (always, on a native dial) a request sends at once, as on main.
     if (!this.readiness.ready) {
@@ -431,6 +435,7 @@ export class HermesGateway extends JsonRpcGatewayClient {
       const seconds = Math.round((timeoutMs ?? DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS) / 1000)
       await this.readiness.wait(deadline, signal, () => new Error(`request timed out after ${seconds}s: ${method}`))
       this.requireConnectionGeneration(generation)
+      logSetupRpcPhase(method, 'gateway-readiness-waited', startedAt)
     }
 
     if (!this.canonical) { return super.request<T>(method, legacyParams(method, params), remainingRequestBudget(deadline, signal), signal) }
@@ -441,6 +446,7 @@ export class HermesGateway extends JsonRpcGatewayClient {
 
     await this.attachForRequest(method, params, deadline, signal)
     this.requireConnectionGeneration(generation)
+    logSetupRpcPhase(method, 'gateway-attached', startedAt)
     // The attach may have identified the named launch profile behind an
     // implicit route. Its revision and generation are cached under that owner.
     params = this.routeCanonicalParams(method, params)
@@ -474,6 +480,8 @@ export class HermesGateway extends JsonRpcGatewayClient {
       }
 
       this.requireConnectionGeneration(generation)
+
+      logSetupRpcPhase(method, 'gateway-wire-replied', startedAt)
 
       if (['session.resume', 'session.create', 'session.activate'].includes(method)) {
         prepared = this.snapshotRoute(prepared, result)

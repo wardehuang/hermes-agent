@@ -143,6 +143,8 @@ export function useStatusSnapshot(
         return
       }
 
+      logSessionSwitch(`readiness request start +${Math.round(performance.now() - startedAt)}ms`)
+
       // The free-tier verdict is a local, zero-network read that writes
       // straight to its own store and swallows its failures — nothing here
       // waits on it or reads the result. Unlike the readiness publish below,
@@ -183,6 +185,7 @@ export function useStatusSnapshot(
 
     const refresh = async ({ readiness, force = false }: { readiness: boolean; force?: boolean }) => {
       if (!force && !isViewed()) {
+        logSessionSwitch(`refresh deferred visibility=${document.visibilityState} focus=${document.hasFocus()} readiness=${readiness}`)
         scheduleRefresh()
 
         return
@@ -201,6 +204,10 @@ export function useStatusSnapshot(
         if (cancelled) {
           return
         }
+
+        logSessionSwitch(
+          `refresh settled readiness=${readiness} status=${statusResult.status} +${Math.round(performance.now() - startedAt)}ms`
+        )
 
         // A Webapp tab whose access token expired since its last gated request reads the
         // signed-out body, which omits most of the snapshot and the warning: keep the last one.

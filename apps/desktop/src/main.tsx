@@ -38,6 +38,7 @@ import { installClipboardShim } from './lib/clipboard'
 import { queryClient } from './lib/query-client'
 import { installRendererAnimationPauseState } from './lib/renderer-loop-pause'
 import { installSelectionCopyColorGuard } from './lib/selection-copy-colors'
+import { observeSwitchLongFrames } from './lib/session-switch-log'
 import { isTransparentWindow } from './lib/transparent-windows'
 import { startUiPreferencesSync } from './lib/ui-preferences/sync'
 import { installBrowserTabTitle } from './store/browser-tab-title'
@@ -92,6 +93,8 @@ if (winParam === 'overlay') {
   // main window's visibility state to :root so decorative infinite
   // animations stop producing frames when nobody can see them.
   installRendererAnimationPauseState()
+  // Session-switch diagnostics: frames that block the renderer for 200ms or more land in desktop.log, so a silent gap can be told apart from a renderer that is idle and waiting on IPC.
+  observeSwitchLongFrames()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

@@ -35,6 +35,7 @@ import type { MutableRefObject } from 'react'
 
 import { resolveSessionOwner } from '@/app/session/hooks/use-session-actions/utils'
 import type { ClientSessionState } from '@/app/types'
+import { logSetupRpcPhase } from '@/lib/session-switch-log'
 import { isSessionGoneForBackgroundPolling } from '@/store/runtime-gone'
 import { getSessionOwnerHint, knownSessionOwner, ownerLookupSessionRows, requestSessionResume } from '@/store/session'
 import { $focusedStoredSessionId } from '@/store/session-focus'
@@ -62,6 +63,7 @@ export function createSessionRpcDispatcher(deps: SessionRpcDispatcherDeps): Ambi
   const { ambientRequest, runtimeIdByStoredSessionIdRef, selectedStoredSessionIdRef, sessionStateByRuntimeIdRef } = deps
 
   return async <T>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal) => {
+    const startedAt = performance.now()
     const paramSessionId = typeof params?.session_id === 'string' && params.session_id ? params.session_id : undefined
 
     const routingSessionId = resolveRoutingSessionId({
@@ -97,6 +99,8 @@ export function createSessionRpcDispatcher(deps: SessionRpcDispatcherDeps): Ambi
       // connection-tagged); a miss leaves owner undefined.
       const probed = await resolveSessionOwner(routingSessionId)
 
+      logSetupRpcPhase(method, `owner-probed hit=${Boolean(probed)}`, startedAt)
+
       if (probed) {
         owner = probed
       }
@@ -107,8 +111,16 @@ export function createSessionRpcDispatcher(deps: SessionRpcDispatcherDeps): Ambi
     // backend "session not found" on a backend that never held the runtime.
     assertSessionOwnerResolved(owner, { method, sessionId: paramSessionId ? routingSessionId : null })
 
+    const ownerLabel = typeof owner === 'object' && owner ? `${owner.connectionId}/${owner.profile}` : String(owner)
+
+    logSetupRpcPhase(method, `owner-resolved sid=${routingSessionId ?? 'none'} owner=${ownerLabel}`, startedAt)
+
     try {
-      return await requestForSessionProfile<T>(owner, ambientRequest, method, params ?? {}, timeoutMs, signal)
+      const result = await requestForSessionProfile<T>(owner, ambientRequest, method, params ?? {}, timeoutMs, signal)
+
+      logSetupRpcPhase(method, 'replied', startedAt)
+
+      return result
     } catch (error) {
       // A missed session.reclaimed leaves later RPCs answering 4001 against a
       // still-resumable stored row. Prompt actions already retry their own
