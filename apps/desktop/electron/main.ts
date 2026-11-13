@@ -14001,11 +14001,19 @@ async function connectDesktopProfileRoute(route: DesktopProfileRoute, sender?: E
   const inheritsPrimary = !route.connectionId && inherits
   const scopeKey = primaryDialClaimKey(backendScopeKey(route.connectionId, route.profile), inheritsPrimary)
 
+  const dialStartedAt = performance.now()
+
   const connection = await backendDialClaims.run(scopeKey, () =>
     route.connectionId
       ? ensureRegistryBackend(route.connectionId, route.profile)
       : ensureBackend(route.profile, { inheritsPrimary })
   )
+
+  const dialMs = Math.round(performance.now() - dialStartedAt)
+
+  if (dialMs >= 200) {
+    rememberLog(`[session-switch] main dial scope=${scopeKey} +${dialMs}ms`)
+  }
 
   // Every republish carries LIVE window state (#102451): the backend pool entry
   // (and the getWindowState() snapshot startHermes baked into it) outlives

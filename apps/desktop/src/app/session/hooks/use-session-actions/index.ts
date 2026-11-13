@@ -32,6 +32,7 @@ import {
 import { markReasoningEffortPending } from '@/lib/chat-runtime'
 import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { purgeInFlightTurnJournals, recoverInFlightTurnJournal } from '@/lib/inflight-turn-journal'
+import { logSessionSwitch } from '@/lib/session-switch-log'
 import { latestSessionTodoSnapshot } from '@/lib/todos'
 import { setSessionYolo } from '@/lib/yolo-session'
 import { $clarifyRequests, clearClarifyRequest } from '@/store/clarify'
@@ -1177,6 +1178,12 @@ export function useSessionActions({
       const routeToken = getRouteToken()
       resumeRequestRef.current = requestId
       const resumedSameSelectedSession = selectedStoredSessionIdRef.current === storedSessionId
+      const switchStartedAt = performance.now()
+      const markSwitch = (phase: string) => {
+        logSessionSwitch(`${phase} sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms`)
+      }
+
+      markSwitch('start')
 
       // A route change is drift only when it leads AWAY from this session. A
       // caller that navigates and resumes in one tick (branch → child) starts
@@ -1282,6 +1289,7 @@ export function useSessionActions({
 
         if (!resumedSameSelectedSession) {
           setMessages([])
+          markSwitch('cleared')
         }
       }
 
@@ -1330,6 +1338,7 @@ export function useSessionActions({
       }
 
       const storedForProfile = await resolveStoredSession(storedSessionId, ownerRoute)
+      markSwitch('resolved')
       const sessionProfile = storedForProfile?.profile
 
       if (!isCurrentResume()) {
@@ -1348,6 +1357,7 @@ export function useSessionActions({
       provisional.paint(sessionRestScope)
 
       await openResumeGateway(resolvedConnectionId, ownerRoute, sessionProfile)
+      markSwitch('gateway')
 
       // Request-time routing guard for every session-scoped RPC below. The
       // await above REQUESTS the swap, but by dispatch time the active gateway
@@ -1459,6 +1469,7 @@ export function useSessionActions({
           setActiveSessionId(cachedRuntimeId)
           activeSessionIdRef.current = cachedRuntimeId
           syncSessionStateToView(cachedRuntimeId, cachedViewState)
+          markSwitch(suppressUnprovenWarmTranscript ? 'warm-held' : 'warm-paint')
           setCurrentCwdTransient(cachedViewState.cwd)
           // The warm cache IS this conversation's own workspace truth, so the
           // switch is already re-homed here. This claim cannot wait for
@@ -1496,6 +1507,7 @@ export function useSessionActions({
                 cols: 96,
                 omit_messages: true
               })
+              markSwitch('activated')
             } catch (error) {
               // Compatibility for older backends. Modern backends require
               // session.activate here because it rebinds the live session's
@@ -1852,6 +1864,14 @@ export function useSessionActions({
               if (isCurrentResume()) {
                 const activatedState = updateSessionState(cachedRuntimeId, reconcileActivatedState, storedSessionId)
                 syncSessionStateToView(cachedRuntimeId, activatedState)
+                markSwitch(`warm-published rows=${activatedState.messages.length}`)
+                const publishedAt = performance.now()
+
+                requestAnimationFrame(() => {
+                  logSessionSwitch(
+                    `frame sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms after-warm=${Math.round(performance.now() - publishedAt)}ms rows=${activatedState.messages.length}`
+                  )
+                })
               } else {
                 // updateSessionState stages a view sync based on active runtime,
                 // which can lag a newer route intent. Background hydration only
@@ -2024,6 +2044,8 @@ export function useSessionActions({
           // Non-fatal: gateway resume below can still hydrate the session.
         }
 
+        markSwitch(prefetchedResult ? 'prefetched' : 'prefetch-empty')
+
         // The socket can drop and redial while REST is in flight. Painting now
         // would let the new socket's replay append the same turn again; a lost
         // socket (false) drops this read and the resume below binds without it.
@@ -2067,10 +2089,19 @@ export function useSessionActions({
           // The overlap reads await; skip painting if this resume went stale.
           if (isCurrentResume() && !chatMessageArraysEquivalent($messages.get(), localSnapshot)) {
             setMessages(localSnapshot)
+            markSwitch(`painted rows=${localSnapshot.length}`)
+            const paintedAt = performance.now()
+
+            requestAnimationFrame(() => {
+              logSessionSwitch(
+                `frame sid=${storedSessionId} +${Math.round(performance.now() - switchStartedAt)}ms after-paint=${Math.round(performance.now() - paintedAt)}ms rows=${localSnapshot.length}`
+              )
+            })
           }
         }
 
         const resumed = await resumePromise
+        markSwitch('resumed')
 
         const reread = await rereadPageAfterResumeBarrier(resumed, prefetchedPage, storedSessionId, sessionRestScope)
 

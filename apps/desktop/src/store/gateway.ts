@@ -24,6 +24,7 @@ import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { traceIdentityChange } from '@/lib/identity-trace'
 import { isPermanentLocalGatewayEnsureError } from '@/lib/local-gateway-ensure-failure'
 import { initialGatewayProfile } from '@/lib/platform'
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
 import { RECONNECT_ATTEMPT_TIMEOUT_MS, SOURCE_SWITCH_DIAL_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
 import { recordSecondaryWire } from '@/store/connection-wire'
 import { $gatewayActivationEpoch } from '@/store/gateway-activation-epoch'
@@ -41,7 +42,7 @@ import {
 import type { Secondary } from '@/store/gateway-socket-entry'
 import { notifyError, RECOVERY_ACTIONS } from '@/store/notifications'
 import { markNativeNotifyBaseline } from '@/store/notify-baseline'
-import { setConnection, setGatewayState } from '@/store/session'
+import { $gatewayState, setConnection, setGatewayState } from '@/store/session'
 import { stampSecondaryProfileOwner } from '@/store/session-event-provenance'
 export { useGatewayActivationEpoch } from '@/store/gateway-activation-epoch'
 
@@ -538,6 +539,9 @@ function reportGatewayState(profile: string, state: ConnectionState): void {
   }
 
   if (normKey(profile) === g.activeKey) {
+    logSessionSwitch(
+      `gatewayState ${$gatewayState.get()} -> ${state} profile=${profile} via=socket ${sessionSwitchCaller()}`
+    )
     setGatewayState(state)
   }
 }
@@ -571,6 +575,9 @@ function applyActive(profile: string, activationEpoch: number, requestScope?: st
   // the previous route's profile.
   const routeProfile = requestScope ? normKey(requestScope) : activeRouteProfile()
 
+  logSessionSwitch(
+    `applyActive socket=${profile} announce=${routeProfile} ${$gatewayState.get()} -> ${activeGateway()?.connectionState ?? 'closed'} ${sessionSwitchCaller()}`
+  )
   batch(() => {
     const gateway = activeGateway()
     g.$gateway.set(gateway)
@@ -1799,7 +1806,14 @@ export async function ensureGatewayForProfile(profile: string): Promise<void> {
   // descriptor. The status route stays `key` — the launch profile is only
   // the socket, and publishing it here bounced the status bar on every
   // same-profile session switch.
-  if (await sharedPrimaryRoute(key)) {
+  const sharedStartedAt = performance.now()
+  const shared = await sharedPrimaryRoute(key)
+
+  logSessionSwitch(
+    `shared-route profile=${key} shared=${shared} +${Math.round(performance.now() - sharedStartedAt)}ms`
+  )
+
+  if (shared) {
     applyActive(g.primaryProfile, activationEpoch, key)
 
     return

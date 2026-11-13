@@ -8,6 +8,7 @@ import { persistStore } from '@/lib/persist-store'
 import { initialGatewayProfile } from '@/lib/platform'
 import { sortByProfileOrder as sortProfilesByOrder } from '@/lib/profile-order'
 import { invalidateProfileScopedQueries } from '@/lib/query-client'
+import { logSessionSwitch } from '@/lib/session-switch-log'
 import {
   arraysEqual,
   persistBoolean,
@@ -625,6 +626,12 @@ export async function ensureGatewayProfile(
 
   const target = normalizeProfileKey(profile)
   profileSelectionRevision += 1
+  const switchStartedAt = performance.now()
+
+  const markProfileSwitch = (phase: string): void =>
+    logSessionSwitch(`profile-switch ${phase} target=${target} +${Math.round(performance.now() - switchStartedAt)}ms`)
+
+  markProfileSwitch('start')
 
   // Fast path: only when the REGISTRY's active route — the authority that
   // selects the socket in applyActive — already serves the target. The
@@ -679,6 +686,7 @@ export async function ensureGatewayProfile(
     return
   }
 
+  markProfileSwitch('mutex-acquired')
   $gatewaySwapTarget.set(target)
   gatewaySwitch = (async () => {
     // A Webapp tab routes on its cached served set, which predates a profile
@@ -686,6 +694,7 @@ export async function ensureGatewayProfile(
     // the descriptor and the shared-primary route both see the new profile on
     // the tab's socket. No-op elsewhere, and for a profile the set already has.
     await window.hermesDesktop?.refreshServedProfile?.(target).catch(() => undefined)
+    markProfileSwitch('served-profile-refreshed')
 
     // ensureGatewayForProfile opens (or reuses) the target's socket and points
     // the active gateway at it — without closing the profile you came from.
@@ -694,7 +703,10 @@ export async function ensureGatewayProfile(
     // syncConnectionToActiveProfile await left a window where $gateway
     // already targeted the new backend while $connection still described the
     // previous one, and remote-aware paths announced the wrong mode (#46651).
-    const [connection] = await Promise.all([resolveConnectionForProfile(target), ensureGatewayForProfile(target)])
+    const [connection] = await Promise.all([
+      resolveConnectionForProfile(target).finally(() => markProfileSwitch('descriptor')),
+      ensureGatewayForProfile(target).finally(() => markProfileSwitch('gateway-ensured'))
+    ])
 
     // ONE publication frame. batch() defers Nanostores' notifications to the
     // end of the callback, so the profile pointer and the connection
@@ -730,6 +742,8 @@ export async function ensureGatewayProfile(
 
       $activeGatewayProfile.set(landed ? target : routeKey)
     })
+
+    markProfileSwitch('published')
   })()
 
   // A failed switch must NOT fall back to the primary socket silently: that
