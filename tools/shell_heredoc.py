@@ -11,12 +11,24 @@ from __future__ import annotations
 
 import re
 
-# Non-shell interpreters whose quoted heredoc bodies are data for THAT interpreter; optional
-# VAR=... assignments, ``env`` and a path prefix allowed. Narrow on purpose: unmatched = visible.
-_INERT_HEREDOC_CONSUMER_RE = re.compile(
-    r"^\s*(?:[A-Z_][A-Z0-9_]*=\S+\s+)*(?:env\s+)?(?:[A-Za-z0-9_./-]+/)?"
-    r"(?:python(?:3(?:\.\d+)*)?|osascript|cat)(?=\s|$)",
-    re.IGNORECASE)
+def _consumer_re(commands: str) -> re.Pattern[str]:
+    """Owning-command matcher: optional VAR=... assignments, ``env`` and a path prefix, then one of ``commands``."""
+    return re.compile(
+        r"^\s*(?:[A-Z_][A-Z0-9_]*=\S+\s+)*(?:env\s+)?(?:[A-Za-z0-9_./-]+/)?"
+        rf"(?:{commands})(?=\s|$)",
+        re.IGNORECASE)
+
+
+_INTERPRETERS = r"python(?:3(?:\.\d+)*)?|osascript|cat"
+
+# Non-shell interpreters whose quoted heredoc bodies are data for THAT interpreter.
+# Narrow on purpose: unmatched = visible.
+_INERT_HEREDOC_CONSUMER_RE = _consumer_re(_INTERPRETERS)
+
+# For scanners that only ask "does the LOCAL shell run this?" (the sudo rewrite): an ``ssh`` stdin
+# heredoc is a script for the remote host. The security guards keep the narrow list above, so remote
+# script bodies stay visible to them.
+LOCAL_EXECUTION_HEREDOC_CONSUMER_RE = _consumer_re(_INTERPRETERS + "|ssh")
 
 
 def _span_end(command: str, cursor: int, closer: str) -> int:
@@ -177,11 +189,14 @@ def _find_heredoc_close(
         cursor = after
 
 
-def strip_inert_heredoc_bodies(command: str) -> str:
-    """Mask heredoc bodies that are provably inert data (see module docstring)."""
+def inert_heredoc_body_ranges(
+        command: str, consumer_re: re.Pattern[str] = _INERT_HEREDOC_CONSUMER_RE) -> list[tuple[int, int]]:
+    """Sorted, non-overlapping ``(start, end)`` spans of heredoc bodies that are provably inert data
+    for the command owning them (see module docstring); ``consumer_re`` decides which owning
+    commands count. Empty when nothing is provably inert."""
     # Runs on every terminal call: skip the state machine when no '<<' exists; stop past the last.
     if "<<" not in command:
-        return command
+        return []
     last_opener_index = command.rfind("<<")
     ranges: list[tuple[int, int]] = []
     command_start = 0
@@ -194,20 +209,20 @@ def strip_inert_heredoc_bodies(command: str) -> str:
             owner_start,
         ) = _scan_heredoc_command_unit(command, command_start)
         if unknown_operator:
-            return command
+            return []
         if not specs:
             if command_end >= len(command):
                 break
             command_start = command_end + 1
             continue
         if command_end >= len(command):
-            return command  # opener with no body line: unterminated — leave visible
+            return []  # opener with no body line: unterminated — leave visible
         body_cursor = command_end + 1
         body_ranges: list[tuple[int, int]] = []
         for delimiter, strip_tabs, _quoted in specs:
             close_end = _find_heredoc_close(command, body_cursor, delimiter, strip_tabs)
             if close_end is None:
-                return command  # unterminated
+                return []  # unterminated
             body_ranges.append((body_cursor, close_end))
             body_cursor = close_end
         if (
@@ -219,13 +234,18 @@ def strip_inert_heredoc_bodies(command: str) -> str:
             if not any(
                 marker in masked_opener
                 for marker in ("$(", "`", "<(", ">(", "(", ")", "{", "}")
-            ) and _INERT_HEREDOC_CONSUMER_RE.search(masked_owner):
+            ) and consumer_re.search(masked_owner):
                 ranges.extend(body_ranges)
         command_start = body_cursor
+    return ranges
+
+
+def strip_inert_heredoc_bodies(command: str) -> str:
+    """Mask heredoc bodies that are provably inert data (see module docstring)."""
     # Single-pass rebuild (ranges are sorted and non-overlapping), bodies -> their newlines only.
     parts: list[str] = []
     previous = 0
-    for start, end in ranges:
+    for start, end in inert_heredoc_body_ranges(command):
         parts += [command[previous:start], "\n" * command.count("\n", start, end)]
         previous = end
     return "".join(parts) + command[previous:]

@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 
+from tools.shell_heredoc import LOCAL_EXECUTION_HEREDOC_CONSUMER_RE, inert_heredoc_body_ranges
 from utils import env_var_enabled
 
 # Log-record parity with the origin module.
@@ -320,20 +321,33 @@ def _scan_shell(command: str, background: bool = False) -> Iterator[tuple[str, i
         i = end
 
 
+def _mask_local_inert_heredocs(command: str) -> str:
+    """Same-length copy of *command* with heredoc bodies the local shell never executes blanked
+    (newlines kept): an ``ssh ... <<'EOF'`` script runs on the remote host and interpreter
+    heredocs are plain data, so their lines are not local command words and must not trigger the
+    local sudo prompt or the ``-S`` rewrite."""
+    chars = list(command)
+    for start, end in inert_heredoc_body_ranges(command, LOCAL_EXECUTION_HEREDOC_CONSUMER_RE):
+        chars[start:end] = [char if char == "\n" else " " for char in command[start:end]]
+    return "".join(chars)
+
+
 def _rewrite_real_sudo_invocations(command: str) -> tuple[str, int]:
     """Rewrite literal sudo executable words, preserving their spelling and arguments.
 
     Follow ordinary env options/assignments, not shell payloads or env split strings:
     interpreting those requires a second parser and rewriting inside another quoting layer.
+    Heredoc bodies the local shell does not execute are masked first (``_mask_local_inert_heredocs``).
     """
     out: list[str] = []
     sudo_count = 0
     in_env = env_operand = env_options = False
     value_options = {"-u", "--unset", "-C", "--chdir", "-a", "--argv0"}
     flag_options = {"-i", "--ignore-environment", "-0", "--null", "-v", "--debug"}
-    for kind, start, end, at_start in _scan_shell(command):
-        text = command[start:end]
-        out.append(text)
+    masked = _mask_local_inert_heredocs(command)
+    for kind, start, end, at_start in _scan_shell(masked):
+        text = masked[start:end]
+        out.append(command[start:end])
         if kind == "op" or (kind == "ws" and text == "\n"):
             in_env = env_operand = env_options = False
         if kind != "word" or not (at_start or in_env):
