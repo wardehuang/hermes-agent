@@ -1,6 +1,8 @@
 import type { ModelOptionProvider, ModelOptionsResult } from '@hermes/shared'
 import { QueryClient, type QueryKey, replaceEqualDeep } from '@tanstack/react-query'
 
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
+
 // Shared React Query client. Lives in its own module (not main.tsx) so non-React
 // code — e.g. the profile store on a gateway swap — can invalidate cached,
 // profile-scoped settings without importing the app entry point.
@@ -93,10 +95,36 @@ const PROFILE_INDEPENDENT_QUERY_ROOTS = new Set<string>([
   'contrib-logs-tail'
 ])
 
+// Temporary diagnostics: which model-options / slash-completions queries a profile switch invalidates and refetches.
+// `invalidated=true` on a fetch line means an invalidation started it rather than a mount or a new key.
+const SWITCH_WATCHED_QUERY_ROOTS = new Set<unknown>(['model-options', 'slash-completions'])
+
+queryClient.getQueryCache().subscribe(event => {
+  if (event.type !== 'updated' || (event.action.type !== 'fetch' && event.action.type !== 'invalidate')) {
+    return
+  }
+
+  const { query } = event
+
+  if (!SWITCH_WATCHED_QUERY_ROOTS.has(query.queryKey[0])) {
+    return
+  }
+
+  logSessionSwitch(
+    `query ${event.action.type} key=${JSON.stringify(query.queryKey)} observers=${query.getObserversCount()} invalidated=${query.state.isInvalidated}`
+  )
+})
+
 // Invalidate profile-scoped query caches on a profile / gateway switch, leaving
 // account/global caches intact. Replaces a keyless invalidateQueries() that
 // refetched everything (billing, marketplace, onboarding) on every switch.
 export function invalidateProfileScopedQueries(): void {
+  const watched = queryClient
+    .getQueryCache()
+    .findAll({ predicate: query => SWITCH_WATCHED_QUERY_ROOTS.has(query.queryKey[0]) })
+    .map(query => `${JSON.stringify(query.queryKey)} observers=${query.getObserversCount()}`)
+
+  logSessionSwitch(`profile-scoped invalidate watched=[${watched.join('; ')}] ${sessionSwitchCaller()}`)
   void queryClient.invalidateQueries({
     predicate: query => {
       const root = query.queryKey[0]

@@ -1,6 +1,7 @@
 import type { ModelCapabilities, ModelOptionProvider, ModelOptionsResult } from '@hermes/shared'
 
 import { getGlobalModelOptions, type HermesGateway } from '@/hermes'
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
 
 type CatalogProviderIdentity = Partial<Pick<ModelOptionProvider, 'aliases' | 'name'>> &
   Pick<ModelOptionProvider, 'slug'>
@@ -152,6 +153,10 @@ export async function requestModelOptions({
   sessionId
 }: ModelOptionsRequest): Promise<ModelOptionsResult> {
   const dispatch = request ?? (gateway ? gateway.request.bind(gateway) : null)
+
+  logSessionSwitch(
+    `model.options requested profile=${profile ?? 'none'} session=${sessionId ?? 'none'} owner-routed=${Boolean(request)} gateway=${Boolean(gateway)} refresh=${refresh} ${sessionSwitchCaller()}`
+  )
 
   if (dispatch) {
     const params: Record<string, unknown> = {}

@@ -20,9 +20,9 @@ export function sessionSwitchCaller(): string {
   return frames.join(' | ').slice(0, 700)
 }
 
-/** One phase of a `setup.*` RPC, timed from the caller's own `performance.now()` at entry, so the gap between the status hook asking and the backend answering can be placed in the renderer, the route resolution, or the socket. */
+/** One phase of a `setup.*`, `model.options` or `commands.catalog` RPC (the requests that share the serial socket lane right after a profile switch), timed from the caller's own `performance.now()` at entry, so the gap between the caller asking and the backend answering can be placed in the renderer, the route resolution, or the socket. */
 export function logSetupRpcPhase(method: string, phase: string, startedAt: number): void {
-  if (method.startsWith('setup.')) {
+  if (method.startsWith('setup.') || method === 'model.options' || method === 'commands.catalog') {
     logSessionSwitch(`rpc ${method} ${phase} +${Math.round(performance.now() - startedAt)}ms`)
   }
 }

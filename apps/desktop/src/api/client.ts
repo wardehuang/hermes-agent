@@ -427,7 +427,7 @@ export class HermesGateway extends JsonRpcGatewayClient {
     const deadline = requestDeadline(timeoutMs)
     const startedAt = performance.now()
 
-    logSetupRpcPhase(method, `gateway-enter ready=${this.readiness.ready} state=${this.connectionState} canonical=${this.canonical}`, startedAt)
+    logSetupRpcPhase(method, `gateway-enter ready=${this.readiness.ready} state=${this.connectionState} canonical=${this.canonical} profile=${String(params.profile ?? 'none')} sid=${String(params.session_id ?? 'none')}`, startedAt)
 
     // Once readiness has settled (always, on a native dial) a request sends at once, as on main.
     if (!this.readiness.ready) {

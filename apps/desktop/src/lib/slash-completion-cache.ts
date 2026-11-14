@@ -1,6 +1,7 @@
 import { atom } from 'nanostores'
 
 import { queryClient } from '@/lib/query-client'
+import { logSessionSwitch, sessionSwitchCaller } from '@/lib/session-switch-log'
 import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 
 // Root for every cached `/` completion response — the bare-slash catalog and
@@ -17,6 +18,10 @@ const SLASH_COMPLETIONS_TTL_MS = 60 * 60_000
 
 /** Serve a `/` completion response from cache, fetching only when stale. */
 export function cachedSlashCompletion<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  if (key.startsWith('catalog')) {
+    logSessionSwitch(`commands.catalog requested key=${key} cached=${hasCachedSlashCompletion(key)} ${sessionSwitchCaller()}`)
+  }
+
   return queryClient.fetchQuery({
     queryKey: [SLASH_COMPLETIONS_KEY, key],
     queryFn: fetcher,
