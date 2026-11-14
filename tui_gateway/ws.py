@@ -21,6 +21,7 @@ from agent.message_sanitization import _sanitize_surrogates
 from tui_gateway.event_replay import replay_epoch
 from tui_gateway.transport import serialize_frame
 from tui_gateway.ws_legacy_fallback import dispatch_legacy, legacy_fallback_allowed
+from tui_gateway.ws_rpc_timing import ensure_loop_lag_probe, log_rpc, note_received
 
 _log = logging.getLogger(__name__)
 
@@ -386,6 +387,16 @@ def _authority_connection(ws: Any, transport: WSTransport, auth_identity: dict |
 
 
 async def _dispatch_request(authority_connection: Any, req: Any, req_method: Any, transport: WSTransport) -> Any:
+    """Times ``_route_request`` for the profile-switch diagnostics in ``ws_rpc_timing`` (temporary)."""
+    ensure_loop_lag_probe()
+    started = time.perf_counter()
+    try:
+        return await _route_request(authority_connection, req, req_method, transport)
+    finally:
+        log_rpc(req, req_method, time.perf_counter() - started)
+
+
+async def _route_request(authority_connection: Any, req: Any, req_method: Any, transport: WSTransport) -> Any:
     """One request through the authority when attached, else the legacy dispatcher. A request from the
     local Desktop runs as work for it (the welcome trial and onboarding key on that), and so do the
     threads it hands off to: ``to_thread`` and the legacy pool copy this context."""
@@ -705,6 +716,7 @@ async def handle_ws(ws: Any, *, auth_identity: dict | None = None, subprotocol: 
                 await _reply({"jsonrpc": "2.0", "result": {"ok": True}, "id": req_id}, "send_failed_after_heartbeat",
                              "ws heartbeat reply send failed peer=%s id=%s", peer, req_id)
                 continue
+            note_received(req)
             await _queue_request(req)
     except _SendFailed:
         pass

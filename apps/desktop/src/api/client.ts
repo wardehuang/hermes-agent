@@ -469,6 +469,7 @@ export class HermesGateway extends JsonRpcGatewayClient {
       let result: T
 
       try {
+        logSetupRpcPhase(method, 'wire-send', startedAt)
         result = await super.request<T>(wireMethod, prepared, remainingRequestBudget(deadline, signal), signal)
       } catch (error) {
         if (!this.protocol.retryableFence(prepared, error)) { throw error }
