@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from agent.message_metadata import DB_ROW_SNAPSHOT, MESSAGE_UID, message_uid_or_none
+from agent.message_metadata import DB_ROW_SNAPSHOT, MESSAGE_UID, is_compaction_scaffolding, message_uid_or_none
 from hermes_cli.timefmt import coerce_epoch
 from hermes_state_common import _id_chunks, _placeholders
 from hermes_state_messages import _parse_tool_calls
@@ -297,6 +297,36 @@ class SessionCoverageMixin:
             if len(matches) == 1:
                 resolved.append(matches[0])
         return list(dict.fromkeys(resolved))
+
+    def _carry_durable_timestamps(self, conn, session_id: str, messages: list[dict[str, Any]]) -> None:
+        """Give carried dicts that lack a timestamp the one their durable row already holds, so the re-inserted
+        copy keeps its original's display identity (see _display_dedupe_key).
+
+        Keyed by ``message_uid`` against the session's EARLIEST row with that uid in any state (live, compacted
+        or rewound): the result does not depend on whether the caller archived first, and a copy an earlier
+        generation re-stamped cannot donate its drifted value. A timestamp the dict already carries is never
+        overwritten, and a dict without a uid is not carried. Compaction scaffolding (summary carrier, in-flight
+        task restatement) is new at the boundary: it stays unstamped and the store gives it compaction time
+        (#121064).
+        """
+        pending: dict[str, list[dict[str, Any]]] = {}
+        for msg in messages:
+            uid = message_uid_or_none(msg)
+            if uid is None or is_compaction_scaffolding(msg):
+                continue
+            if coerce_epoch(msg.get("timestamp"), field="message timestamp") is None:
+                pending.setdefault(uid, []).append(msg)
+        for uids in _id_chunks(pending):
+            donated: set[str] = set()
+            for row in conn.execute(
+                    "SELECT message_uid, timestamp FROM messages "
+                    f"WHERE session_id = ? AND message_uid IN ({_placeholders(uids)}) ORDER BY id",
+                    (session_id, *uids)).fetchall():
+                if row["message_uid"] in donated:
+                    continue
+                donated.add(row["message_uid"])
+                for msg in pending[row["message_uid"]]:
+                    msg["timestamp"] = row["timestamp"]
 
     def _matching_active_ids(self, conn, session_id: str, message: dict[str, Any]) -> list[int]:
         """Active row ids whose stored role and content equal *message*. Empty when it was never persisted."""

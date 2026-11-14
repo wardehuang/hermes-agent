@@ -6634,6 +6634,14 @@ class TestHandoffTimestampCarry:
             parent_session_id=parent_id, child_session_id=child_id, source="test",
             messages=handoff, require_compression_lease=False)
 
+    @staticmethod
+    def _carried(db, session_id, *contents):
+        """Carried dicts as the gateway replays them: role, content and message_uid, no timestamp."""
+        rows = {r["content"]: r for r in db._conn.execute(
+            "SELECT role, content, message_uid FROM messages WHERE session_id = ? AND active = 1",
+            (session_id,)).fetchall()}
+        return [{"role": rows[c]["role"], "content": c, "message_uid": rows[c]["message_uid"]} for c in contents]
+
     def test_rotation_handoff_tail_appears_once_across_the_lineage(self, db):
         """The probe shape: parent tail rows re-inserted as child rows without a timestamp must
         not duplicate in the display lineage read."""
@@ -6642,10 +6650,7 @@ class TestHandoffTimestampCarry:
                            ("user", "u5"), ("assistant", "a5")):
             db.append_message("root", role=role, content=text)
         handoff = [{"role": "assistant", "content": "SUMMARY"},
-                   {"role": "user", "content": "u4"},
-                   {"role": "assistant", "content": "a4"},
-                   {"role": "user", "content": "u5"},
-                   {"role": "assistant", "content": "a5"}]
+                   *self._carried(db, "root", "u4", "a4", "u5", "a5")]
 
         self._rotate(db, "root", "child", handoff)
 
@@ -6665,7 +6670,7 @@ class TestHandoffTimestampCarry:
         for role, text in (("user", "u0"), ("assistant", "a0"),
                            ("user", "tail-u"), ("assistant", "tail-a")):
             db.append_message("root", role=role, content=text)
-        tail = [{"role": "user", "content": "tail-u"}, {"role": "assistant", "content": "tail-a"}]
+        tail = self._carried(db, "root", "tail-u", "tail-a")
         for child_id, parent_id in (("seg1", "root"), ("seg2", "seg1"), ("seg3", "seg2")):
             handoff = [{"role": "assistant", "content": f"SUMMARY-{child_id}"}, *tail]
             self._rotate(db, parent_id, child_id, handoff)
@@ -6689,13 +6694,13 @@ class TestHandoffTimestampCarry:
         db.append_message("root", role="user", content="ok")
         self._rotate(db, "root", "seg", [
             {"role": "assistant", "content": "SUMMARY"},
-            {"role": "user", "content": "ok"},  # carried: adopts the root row's timestamp
+            *self._carried(db, "root", "ok"),  # carried: adopts the root row's timestamp
         ])
         db.append_message("seg", role="user", content="ok")  # fresh turn: its own newer timestamp
         oks = [m for m in db.get_messages("seg", include_ancestors=True) if m["content"] == "ok"]
         assert len(oks) == 2
 
-    def test_carry_parent_timestamps_does_not_overwrite_carried_timestamp(self, db):
+    def test_carry_durable_timestamps_does_not_overwrite_carried_timestamp(self, db):
         """Handoff dicts that already carry a timestamp are never clobbered by the carry."""
         db.create_session("root", source="test")
         db.append_message("root", role="user", content="u1")
@@ -6725,9 +6730,12 @@ class TestHandoffTimestampCarry:
         for role, text in (("user", "u0"), ("assistant", "a0"),
                            ("user", "keep me"), ("assistant", "tail-a")):
             db.append_message("s", role=role, content=text)
-        carried = [{"role": "user", "content": "keep me"}, {"role": "assistant", "content": "tail-a"}]
+        original_ts = {m["content"]: m["timestamp"] for m in db.get_messages("s")}
+        carried = self._carried(db, "s", "keep me", "tail-a")
         db.archive_and_compact("s", [{"role": "assistant", "content": "S1"}, *carried], tail_count=2)
         first_ts = {m["content"]: m["timestamp"] for m in db.get_messages("s")}
+        assert first_ts["keep me"] == original_ts["keep me"]
+        assert first_ts["tail-a"] == original_ts["tail-a"]
 
         db.append_messages_batch(
             "s", [{"role": "user", "content": "u2"}, {"role": "assistant", "content": "a2"}])
