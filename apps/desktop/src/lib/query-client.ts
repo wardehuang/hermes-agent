@@ -115,10 +115,24 @@ queryClient.getQueryCache().subscribe(event => {
   )
 })
 
+// `modelOptionsQueryKey()` shape: ['model-options', <profile>, <session | 'global'>, ...owner]. Its siblings under
+// the same root carry no profile in the key: ['model-options', 'global'] (cron, fallback models) and
+// ['model-options', 'delegation', <scope>]. They still hold the previous profile's answer after a switch.
+function isProfileKeyedModelOptions(key: QueryKey): boolean {
+  return key[0] === 'model-options' && key.length >= 3 && key[1] !== 'delegation'
+}
+
 // Invalidate profile-scoped query caches on a profile / gateway switch, leaving
 // account/global caches intact. Replaces a keyless invalidateQueries() that
 // refetched everything (billing, marketplace, onboarding) on every switch.
-export function invalidateProfileScopedQueries(): void {
+//
+// `keepProfileKeyedModelOptions`: a plain profile switch on one backend may leave the profile-keyed model catalogs
+// alone, because the key already names the profile. Refetching them there only queues `model.options` calls ahead of
+// the readiness checks on the gateway's serial RPC lane. A connection or mode switch must not: a same-named profile
+// on another backend can share the key when no owner is part of it.
+export function invalidateProfileScopedQueries({
+  keepProfileKeyedModelOptions = false
+}: { keepProfileKeyedModelOptions?: boolean } = {}): void {
   const watched = queryClient
     .getQueryCache()
     .findAll({ predicate: query => SWITCH_WATCHED_QUERY_ROOTS.has(query.queryKey[0]) })
@@ -127,6 +141,10 @@ export function invalidateProfileScopedQueries(): void {
   logSessionSwitch(`profile-scoped invalidate watched=[${watched.join('; ')}] ${sessionSwitchCaller()}`)
   void queryClient.invalidateQueries({
     predicate: query => {
+      if (keepProfileKeyedModelOptions && isProfileKeyedModelOptions(query.queryKey)) {
+        return false
+      }
+
       const root = query.queryKey[0]
 
       return typeof root !== 'string' || !PROFILE_INDEPENDENT_QUERY_ROOTS.has(root)

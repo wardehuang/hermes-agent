@@ -470,8 +470,9 @@ $activeGatewayProfile.subscribe(value => {
   if (_lastRoutedProfile !== null && _lastRoutedProfile !== key) {
     // Profile-scoped settings + the unified session list are now stale.
     // Narrowed so account/marketplace/onboarding caches don't refetch on
-    // every profile switch.
-    invalidateProfileScopedQueries()
+    // every profile switch. The profile-keyed model catalogs stay: their key names the profile, and refetching them
+    // here only queues `model.options` calls ahead of the readiness checks on the gateway's serial RPC lane.
+    invalidateProfileScopedQueries({ keepProfileKeyedModelOptions: true })
     resetStarmapGraph()
     // setApiRequestProfile above already routes requests to the new profile.
     reloadOpenStarmapGraph()

@@ -56,6 +56,29 @@ describe('invalidateProfileScopedQueries', () => {
     expect(invalidated(['some-future-profile-query'])).toBe(true)
     expect(invalidated([{ scope: 'weird' }])).toBe(true)
   })
+
+  it('keeps profile-keyed model catalogs when asked, and still invalidates the profile-less model-options keys', () => {
+    const catalogs = [
+      ['model-options', 'coder', 'global'],
+      ['model-options', 'coder', 'local-session', 'owner', 'local']
+    ]
+
+    const stale = [['model-options', 'global'], ['model-options', 'delegation', 'coder'], ['skills-list']]
+
+    for (const key of [...catalogs, ...stale]) {
+      queryClient.setQueryData(key, { seeded: true })
+    }
+
+    invalidateProfileScopedQueries({ keepProfileKeyedModelOptions: true })
+
+    for (const key of catalogs) {
+      expect(invalidated(key), `${JSON.stringify(key)} should be left intact`).toBe(false)
+    }
+
+    for (const key of stale) {
+      expect(invalidated(key), `${JSON.stringify(key)} should be invalidated`).toBe(true)
+    }
+  })
 })
 
 const warm: ModelOptionsResult = {

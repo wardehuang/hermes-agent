@@ -67,7 +67,7 @@ import { captureOnboardingScope, requestOnboardingGateway } from '@/store/onboar
 
 interface DesktopOnboardingOverlayProps {
   enabled: boolean
-  onCompleted?: () => void
+  onCompleted?: OnboardingContext['onCompleted']
   profile: string
   requestGateway: OnboardingContext['requestGateway']
 }
@@ -226,7 +226,7 @@ export function DesktopOnboardingOverlay({
         scope.connectionId || (scope.profile && onboarding.targetScope)
           ? (method, params) => requestOnboardingGateway(scope, method, params)
           : requestGateway,
-      onCompleted: () => onCompletedRef.current?.()
+      onCompleted: outcome => onCompletedRef.current?.(outcome)
     }),
     [onboarding.targetScope, scope, requestGateway]
   )

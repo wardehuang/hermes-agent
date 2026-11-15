@@ -1283,10 +1283,15 @@ export function ContribWiring({ children }: { children: ReactNode }) {
       {!isAuxiliaryWindow() && (
         <DesktopOnboardingOverlay
           enabled={gatewayState === 'open'}
-          onCompleted={() => {
+          onCompleted={outcome => {
             void refreshHermesConfig()
             void refreshCurrentModel()
-            void queryClient.invalidateQueries({ queryKey: ['model-options'] })
+
+            // A readiness round that only re-confirmed a finished setup (every profile switch runs one) leaves the
+            // model catalog as it was; only a setup that just completed makes it stale.
+            if (!outcome?.alreadyConfigured) {
+              void queryClient.invalidateQueries({ queryKey: ['model-options'] })
+            }
           }}
           profile={activeGatewayProfile}
           requestGateway={requestGateway}

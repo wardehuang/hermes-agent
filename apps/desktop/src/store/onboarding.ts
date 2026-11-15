@@ -119,7 +119,10 @@ export interface DesktopOnboardingState {
 }
 
 export interface OnboardingContext {
-  onCompleted?: () => void
+  /** `alreadyConfigured`: the round only re-confirmed a setup that was complete before it ran, so nothing the app
+   *  caches about providers has gone stale. The paths that finish a setup (a provider connected, a model confirmed)
+   *  pass no outcome. */
+  onCompleted?: (outcome?: { alreadyConfigured: boolean }) => void
   profile?: string
   scope?: OnboardingScope
   requestGateway: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
@@ -867,6 +870,8 @@ export async function refreshOnboarding(ctx: OnboardingContext, stillWanted?: ()
   // A boot-race round (see shouldPreserveConfiguredOnBootRace) is recognized
   // from the module-level boot-generation clock, so there is nothing to
   // seed here — the round below just reads it.
+  // Read before the round: completeDesktopOnboarding() below writes `configured: true` itself.
+  const alreadyConfigured = $desktopOnboarding.get().configured === true
   const runtime = await checkRuntime(ctx)
 
   if (stillWanted && !stillWanted()) {
@@ -876,7 +881,7 @@ export async function refreshOnboarding(ctx: OnboardingContext, stillWanted?: ()
   if (runtime.ready) {
     completeDesktopOnboarding()
     await applyFreeTierIntro(ctx, runtime)
-    ctx.onCompleted?.()
+    ctx.onCompleted?.({ alreadyConfigured })
 
     return true
   }

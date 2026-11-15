@@ -154,7 +154,7 @@ describe('profile-scoped cache invalidation', () => {
   it('drops the memory graph cache when the active gateway profile changes', () => {
     $activeGatewayProfile.set('coder')
 
-    expect(invalidateProfileScopedQueries).toHaveBeenCalled()
+    expect(invalidateProfileScopedQueries).toHaveBeenCalledWith({ keepProfileKeyedModelOptions: true })
     expect(resetStarmapGraph).toHaveBeenCalledTimes(1)
   })
 })
