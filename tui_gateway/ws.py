@@ -102,7 +102,10 @@ _WS_DISPATCH_QUEUE_MAX = 256
 # transcript, so running them through the serial control lane turns an inexpensive interrupt or
 # control read behind them into a client timeout.  Keep the exception deliberately narrow: mutating
 # RPCs still retain arrival order, and no more than two expensive reads consume a connection.
-_WS_CONCURRENT_READ_METHODS = frozenset({"session.context_breakdown"})
+# ``setup.status`` / ``setup.runtime_check`` (gateway/session_readiness.py) run in a worker thread and touch no
+# session state, but queued behind a ``model.options`` / ``commands.catalog`` read on the serial lane they stall the
+# profile switch they gate.
+_WS_CONCURRENT_READ_METHODS = frozenset({"session.context_breakdown", "setup.status", "setup.runtime_check"})
 _WS_CONCURRENT_READ_LIMIT = 2
 # Reads admitted beyond the running ones; one more parks the reader (as the serial lane did).
 _WS_WAITING_READ_LIMIT = 8
@@ -603,12 +606,17 @@ async def handle_ws(ws: Any, *, auth_identity: dict | None = None, subprotocol: 
         """Dispatch controls in arrival order; bounded expensive read-only projections run alongside them."""
         while (req := await _next_request()) is not stop:
             req_method = req.get("method") if isinstance(req, dict) else None
-            if req_method in _WS_CONCURRENT_READ_METHODS:
+            is_read = req_method in _WS_CONCURRENT_READ_METHODS
+            # Held first: a readiness check names a profile hot-serve may still be building, and must wait for it
+            # as on the serial lane instead of being refused retryably.
+            if await _hold_for_profile_start(req):
+                if is_read:
+                    read_admission.release()  # the held lane dispatches it, so no read task will release this
+                continue
+            if is_read:
                 task = asyncio.create_task(_dispatch_concurrent_read(req))
                 concurrent_reads.add(task)
                 task.add_done_callback(_finish_concurrent_read)
-                continue
-            if await _hold_for_profile_start(req):
                 continue
             await _dispatch_one(req)
 

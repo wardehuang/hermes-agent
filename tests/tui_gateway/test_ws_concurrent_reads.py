@@ -152,3 +152,23 @@ async def test_a_failed_read_reply_does_not_cancel_the_running_control(rig):
     await asyncio.wait_for(task, 10)
     assert "cancelled:submit" not in log and "done:submit" in log
     assert log[-1] == "teardown"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["setup.status", "setup.runtime_check"])
+async def test_setup_readiness_does_not_queue_behind_a_serial_handler(rig, method):
+    """A profile switch fires a ``model.options`` read and then the readiness checks: the checks answer
+    while the catalog read still holds the serial lane."""
+    sock, gates, log = rig
+    gates["model.options"] = release = asyncio.Event()
+    task = asyncio.create_task(ws_mod.handle_ws(sock))
+    sock.inbound.put_nowait(rpc("catalog", "model.options"))
+    assert await settle(lambda: "start:catalog" in log)
+    sock.inbound.put_nowait(rpc("ready", method))
+    try:
+        assert await settle(lambda: "done:ready" in log), "the readiness check queued behind the serial lane"
+        assert "done:catalog" not in log
+    finally:
+        release.set()
+    sock.inbound.put_nowait(None)
+    await asyncio.wait_for(task, 10)
