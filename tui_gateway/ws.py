@@ -102,10 +102,13 @@ _WS_DISPATCH_QUEUE_MAX = 256
 # transcript, so running them through the serial control lane turns an inexpensive interrupt or
 # control read behind them into a client timeout.  Keep the exception deliberately narrow: mutating
 # RPCs still retain arrival order, and no more than two expensive reads consume a connection.
+# ``session.account_usage`` waits on a provider's usage API (a plugin hook up to its deadline).
 # ``setup.status`` / ``setup.runtime_check`` (gateway/session_readiness.py) run in a worker thread and touch no
 # session state, but queued behind a ``model.options`` / ``commands.catalog`` read on the serial lane they stall the
 # profile switch they gate.
-_WS_CONCURRENT_READ_METHODS = frozenset({"session.context_breakdown", "setup.status", "setup.runtime_check"})
+_WS_CONCURRENT_READ_METHODS = frozenset({
+    "session.context_breakdown", "session.transcript", "session.account_usage",
+    "setup.status", "setup.runtime_check"})
 _WS_CONCURRENT_READ_LIMIT = 2
 # Reads admitted beyond the running ones; one more parks the reader (as the serial lane did).
 _WS_WAITING_READ_LIMIT = 8
@@ -404,6 +407,11 @@ async def _route_request(authority_connection: Any, req: Any, req_method: Any, t
     local Desktop runs as work for it (the welcome trial and onboarding key on that), and so do the
     threads it hands off to: ``to_thread`` and the legacy pool copy this context."""
     from hermes_cli.process_identity import serving_local_desktop
+    from tui_gateway.server_requests import resolve_pinned_response
+    if authority_connection is not None and resolve_pinned_response(req, transport):
+        # The answer to a request a sidecar RPC sent back to THIS socket (vault.preview.fill's page
+        # scripts); the authority's own registry never holds those ids.
+        return None
     with serving_local_desktop(getattr(transport, "desktop_local", False)):
         if authority_connection is None:
             return await asyncio.to_thread(server.dispatch, req, transport)
